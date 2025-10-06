@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using TouriMate.Data;
 
@@ -11,9 +12,11 @@ using TouriMate.Data;
 namespace tourimate.Migrations
 {
     [DbContext(typeof(TouriMateDbContext))]
-    partial class TouriMateDbContextModelSnapshot : ModelSnapshot
+    [Migration("20251006150303_AddDivisions")]
+    partial class AddDivisions
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -217,9 +220,6 @@ namespace tourimate.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
-                    b.Property<int?>("ParentCode")
-                        .HasColumnType("int");
-
                     b.Property<string>("Type")
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
@@ -228,9 +228,6 @@ namespace tourimate.Migrations
                         .HasColumnType("datetime2");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("Code")
-                        .IsUnique();
 
                     b.ToTable("Divisions");
                 });
@@ -697,35 +694,35 @@ namespace tourimate.Migrations
                         new
                         {
                             Id = new Guid("11111111-1111-1111-1111-111111111111"),
-                            CreatedAt = new DateTime(2025, 10, 6, 16, 34, 15, 732, DateTimeKind.Utc).AddTicks(5043),
+                            CreatedAt = new DateTime(2025, 10, 6, 15, 3, 3, 153, DateTimeKind.Utc).AddTicks(2167),
                             Description = "Traditional Vietnamese food and drinks",
                             IsActive = true,
                             IsDeleted = false,
                             Name = "Food & Beverages",
                             SortOrder = 1,
-                            UpdatedAt = new DateTime(2025, 10, 6, 16, 34, 15, 732, DateTimeKind.Utc).AddTicks(5044)
+                            UpdatedAt = new DateTime(2025, 10, 6, 15, 3, 3, 153, DateTimeKind.Utc).AddTicks(2167)
                         },
                         new
                         {
                             Id = new Guid("22222222-2222-2222-2222-222222222222"),
-                            CreatedAt = new DateTime(2025, 10, 6, 16, 34, 15, 732, DateTimeKind.Utc).AddTicks(5050),
+                            CreatedAt = new DateTime(2025, 10, 6, 15, 3, 3, 153, DateTimeKind.Utc).AddTicks(2173),
                             Description = "Handmade crafts and artisan products",
                             IsActive = true,
                             IsDeleted = false,
                             Name = "Handicrafts",
                             SortOrder = 2,
-                            UpdatedAt = new DateTime(2025, 10, 6, 16, 34, 15, 732, DateTimeKind.Utc).AddTicks(5051)
+                            UpdatedAt = new DateTime(2025, 10, 6, 15, 3, 3, 153, DateTimeKind.Utc).AddTicks(2173)
                         },
                         new
                         {
                             Id = new Guid("33333333-3333-3333-3333-333333333333"),
-                            CreatedAt = new DateTime(2025, 10, 6, 16, 34, 15, 732, DateTimeKind.Utc).AddTicks(5055),
+                            CreatedAt = new DateTime(2025, 10, 6, 15, 3, 3, 153, DateTimeKind.Utc).AddTicks(2177),
                             Description = "Traditional clothing and fabrics",
                             IsActive = true,
                             IsDeleted = false,
                             Name = "Textiles",
                             SortOrder = 3,
-                            UpdatedAt = new DateTime(2025, 10, 6, 16, 34, 15, 732, DateTimeKind.Utc).AddTicks(5055)
+                            UpdatedAt = new DateTime(2025, 10, 6, 15, 3, 3, 153, DateTimeKind.Utc).AddTicks(2178)
                         });
                 });
 
@@ -1203,38 +1200,38 @@ namespace tourimate.Migrations
                     b.HasData(
                         new
                         {
-                            Id = new Guid("8cac5bdc-0011-4e72-a403-92ec9d44b266"),
+                            Id = new Guid("8ceea59f-e4ef-48dc-8dc2-4391e00016b4"),
                             Category = "Finance",
-                            CreatedAt = new DateTime(2025, 10, 6, 16, 34, 15, 732, DateTimeKind.Utc).AddTicks(5377),
+                            CreatedAt = new DateTime(2025, 10, 6, 15, 3, 3, 153, DateTimeKind.Utc).AddTicks(2485),
                             Description = "Commission rate for tour bookings",
                             IsDeleted = false,
                             IsPublic = true,
                             Key = "CommissionRate_Tours",
-                            UpdatedAt = new DateTime(2025, 10, 6, 16, 34, 15, 732, DateTimeKind.Utc).AddTicks(5377),
+                            UpdatedAt = new DateTime(2025, 10, 6, 15, 3, 3, 153, DateTimeKind.Utc).AddTicks(2485),
                             Value = "0.15"
                         },
                         new
                         {
-                            Id = new Guid("8e092e40-8154-4674-9e3f-6c1e19d9872e"),
+                            Id = new Guid("a213d130-5554-4b43-ac2f-1c57b8059b8c"),
                             Category = "Finance",
-                            CreatedAt = new DateTime(2025, 10, 6, 16, 34, 15, 732, DateTimeKind.Utc).AddTicks(5392),
+                            CreatedAt = new DateTime(2025, 10, 6, 15, 3, 3, 153, DateTimeKind.Utc).AddTicks(2489),
                             Description = "Commission rate for product sales",
                             IsDeleted = false,
                             IsPublic = true,
                             Key = "CommissionRate_Products",
-                            UpdatedAt = new DateTime(2025, 10, 6, 16, 34, 15, 732, DateTimeKind.Utc).AddTicks(5392),
+                            UpdatedAt = new DateTime(2025, 10, 6, 15, 3, 3, 153, DateTimeKind.Utc).AddTicks(2489),
                             Value = "0.15"
                         },
                         new
                         {
-                            Id = new Guid("0e8bb227-8418-4fdf-be26-19c968ef9682"),
+                            Id = new Guid("36b792a9-ebad-4a48-a4b5-e8796b678317"),
                             Category = "Security",
-                            CreatedAt = new DateTime(2025, 10, 6, 16, 34, 15, 732, DateTimeKind.Utc).AddTicks(5397),
+                            CreatedAt = new DateTime(2025, 10, 6, 15, 3, 3, 153, DateTimeKind.Utc).AddTicks(2505),
                             Description = "OTP expiry time in minutes",
                             IsDeleted = false,
                             IsPublic = false,
                             Key = "OTP_ExpiryMinutes",
-                            UpdatedAt = new DateTime(2025, 10, 6, 16, 34, 15, 732, DateTimeKind.Utc).AddTicks(5397),
+                            UpdatedAt = new DateTime(2025, 10, 6, 15, 3, 3, 153, DateTimeKind.Utc).AddTicks(2505),
                             Value = "5"
                         });
                 });
@@ -1314,9 +1311,6 @@ namespace tourimate.Migrations
                     b.Property<decimal>("Price")
                         .HasColumnType("decimal(18,2)");
 
-                    b.Property<int?>("ProvinceCode")
-                        .HasColumnType("int");
-
                     b.Property<string>("ShortDescription")
                         .IsRequired()
                         .HasMaxLength(500)
@@ -1351,9 +1345,6 @@ namespace tourimate.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<int>("ViewCount")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("WardCode")
                         .HasColumnType("int");
 
                     b.HasKey("Id");

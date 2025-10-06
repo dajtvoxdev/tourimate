@@ -13,6 +13,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import AdminLayout from "./AdminLayout";
+import CreateTourForm from "./CreateTourForm";
 import { tourApi } from "../src/lib/tourApi";
 import { TourListDto, TourSearchRequest, CreateTourRequest, UpdateTourRequest } from "../src/lib/types/tour";
 import { 
@@ -69,6 +70,11 @@ const AdminTourManagement = () => {
     isFeatured: false
   });
 
+  // Image upload state
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [imageUrls, setImageUrls] = useState<string[]>([]);
+
   useEffect(() => {
     loadTours();
   }, [searchParams]);
@@ -113,7 +119,13 @@ const AdminTourManagement = () => {
 
   const handleCreateTour = async () => {
     try {
-      await tourApi.createTour(formData);
+      const payload: any = { ...formData };
+      if (imageUrls.length > 0) {
+        payload.imageUrls = imageUrls;
+      }
+      // Do not send legacy JSON images when imageUrls present
+      if (payload.imageUrls) delete payload.images;
+      await tourApi.createTour(payload);
       toast.success("Tạo tour thành công");
       setIsCreateDialogOpen(false);
       resetForm();
@@ -128,7 +140,7 @@ const AdminTourManagement = () => {
     if (!selectedTour) return;
     
     try {
-      const updateData: UpdateTourRequest = {
+      const updateData: any = {
         title: formData.title,
         description: formData.description,
         shortDescription: formData.shortDescription,
@@ -141,6 +153,9 @@ const AdminTourManagement = () => {
         difficulty: formData.difficulty,
         isFeatured: formData.isFeatured
       };
+      if (imageUrls.length > 0) {
+        updateData.imageUrls = imageUrls;
+      }
       
       await tourApi.updateTour(selectedTour.id, updateData);
       toast.success("Cập nhật tour thành công");
@@ -197,6 +212,9 @@ const AdminTourManagement = () => {
       isFeatured: false
     });
     setSelectedTour(null);
+    setSelectedFiles([]);
+    setImageUrls([]);
+    setUploading(false);
   };
 
   const openEditDialog = (tour: TourListDto) => {
@@ -219,7 +237,50 @@ const AdminTourManagement = () => {
       terms: "",
       isFeatured: tour.isFeatured
     });
+    // If backend provides imageUrls in DTOs, prefer them for preview
+    // @ts-ignore optional field from backend
+    if ((tour as any).imageUrls && Array.isArray((tour as any).imageUrls)) {
+      setImageUrls((tour as any).imageUrls as string[]);
+    } else {
+      setImageUrls([]);
+    }
     setIsEditDialogOpen(true);
+  };
+  const onFilesSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    setSelectedFiles(files);
+  };
+
+  const uploadImages = async () => {
+    const token = localStorage.getItem("accessToken");
+    if (!token) {
+      toast.error("Bạn cần đăng nhập");
+      return;
+    }
+    if (selectedFiles.length === 0) {
+      toast.error("Vui lòng chọn ít nhất một ảnh");
+      return;
+    }
+    const form = new FormData();
+    selectedFiles.forEach(f => form.append("files", f));
+    try {
+      setUploading(true);
+      const res = await fetch(((import.meta as any).env?.VITE_API_BASE_URL || "https://localhost:7181") + "/api/media/uploads", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: form,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data || res.statusText);
+      const urls: string[] = data.urls || [];
+      setImageUrls(urls);
+      toast.success("Tải ảnh lên thành công");
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || "Không thể tải ảnh");
+    } finally {
+      setUploading(false);
+    }
   };
 
   const openViewDialog = (tour: TourListDto) => {
@@ -309,239 +370,43 @@ const AdminTourManagement = () => {
                       Tạo Tour
                     </Button>
                   </DialogTrigger>
-                  <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                  <DialogContent className="max-w-[1200px] w-[95vw] h-[90vh] flex flex-col">
                     <DialogHeader>
                       <DialogTitle>Tạo Tour Mới</DialogTitle>
                       <DialogDescription>
                         Điền thông tin để tạo tour mới
                       </DialogDescription>
                     </DialogHeader>
-                    
-                    <Tabs defaultValue="basic" className="w-full">
-                      <TabsList className="grid w-full grid-cols-4">
-                        <TabsTrigger value="basic">Thông tin cơ bản</TabsTrigger>
-                        <TabsTrigger value="details">Chi tiết</TabsTrigger>
-                        <TabsTrigger value="content">Nội dung</TabsTrigger>
-                        <TabsTrigger value="settings">Cài đặt</TabsTrigger>
-                      </TabsList>
-                      
-                      <TabsContent value="basic" className="space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="col-span-2">
-                            <Label htmlFor="title">Tên Tour *</Label>
-                            <Input
-                              id="title"
-                              value={formData.title}
-                              onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-                              placeholder="Nhập tên tour"
-                            />
-                          </div>
-                          <div className="col-span-2">
-                            <Label htmlFor="shortDescription">Mô tả ngắn *</Label>
-                            <Textarea
-                              id="shortDescription"
-                              value={formData.shortDescription}
-                              onChange={(e) => setFormData(prev => ({ ...prev, shortDescription: e.target.value }))}
-                              placeholder="Mô tả ngắn gọn về tour"
-                              rows={3}
-                            />
-                          </div>
-                          <div>
-                            <Label htmlFor="location">Địa điểm *</Label>
-                            <Input
-                              id="location"
-                              value={formData.location}
-                              onChange={(e) => setFormData(prev => ({ ...prev, location: e.target.value }))}
-                              placeholder="Ví dụ: Hà Nội, Việt Nam"
-                            />
-                          </div>
-                          <div>
-                            <Label htmlFor="category">Danh mục *</Label>
-                            <Select value={formData.category} onValueChange={(value) => setFormData(prev => ({ ...prev, category: value }))}>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Chọn danh mục" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="adventure">Phiêu lưu</SelectItem>
-                                <SelectItem value="cultural">Văn hóa</SelectItem>
-                                <SelectItem value="nature">Thiên nhiên</SelectItem>
-                                <SelectItem value="food">Ẩm thực</SelectItem>
-                                <SelectItem value="historical">Lịch sử</SelectItem>
-                                <SelectItem value="religious">Tôn giáo</SelectItem>
-                                <SelectItem value="beach">Biển</SelectItem>
-                                <SelectItem value="mountain">Núi</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <div>
-                            <Label htmlFor="duration">Thời gian (ngày) *</Label>
-                            <Input
-                              id="duration"
-                              type="number"
-                              min="1"
-                              value={formData.duration}
-                              onChange={(e) => setFormData(prev => ({ ...prev, duration: parseInt(e.target.value) || 1 }))}
-                            />
-                          </div>
-                          <div>
-                            <Label htmlFor="maxParticipants">Số người tối đa *</Label>
-                            <Input
-                              id="maxParticipants"
-                              type="number"
-                              min="1"
-                              value={formData.maxParticipants}
-                              onChange={(e) => setFormData(prev => ({ ...prev, maxParticipants: parseInt(e.target.value) || 1 }))}
-                            />
-                          </div>
-                          <div>
-                            <Label htmlFor="price">Giá *</Label>
-                            <Input
-                              id="price"
-                              type="number"
-                              min="0"
-                              step="1000"
-                              value={formData.price}
-                              onChange={(e) => setFormData(prev => ({ ...prev, price: parseFloat(e.target.value) || 0 }))}
-                            />
-                          </div>
-                          <div>
-                            <Label htmlFor="currency">Tiền tệ</Label>
-                            <Select value={formData.currency} onValueChange={(value) => setFormData(prev => ({ ...prev, currency: value }))}>
-                              <SelectTrigger>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="VND">VND</SelectItem>
-                                <SelectItem value="USD">USD</SelectItem>
-                                <SelectItem value="EUR">EUR</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <div>
-                            <Label htmlFor="difficulty">Độ khó *</Label>
-                            <Select value={formData.difficulty} onValueChange={(value) => setFormData(prev => ({ ...prev, difficulty: value }))}>
-                              <SelectTrigger>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="Easy">Dễ</SelectItem>
-                                <SelectItem value="Moderate">Trung bình</SelectItem>
-                                <SelectItem value="Challenging">Khó</SelectItem>
-                                <SelectItem value="Expert">Chuyên gia</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </div>
-                      </TabsContent>
-                      
-                      <TabsContent value="details" className="space-y-4">
-                        <div className="space-y-4">
-                          <div>
-                            <Label htmlFor="images">Hình ảnh (JSON)</Label>
-                            <Textarea
-                              id="images"
-                              value={formData.images}
-                              onChange={(e) => setFormData(prev => ({ ...prev, images: e.target.value }))}
-                              placeholder='["url1.jpg", "url2.jpg"]'
-                              rows={3}
-                            />
-                            <p className="text-sm text-gray-500 mt-1">Nhập danh sách URL hình ảnh dưới dạng JSON array</p>
-                          </div>
-                          <div>
-                            <Label htmlFor="itinerary">Lịch trình (JSON)</Label>
-                            <Textarea
-                              id="itinerary"
-                              value={formData.itinerary}
-                              onChange={(e) => setFormData(prev => ({ ...prev, itinerary: e.target.value }))}
-                              placeholder='[{"day": 1, "title": "Ngày 1", "description": "..."}]'
-                              rows={5}
-                            />
-                            <p className="text-sm text-gray-500 mt-1">Nhập lịch trình chi tiết dưới dạng JSON array</p>
-                          </div>
-                        </div>
-                      </TabsContent>
-                      
-                      <TabsContent value="content" className="space-y-4">
-                        <div className="space-y-4">
-                          <div>
-                            <Label htmlFor="description">Mô tả chi tiết *</Label>
-                            <Textarea
-                              id="description"
-                              value={formData.description}
-                              onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                              placeholder="Mô tả chi tiết về tour"
-                              rows={6}
-                            />
-                          </div>
-                          <div>
-                            <Label htmlFor="includes">Bao gồm (JSON)</Label>
-                            <Textarea
-                              id="includes"
-                              value={formData.includes}
-                              onChange={(e) => setFormData(prev => ({ ...prev, includes: e.target.value }))}
-                              placeholder='["Vé tham quan", "Ăn trưa", "Hướng dẫn viên"]'
-                              rows={4}
-                            />
-                            <p className="text-sm text-gray-500 mt-1">Nhập danh sách dịch vụ bao gồm dưới dạng JSON array</p>
-                          </div>
-                          <div>
-                            <Label htmlFor="excludes">Không bao gồm (JSON)</Label>
-                            <Textarea
-                              id="excludes"
-                              value={formData.excludes}
-                              onChange={(e) => setFormData(prev => ({ ...prev, excludes: e.target.value }))}
-                              placeholder='["Vé máy bay", "Khách sạn", "Chi phí cá nhân"]'
-                              rows={4}
-                            />
-                            <p className="text-sm text-gray-500 mt-1">Nhập danh sách dịch vụ không bao gồm dưới dạng JSON array</p>
-                          </div>
-                          <div>
-                            <Label htmlFor="terms">Điều khoản</Label>
-                            <Textarea
-                              id="terms"
-                              value={formData.terms}
-                              onChange={(e) => setFormData(prev => ({ ...prev, terms: e.target.value }))}
-                              placeholder="Điều khoản và điều kiện của tour"
-                              rows={4}
-                            />
-                          </div>
-                        </div>
-                      </TabsContent>
-                      
-                      <TabsContent value="settings" className="space-y-4">
-                        <div className="space-y-4">
-                          <div className="flex items-center justify-between">
-                            <div className="space-y-0.5">
-                              <Label htmlFor="isFeatured">Tour nổi bật</Label>
-                              <p className="text-sm text-gray-500">Hiển thị tour này ở vị trí nổi bật</p>
-                            </div>
-                            <Switch
-                              id="isFeatured"
-                              checked={formData.isFeatured}
-                              onCheckedChange={(checked) => setFormData(prev => ({ ...prev, isFeatured: checked }))}
-                            />
-                          </div>
-                          <Separator />
-                          <div className="text-sm text-gray-500">
-                            <p><strong>Lưu ý:</strong></p>
-                            <ul className="list-disc list-inside space-y-1 mt-2">
-                              <li>Các trường có dấu * là bắt buộc</li>
-                              <li>Tour sẽ được tạo với trạng thái "Chờ duyệt"</li>
-                              <li>Hướng dẫn viên sẽ được gán tự động dựa trên tài khoản đăng nhập</li>
-                            </ul>
-                          </div>
-                        </div>
-                      </TabsContent>
-                    </Tabs>
-                    
-                    <div className="flex justify-end space-x-2 mt-6">
-                      <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
-                        Hủy
-                      </Button>
-                      <Button onClick={handleCreateTour}>
-                        Tạo Tour
-                      </Button>
-                    </div>
+                    <CreateTourForm
+                      onCancel={() => setIsCreateDialogOpen(false)}
+                      onUploadImages={async (files) => {
+                        const token = localStorage.getItem("accessToken");
+                        const form = new FormData();
+                        files.forEach(f => form.append("files", f));
+                        const res = await fetch(((import.meta as any).env?.VITE_API_BASE_URL || "https://localhost:7181") + "/api/media/uploads", {
+                          method: "POST",
+                          headers: { Authorization: `Bearer ${token}` },
+                          body: form,
+                        });
+                        const data = await res.json();
+                        if (!res.ok) throw new Error(data || res.statusText);
+                        return (data.urls || []) as string[];
+                      }}
+                      onSubmit={async (payload) => {
+                        try {
+                          const request: any = { ...payload };
+                          if (request.imageUrls?.length) delete request.images;
+                          await tourApi.createTour(request);
+                          toast.success("Tạo tour thành công");
+                          setIsCreateDialogOpen(false);
+                          resetForm();
+                          loadTours();
+                        } catch (e) {
+                          console.error(e);
+                          toast.error("Không thể tạo tour");
+                        }
+                      }}
+                    />
                   </DialogContent>
                 </Dialog>
               </div>
@@ -657,7 +522,7 @@ const AdminTourManagement = () => {
 
         {/* Edit Tour Dialog */}
         <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-[1200px] w-[95vw] h-[90vh] flex flex-col">
             <DialogHeader>
               <DialogTitle>Chỉnh sửa Tour</DialogTitle>
               <DialogDescription>
@@ -665,7 +530,7 @@ const AdminTourManagement = () => {
               </DialogDescription>
             </DialogHeader>
             
-            <Tabs defaultValue="basic" className="w-full">
+            <Tabs defaultValue="basic" className="w-full flex-1 overflow-y-auto px-6 pb-24">
               <TabsList className="grid w-full grid-cols-4">
                 <TabsTrigger value="basic">Thông tin cơ bản</TabsTrigger>
                 <TabsTrigger value="details">Chi tiết</TabsTrigger>
@@ -785,15 +650,18 @@ const AdminTourManagement = () => {
               <TabsContent value="details" className="space-y-4">
                 <div className="space-y-4">
                   <div>
-                    <Label htmlFor="edit-images">Hình ảnh (JSON)</Label>
-                    <Textarea
-                      id="edit-images"
-                      value={formData.images}
-                      onChange={(e) => setFormData(prev => ({ ...prev, images: e.target.value }))}
-                      placeholder='["url1.jpg", "url2.jpg"]'
-                      rows={3}
-                    />
-                    <p className="text-sm text-gray-500 mt-1">Nhập danh sách URL hình ảnh dưới dạng JSON array</p>
+                    <Label>Hình ảnh</Label>
+                    <Input id="edit-images" type="file" accept="image/*" multiple onChange={onFilesSelected} />
+                    <div className="mt-3 flex flex-wrap gap-3">
+                      {imageUrls.map((url) => (
+                        <img key={url} src={url} alt="preview" className="w-20 h-20 object-cover rounded-lg border" />
+                      ))}
+                    </div>
+                    <div className="mt-3">
+                      <Button type="button" onClick={uploadImages} disabled={uploading || selectedFiles.length === 0}>
+                        {uploading ? "Đang tải ảnh..." : "Tải ảnh lên"}
+                      </Button>
+                    </div>
                   </div>
                   <div>
                     <Label htmlFor="edit-itinerary">Lịch trình (JSON)</Label>
@@ -881,7 +749,7 @@ const AdminTourManagement = () => {
               </TabsContent>
             </Tabs>
             
-            <div className="flex justify-end space-x-2 mt-6">
+            <div className="mt-0 sticky bottom-0 bg-white border-t pt-3 px-6 py-4 flex justify-end space-x-2">
               <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
                 Hủy
               </Button>

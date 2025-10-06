@@ -81,6 +81,15 @@ public class Tour : BaseEntity, IAuditableEntity
 
     public int ViewCount { get; set; } = 0;
 
+    // Division foreign key for geographic search
+    public int? DivisionCode { get; set; }
+    [ForeignKey("DivisionCode")]
+    public virtual Division? Division { get; set; }
+
+    // New explicit geographic mapping
+    public int? ProvinceCode { get; set; }
+    public int? WardCode { get; set; }
+
     // IAuditableEntity properties
     public Guid? CreatedBy { get; set; }
     public Guid? UpdatedBy { get; set; }

@@ -16,6 +16,7 @@ public class TourDto
     public string Category { get; set; } = string.Empty;
     public string Difficulty { get; set; } = string.Empty;
     public string? Images { get; set; }
+    public List<string>? ImageUrls { get; set; }
     public string? Itinerary { get; set; }
     public string? Includes { get; set; }
     public string? Excludes { get; set; }
@@ -23,6 +24,9 @@ public class TourDto
     public bool IsActive { get; set; }
     public bool IsFeatured { get; set; }
     public TourStatus Status { get; set; }
+    public int? DivisionCode { get; set; }
+    public int? ProvinceCode { get; set; }
+    public int? WardCode { get; set; }
     public Guid TourGuideId { get; set; }
     public string TourGuideName { get; set; } = string.Empty;
     public string TourGuideEmail { get; set; } = string.Empty;
@@ -46,9 +50,13 @@ public class TourListDto
     public string Category { get; set; } = string.Empty;
     public string Difficulty { get; set; } = string.Empty;
     public string? Images { get; set; }
+    public List<string>? ImageUrls { get; set; }
     public bool IsActive { get; set; }
     public bool IsFeatured { get; set; }
     public TourStatus Status { get; set; }
+    public int? DivisionCode { get; set; }
+    public int? ProvinceCode { get; set; }
+    public int? WardCode { get; set; }
     public Guid TourGuideId { get; set; }
     public string TourGuideName { get; set; } = string.Empty;
     public decimal AverageRating { get; set; }
@@ -72,6 +80,9 @@ public class TourSearchRequest
     public bool? IsFeatured { get; set; }
     public TourStatus? Status { get; set; }
     public Guid? TourGuideId { get; set; }
+    public int? DivisionCode { get; set; }
+    public int? ProvinceCode { get; set; }
+    public int? WardCode { get; set; }
     public string SortBy { get; set; } = "createdat";
     public string SortDirection { get; set; } = "desc";
     public int Page { get; set; } = 1;
@@ -100,11 +111,15 @@ public class CreateTourRequest
     public string Category { get; set; } = string.Empty;
     public string Difficulty { get; set; } = string.Empty;
     public string? Images { get; set; }
+    public List<string>? ImageUrls { get; set; }
     public string? Itinerary { get; set; }
     public string? Includes { get; set; }
     public string? Excludes { get; set; }
     public string? Terms { get; set; }
     public bool IsFeatured { get; set; }
+    public int? DivisionCode { get; set; }
+    public int? ProvinceCode { get; set; }
+    public int? WardCode { get; set; }
 }
 
 public class UpdateTourRequest
@@ -120,6 +135,7 @@ public class UpdateTourRequest
     public string? Category { get; set; }
     public string? Difficulty { get; set; }
     public string? Images { get; set; }
+    public List<string>? ImageUrls { get; set; }
     public string? Itinerary { get; set; }
     public string? Includes { get; set; }
     public string? Excludes { get; set; }
@@ -127,6 +143,9 @@ public class UpdateTourRequest
     public bool? IsActive { get; set; }
     public bool? IsFeatured { get; set; }
     public TourStatus? Status { get; set; }
+    public int? DivisionCode { get; set; }
+    public int? ProvinceCode { get; set; }
+    public int? WardCode { get; set; }
 }
 
 public class TourStatsDto

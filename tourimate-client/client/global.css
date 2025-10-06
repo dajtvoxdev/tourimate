@@ -115,6 +115,30 @@
 }
 
 @layer utilities {
+
+
+  /* Make CKEditor fill its container */
+  .ckeditor-container .ck-editor {
+    height: 100% !important;
+    display: flex;
+    flex-direction: column;
+  }
+  .ckeditor-container .ck-editor .ck-editor__top {
+    flex-shrink: 1;
+  }
+  .ckeditor-container .ck-editor .ck-editor__main {
+    flex-grow: 1;
+    position: relative;
+  }
+  .ckeditor-container .ck-editor .ck-editor__main .ck-editor__editable,
+  .ckeditor-container .ck-editor .ck-editor__main .ck-source-editing-area {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+  }
+
   .text-gradient-login {
     background: linear-gradient(90deg, #77d4a8 0%, #56a5dd 100%);
     -webkit-background-clip: text;

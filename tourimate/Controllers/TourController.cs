@@ -7,6 +7,7 @@ using Entities.Models;
 using Entities.Enums;
 using System.Security.Claims;
 using System.IdentityModel.Tokens.Jwt;
+using System.Text.Json;
 
 namespace TouriMate.Controllers;
 
@@ -45,6 +46,26 @@ public sealed class TourController : ControllerBase
         return user?.Role == UserRole.TourGuide || user?.Role == UserRole.Admin;
     }
 
+    private static List<string> DeserializeImageUrls(string? images)
+    {
+        if (string.IsNullOrWhiteSpace(images)) return new List<string>();
+        try
+        {
+            var list = JsonSerializer.Deserialize<List<string>>(images);
+            return list ?? new List<string>();
+        }
+        catch
+        {
+            return new List<string>();
+        }
+    }
+
+    private static string? SerializeImageUrls(List<string>? imageUrls)
+    {
+        if (imageUrls == null) return null;
+        return JsonSerializer.Serialize(imageUrls);
+    }
+
     private static TourDto MapToDto(Tour tour)
     {
         return new TourDto
@@ -61,6 +82,7 @@ public sealed class TourController : ControllerBase
             Category = tour.Category,
             Difficulty = tour.Difficulty,
             Images = tour.Images,
+            ImageUrls = DeserializeImageUrls(tour.Images),
             Itinerary = tour.Itinerary,
             Includes = tour.Includes,
             Excludes = tour.Excludes,
@@ -68,6 +90,9 @@ public sealed class TourController : ControllerBase
             IsActive = tour.IsActive,
             IsFeatured = tour.IsFeatured,
             Status = tour.Status,
+            DivisionCode = tour.DivisionCode,
+            ProvinceCode = tour.ProvinceCode,
+            WardCode = tour.WardCode,
             TourGuideId = tour.TourGuideId,
             TourGuideName = $"{tour.TourGuide.FirstName} {tour.TourGuide.LastName}".Trim(),
             TourGuideEmail = tour.TourGuide.Email,
@@ -94,9 +119,13 @@ public sealed class TourController : ControllerBase
             Category = tour.Category,
             Difficulty = tour.Difficulty,
             Images = tour.Images,
+            ImageUrls = DeserializeImageUrls(tour.Images),
             IsActive = tour.IsActive,
             IsFeatured = tour.IsFeatured,
             Status = tour.Status,
+            DivisionCode = tour.DivisionCode,
+            ProvinceCode = tour.ProvinceCode,
+            WardCode = tour.WardCode,
             TourGuideId = tour.TourGuideId,
             TourGuideName = $"{tour.TourGuide.FirstName} {tour.TourGuide.LastName}".Trim(),
             AverageRating = tour.AverageRating,
@@ -182,6 +211,11 @@ public sealed class TourController : ControllerBase
             if (request.TourGuideId.HasValue)
             {
                 query = query.Where(t => t.TourGuideId == request.TourGuideId.Value);
+            }
+
+            if (request.DivisionCode.HasValue)
+            {
+                query = query.Where(t => t.DivisionCode == request.DivisionCode.Value);
             }
 
             // Apply sorting
@@ -293,7 +327,7 @@ public sealed class TourController : ControllerBase
                 Currency = request.Currency,
                 Category = request.Category,
                 Difficulty = request.Difficulty,
-                Images = request.Images,
+                Images = request.ImageUrls != null ? SerializeImageUrls(request.ImageUrls) : request.Images,
                 Itinerary = request.Itinerary,
                 Includes = request.Includes,
                 Excludes = request.Excludes,
@@ -303,7 +337,10 @@ public sealed class TourController : ControllerBase
                 Status = TourStatus.PendingApproval,
                 TourGuideId = userId.Value,
                 CreatedBy = userId.Value,
-                UpdatedBy = userId.Value
+                UpdatedBy = userId.Value,
+                DivisionCode = request.DivisionCode,
+                ProvinceCode = request.ProvinceCode,
+                WardCode = request.WardCode
             };
 
             _db.Tours.Add(tour);
@@ -367,7 +404,9 @@ public sealed class TourController : ControllerBase
                 tour.Category = request.Category;
             if (!string.IsNullOrWhiteSpace(request.Difficulty))
                 tour.Difficulty = request.Difficulty;
-            if (request.Images != null)
+            if (request.ImageUrls != null)
+                tour.Images = SerializeImageUrls(request.ImageUrls);
+            else if (request.Images != null)
                 tour.Images = request.Images;
             if (request.Itinerary != null)
                 tour.Itinerary = request.Itinerary;
@@ -377,6 +416,9 @@ public sealed class TourController : ControllerBase
                 tour.Excludes = request.Excludes;
             if (request.Terms != null)
                 tour.Terms = request.Terms;
+            if (request.DivisionCode.HasValue) tour.DivisionCode = request.DivisionCode.Value;
+            if (request.ProvinceCode.HasValue) tour.ProvinceCode = request.ProvinceCode.Value;
+            if (request.WardCode.HasValue) tour.WardCode = request.WardCode.Value;
             if (request.IsActive.HasValue)
                 tour.IsActive = request.IsActive.Value;
             if (request.IsFeatured.HasValue)

@@ -123,7 +123,8 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) => {
       children: [
         { id: "general", label: "Tổng quan", icon: Settings, path: "/admin/settings" },
         { id: "system", label: "Hệ thống", icon: Cog, path: "/admin/settings/system" },
-        { id: "security", label: "Bảo mật", icon: Shield, path: "/admin/settings/security" }
+        { id: "security", label: "Bảo mật", icon: Shield, path: "/admin/settings/security" },
+        { id: "divisions", label: "Đơn vị hành chính", icon: MapPin, path: "/admin/divisions" }
       ]
     }
   ];

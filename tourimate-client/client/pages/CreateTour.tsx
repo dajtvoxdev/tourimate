@@ -6,6 +6,9 @@ import { Textarea } from "../components/ui/textarea";
 import { Button } from "../components/ui/button";
 import { Label } from "../components/ui/label";
 import { User, ChevronDown } from "lucide-react";
+import { toast } from "sonner";
+
+const API_BASE = (import.meta as any).env?.VITE_API_BASE_URL || "https://localhost:7181";
 
 export default function CreateTour() {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -14,8 +17,16 @@ export default function CreateTour() {
     description: "",
     date: "",
     price: "",
-    image: "",
+    images: [] as string[],
+    shortDescription: "",
+    location: "",
+    duration: "1",
+    maxParticipants: "10",
+    category: "General",
+    difficulty: "Easy",
   });
+  const [uploading, setUploading] = useState(false);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const navigate = useNavigate();
 
   const handleInputChange = (field: string, value: string) => {
@@ -25,11 +36,90 @@ export default function CreateTour() {
     }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleFilesSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    setSelectedFiles(files);
+  };
+
+  const handleUploadImages = async () => {
+    const token = localStorage.getItem("accessToken");
+    if (!token) {
+      toast.error("Bạn cần đăng nhập");
+      navigate("/login");
+      return;
+    }
+    if (selectedFiles.length === 0) {
+      toast.error("Vui lòng chọn ít nhất một ảnh");
+      return;
+    }
+    const form = new FormData();
+    for (const file of selectedFiles) {
+      form.append("files", file);
+    }
+    setUploading(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/media/uploads`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: form,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data || res.statusText);
+      const urls: string[] = data.urls || [];
+      setFormData((prev) => ({ ...prev, images: urls }));
+      toast.success("Tải ảnh lên thành công");
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || "Tải ảnh lên thất bại");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Tạm thời chỉ log dữ liệu ra console
-    console.log("Tour data:", formData);
-    alert("Tạo tour thành công! (Xem console)");
+    const token = localStorage.getItem("accessToken");
+    if (!token) {
+      toast.error("Bạn cần đăng nhập");
+      navigate("/login");
+      return;
+    }
+    const payload = {
+      title: formData.name,
+      description: formData.description,
+      shortDescription: formData.shortDescription || formData.description?.slice(0, 160) || "",
+      location: formData.location || "",
+      duration: parseInt(formData.duration || "1", 10),
+      maxParticipants: parseInt(formData.maxParticipants || "10", 10),
+      price: Number(formData.price || 0),
+      currency: "VND",
+      category: formData.category || "General",
+      difficulty: formData.difficulty || "Easy",
+      imageUrls: formData.images,
+      itinerary: null,
+      includes: null,
+      excludes: null,
+      terms: null,
+      isFeatured: false,
+    } as any;
+
+    try {
+      const res = await fetch(`${API_BASE}/api/tour`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data || res.statusText);
+      toast.success("Tạo tour thành công");
+      navigate(`/admin`);
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || "Không thể tạo tour");
+    }
   };
 
   return (
@@ -75,23 +165,27 @@ export default function CreateTour() {
         </div>
       </header>
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 py-8">
+      <main className="max-w-7xl mx-auto px-4 py-8 pb-28">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
           {/* Left: Hình ảnh minh họa */}
           <div className="hidden lg:block">
-            <img src={formData.image || "https://cdn.builder.io/api/v1/image/assets/TEMP/63b4c457c84f25d77787717a687e234d71e49dd0?width=2570"} alt="Tour" className="rounded-[30px] w-full h-[500px] object-cover shadow-xl" />
+            <img src={formData.images[0] || "https://cdn.builder.io/api/v1/image/assets/TEMP/63b4c457c84f25d77787717a687e234d71e49dd0?width=2570"} alt="Tour" className="rounded-[30px] w-full h-[500px] object-cover shadow-xl" />
           </div>
           {/* Right: Card Form */}
-          <Card className="w-full max-w-xl mx-auto shadow-2xl rounded-[34px]">
+          <Card className="w-full max-w-3xl mx-auto shadow-2xl rounded-[34px]">
             <CardHeader>
               <CardTitle className="text-3xl md:text-4xl font-bold text-center">Tạo Tour Mới</CardTitle>
             </CardHeader>
-            <form onSubmit={handleSubmit}>
+            <form id="create-tour-form" onSubmit={handleSubmit}>
               <CardContent className="space-y-6">
                 <div>
                   <Label htmlFor="name">Tên tour</Label>
                   <Input id="name" value={formData.name} onChange={e => handleInputChange("name", e.target.value)} placeholder="Nhập tên tour" required />
                 </div>
+              <div>
+                <Label htmlFor="shortDescription">Mô tả ngắn</Label>
+                <Input id="shortDescription" value={formData.shortDescription} onChange={e => handleInputChange("shortDescription", e.target.value)} placeholder="Tóm tắt ngắn gọn về tour" />
+              </div>
                 <div>
                   <Label htmlFor="description">Mô tả tour</Label>
                   <Textarea id="description" value={formData.description} onChange={e => handleInputChange("description", e.target.value)} placeholder="Nhập mô tả chi tiết" required />
@@ -106,9 +200,39 @@ export default function CreateTour() {
                     <Input id="price" type="number" value={formData.price} onChange={e => handleInputChange("price", e.target.value)} placeholder="Nhập giá" required />
                   </div>
                 </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="image">Link ảnh minh họa</Label>
-                  <Input id="image" value={formData.image} onChange={e => handleInputChange("image", e.target.value)} placeholder="Dán link ảnh hoặc để trống" />
+                  <Label htmlFor="location">Địa điểm</Label>
+                  <Input id="location" value={formData.location} onChange={e => handleInputChange("location", e.target.value)} placeholder="Ví dụ: Đà Lạt, Lâm Đồng" />
+                </div>
+                <div>
+                  <Label htmlFor="duration">Số ngày</Label>
+                  <Input id="duration" type="number" min={1} value={formData.duration} onChange={e => handleInputChange("duration", e.target.value)} />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="maxParticipants">Số người tối đa</Label>
+                  <Input id="maxParticipants" type="number" min={1} value={formData.maxParticipants} onChange={e => handleInputChange("maxParticipants", e.target.value)} />
+                </div>
+                <div>
+                  <Label htmlFor="difficulty">Độ khó</Label>
+                  <Input id="difficulty" value={formData.difficulty} onChange={e => handleInputChange("difficulty", e.target.value)} placeholder="Easy / Moderate / Challenging / Expert" />
+                </div>
+              </div>
+                <div>
+                <Label className="block mb-2">Ảnh tour (tối đa vài ảnh)</Label>
+                <Input id="images" type="file" accept="image/*" multiple onChange={handleFilesSelected} />
+                <div className="mt-3 flex flex-wrap gap-3">
+                  {formData.images.map((url) => (
+                    <img key={url} src={url} alt="preview" className="w-20 h-20 object-cover rounded-lg border" />
+                  ))}
+                </div>
+                <div className="mt-3">
+                  <Button type="button" disabled={uploading || selectedFiles.length === 0} onClick={handleUploadImages} className="rounded-full">
+                    {uploading ? "Đang tải ảnh..." : "Tải ảnh lên"}
+                  </Button>
+                </div>
                 </div>
               </CardContent>
               <CardFooter className="flex justify-center">
@@ -118,6 +242,19 @@ export default function CreateTour() {
           </Card>
         </div>
       </main>
+
+      {/* Bottom action bar */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg">
+        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+          <div className="text-sm text-gray-600">
+            Hãy kiểm tra thông tin trước khi lưu
+          </div>
+          <div className="flex gap-3">
+            <Button type="button" variant="outline" onClick={() => navigate(-1)} className="h-11 px-6 rounded-full">Hủy</Button>
+            <Button type="submit" form="create-tour-form" className="h-11 px-8 rounded-full">Lưu</Button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 } 

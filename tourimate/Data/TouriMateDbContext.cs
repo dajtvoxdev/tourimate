@@ -18,6 +18,7 @@ public class TouriMateDbContext : DbContext
     public DbSet<TourGuideApplication> TourGuideApplications { get; set; }
 
     // Tour Management
+    public DbSet<Division> Divisions { get; set; }
     public DbSet<Tour> Tours { get; set; }
     public DbSet<TourAvailability> TourAvailabilities { get; set; }
     public DbSet<Booking> Bookings { get; set; }
@@ -148,9 +149,22 @@ public class TouriMateDbContext : DbContext
             .HasForeignKey(t => t.TourGuideId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        // Tour-Division relationship (optional)
+        modelBuilder.Entity<Tour>()
+            .HasOne(t => t.Division)
+            .WithMany(d => d.Tours)
+            .HasForeignKey(t => t.DivisionCode)
+            .HasPrincipalKey(d => d.Code)
+            .OnDelete(DeleteBehavior.SetNull);
+
         // TourAvailability unique constraint
         modelBuilder.Entity<TourAvailability>()
             .HasIndex(ta => new { ta.TourId, ta.Date })
+            .IsUnique();
+
+        // Division hierarchy (ward -> province)
+        modelBuilder.Entity<Division>()
+            .HasIndex(d => d.Code)
             .IsUnique();
 
         // Booking relationships
@@ -356,6 +370,9 @@ public class TouriMateDbContext : DbContext
 
         modelBuilder.Entity<Tour>()
             .HasIndex(t => new { t.Price, t.IsActive });
+
+        modelBuilder.Entity<Tour>()
+            .HasIndex(t => new { t.DivisionCode, t.IsActive });
 
         modelBuilder.Entity<Product>()
             .HasIndex(p => new { p.CategoryId, p.IsActive });
