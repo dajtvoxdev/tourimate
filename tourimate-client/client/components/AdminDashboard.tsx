@@ -118,7 +118,7 @@ const AdminDashboard = () => {
 
   return (
     <AdminLayout>
-      <div className="max-w-7xl mx-auto">
+      <div className="max-w-9xl mx-auto">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Bảng điều khiển</h1>
           <p className="text-gray-600 mt-2">Quản lý nền tảng tour của bạn</p>

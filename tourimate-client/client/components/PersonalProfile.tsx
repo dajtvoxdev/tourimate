@@ -364,7 +364,7 @@ export default function PersonalProfile() {
       <Header />
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 py-8">
+      <main className="max-w-9xl mx-auto px-4 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
           {/* Left Sidebar - Profile Summary */}
           <div className="lg:col-span-1">

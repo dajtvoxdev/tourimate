@@ -100,7 +100,7 @@ export default function TourGuides() {
     <div className="min-h-screen bg-white">
       {/* Header */}
       <header className="relative z-20 p-4 md:p-6">
-        <div className="flex items-center justify-between max-w-7xl mx-auto">
+        <div className="flex items-center justify-between max-w-9xl mx-auto">
           {/* Navigation Menu */}
           <nav className="flex space-x-6 md:space-x-8">
             <button
@@ -176,7 +176,7 @@ export default function TourGuides() {
 
         {/* Hero Content */}
         <div className="absolute inset-0 flex items-center justify-center p-4">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center max-w-7xl w-full mx-auto">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center max-w-9xl w-full mx-auto">
             {/* Left Side - Glassmorphism Card */}
             <div className="bg-white bg-opacity-60 backdrop-blur-md rounded-[40px] p-8 md:p-12 lg:p-16">
               <h1 className="font-josefin text-3xl md:text-5xl lg:text-6xl font-bold text-white text-center lg:text-left leading-tight">

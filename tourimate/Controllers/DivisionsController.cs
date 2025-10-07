@@ -3,6 +3,8 @@ using Microsoft.EntityFrameworkCore;
 using TouriMate.Data;
 using Entities.Models;
 using System.Net.Http.Json;
+using Microsoft.AspNetCore.Hosting;
+using System.Text.Json;
 
 namespace TouriMate.Controllers;
 
@@ -12,11 +14,13 @@ public sealed class DivisionsController : ControllerBase
 {
     private readonly TouriMateDbContext _db;
     private readonly IHttpClientFactory _httpClientFactory;
+    private readonly IWebHostEnvironment _env;
 
-    public DivisionsController(TouriMateDbContext db, IHttpClientFactory httpClientFactory)
+    public DivisionsController(TouriMateDbContext db, IHttpClientFactory httpClientFactory, IWebHostEnvironment env)
     {
         _db = db;
         _httpClientFactory = httpClientFactory;
+        _env = env;
     }
 
     [HttpGet]
@@ -33,15 +37,34 @@ public sealed class DivisionsController : ControllerBase
         return Ok(list);
     }
 
-    // Sync divisions from provinces.open-api.vn
+    // Sync divisions from local Data/division.json
     [HttpPost("sync")]
     public async Task<IActionResult> Sync()
     {
-        var client = _httpClientFactory.CreateClient();
-        // provinces API v2 with depth=2 to include wards in response
-        // Docs: https://provinces.open-api.vn/api/v2/redoc
-        var provinces = await client.GetFromJsonAsync<List<ProvinceWithWardsDto>>("https://provinces.open-api.vn/api/v2/?depth=2");
-        if (provinces == null) return StatusCode(502, "Không thể tải dữ liệu từ provinces API");
+        var filePath = Path.Combine(_env.ContentRootPath, "Data", "division.json");
+        if (!System.IO.File.Exists(filePath))
+        {
+            return NotFound("Không tìm thấy Data/division.json");
+        }
+
+        List<ProvinceWithWardsDto>? provinces;
+        try
+        {
+            var json = await System.IO.File.ReadAllTextAsync(filePath);
+            provinces = JsonSerializer.Deserialize<List<ProvinceWithWardsDto>>(json);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, $"Lỗi đọc division.json: {ex.Message}");
+        }
+
+        if (provinces == null)
+        {
+            return StatusCode(500, "Dữ liệu division.json không hợp lệ");
+        }
+
+        // Build used code set from DB to prevent duplicates during this sync
+        var usedCodes = new HashSet<int>(await _db.Divisions.Select(d => d.Code).ToListAsync());
 
         // Upsert by Code
         var codes = provinces.Select(p => p.code).ToHashSet();
@@ -57,6 +80,7 @@ public sealed class DivisionsController : ControllerBase
                 div.Type = p.division_type;
                 div.NameEn = p.name_en;
                 div.CodeName = p.codename;
+                usedCodes.Add(p.code);
             }
             else
             {
@@ -69,15 +93,27 @@ public sealed class DivisionsController : ControllerBase
                     NameEn = p.name_en,
                     CodeName = p.codename
                 });
+                usedCodes.Add(p.code);
+                existingByCode[p.code] = _db.ChangeTracker.Entries<Division>().Last().Entity;
             }
         }
 
         await _db.SaveChangesAsync();
 
-        // Fetch wards (communes) per province (could be many; stream sequentially)
-        // Upsert wards from embedded arrays
-        var allWards = provinces.SelectMany(p => (p.wards ?? new List<WardDto>()).Select(w => (provinceCode: p.code, ward: w))).ToList();
-        var wardCodes = allWards.Select(x => x.ward.code).ToList();
+        // Fetch wards (communes) per province and remap codes to avoid collision with province codes
+        // Use deterministic mapping: storedWardCode = provinceCode * 1000 + (originalWardCode % 1000)
+        static int ResolveWardCode(int provinceCode, int wardCode)
+        {
+            var suffix = Math.Abs(wardCode % 1000);
+            return checked(provinceCode * 1000 + suffix);
+        }
+
+        var allWards = provinces
+            .SelectMany(p => (p.wards ?? new List<WardDto>())
+                .Select(w => (provinceCode: p.code, ward: w, storedCode: ResolveWardCode(p.code, w.code))))
+            .ToList();
+
+        var wardCodes = allWards.Select(x => x.storedCode).ToList();
         var existingWardDivs = await _db.Divisions.Where(d => wardCodes.Contains(d.Code)).ToListAsync();
         var existingWardByCode = existingWardDivs.ToDictionary(d => d.Code, d => d);
 
@@ -85,7 +121,14 @@ public sealed class DivisionsController : ControllerBase
         {
             var provinceCode = pair.provinceCode;
             var w = pair.ward;
-            if (existingWardByCode.TryGetValue(w.code, out var divWard))
+            var storedCode = pair.storedCode;
+            // Ensure uniqueness across already used codes and current change tracker
+            while (usedCodes.Contains(storedCode) || _db.ChangeTracker.Entries<Division>().Any(e => e.Entity.Code == storedCode))
+            {
+                storedCode++;
+            }
+
+            if (existingWardByCode.TryGetValue(storedCode, out var divWard))
             {
                 divWard.Name = w.name;
                 divWard.FullName = w.name;
@@ -97,13 +140,16 @@ public sealed class DivisionsController : ControllerBase
             {
                 _db.Divisions.Add(new Division
                 {
-                    Code = w.code,
+                    Code = storedCode,
                     Name = w.name,
                     FullName = w.name,
                     Type = w.division_type,
                     CodeName = w.codename,
                     ParentCode = provinceCode
                 });
+                usedCodes.Add(storedCode);
+                var added = _db.ChangeTracker.Entries<Division>().Last().Entity;
+                existingWardByCode[storedCode] = added;
             }
         }
         await _db.SaveChangesAsync();

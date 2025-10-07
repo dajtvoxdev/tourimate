@@ -22,7 +22,7 @@ type CreateTourPayload = {
   price: number;
   currency: string;
   category: string;
-  difficulty: string;
+  
   imageUrls?: string[];
   itinerary?: string;
   includes?: string;
@@ -30,6 +30,8 @@ type CreateTourPayload = {
   terms?: string;
   isFeatured: boolean;
   divisionCode?: number;
+  provinceCode?: number;
+  wardCode?: number;
 };
 
 interface Props {
@@ -37,11 +39,12 @@ interface Props {
   onSubmit: (payload: CreateTourPayload) => void;
   onCancel?: () => void;
   onUploadImages?: (files: File[]) => Promise<string[]>; // returns urls
+  submitLabel?: string;
 }
 
 type ItineraryItem = { day: number; title: string; description: string };
 
-const CreateTourForm: React.FC<Props> = ({ initial, onSubmit, onCancel, onUploadImages }) => {
+const CreateTourForm: React.FC<Props> = ({ initial, onSubmit, onCancel, onUploadImages, submitLabel }) => {
   const [formData, setFormData] = useState<CreateTourPayload>({
     title: initial?.title || "",
     description: initial?.description || "",
@@ -50,9 +53,9 @@ const CreateTourForm: React.FC<Props> = ({ initial, onSubmit, onCancel, onUpload
     duration: initial?.duration ?? 1,
     maxParticipants: initial?.maxParticipants ?? 10,
     price: initial?.price ?? 0,
-    currency: initial?.currency || "VND",
+    currency: "VND",
     category: initial?.category || "",
-    difficulty: initial?.difficulty || "Easy",
+    
     imageUrls: initial?.imageUrls || [],
     itinerary: initial?.itinerary || "",
     includes: initial?.includes || "",
@@ -64,6 +67,8 @@ const CreateTourForm: React.FC<Props> = ({ initial, onSubmit, onCancel, onUpload
   const [divisions, setDivisions] = useState<Array<{ code: number; name: string }>>([]);
   const [wards, setWards] = useState<Array<{ code: number; name: string }>>([]);
   const [selectedProvince, setSelectedProvince] = useState<number | undefined>(undefined);
+  const hasPrefilledProvince = useRef(false);
+  const hasPrefilledWard = useRef(false);
   const [itineraryItems, setItineraryItems] = useState<ItineraryItem[]>(() => {
     if (initial?.itinerary) {
       try {
@@ -103,6 +108,28 @@ const CreateTourForm: React.FC<Props> = ({ initial, onSubmit, onCancel, onUpload
   const videoInputRef = useRef<HTMLInputElement | null>(null);
   const baseApiUrl = ((import.meta as any).env?.VITE_API_BASE_URL || "https://localhost:7181");
   const authToken = (typeof window !== "undefined" ? localStorage.getItem("access_token") || undefined : undefined);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const stripHtml = (html: string) => {
+    const tmp = document.createElement('div');
+    tmp.innerHTML = html || "";
+    return (tmp.textContent || tmp.innerText || "").trim();
+  };
+
+  const validate = (): boolean => {
+    const newErrors: Record<string, string> = {};
+    if (!formData.title?.trim()) newErrors.title = "Vui lòng nhập tên tour";
+    if (!stripHtml(formData.shortDescription)) newErrors.shortDescription = "Vui lòng nhập mô tả ngắn";
+    if (!formData.location?.trim()) newErrors.location = "Vui lòng nhập địa điểm chi tiết";
+    if (!selectedProvince) newErrors.provinceCode = "Vui lòng chọn tỉnh/thành";
+    if (!formData.wardCode) newErrors.wardCode = "Vui lòng chọn phường/xã";
+    if (!formData.category?.trim()) newErrors.category = "Vui lòng chọn danh mục";
+    if (!formData.duration || formData.duration < 1) newErrors.duration = "Thời gian phải từ 1";
+    if (!formData.maxParticipants || formData.maxParticipants < 1) newErrors.maxParticipants = "Số người tối đa phải từ 1";
+    if (formData.price == null || isNaN(formData.price) || formData.price < 0) newErrors.price = "Giá không hợp lệ";
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
   
 
   const handleFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -133,6 +160,21 @@ const CreateTourForm: React.FC<Props> = ({ initial, onSubmit, onCancel, onUpload
     loadDivisions();
   }, []);
 
+  // Prefill province once divisions are loaded
+  useEffect(() => {
+    if (!hasPrefilledProvince.current && divisions.length > 0 && (initial as any)?.provinceCode) {
+      const provinceCode = (initial as any).provinceCode as number;
+      setSelectedProvince(provinceCode);
+      setFormData(p => ({
+        ...p,
+        divisionCode: (initial as any)?.wardCode ? (initial as any).wardCode : provinceCode,
+        ...( { provinceCode } as any ),
+        ...( (initial as any)?.wardCode ? { wardCode: (initial as any).wardCode } : {} as any )
+      }));
+      hasPrefilledProvince.current = true;
+    }
+  }, [divisions]);
+
   useEffect(() => {
     const loadWards = async (provinceCode: number) => {
       try {
@@ -149,6 +191,18 @@ const CreateTourForm: React.FC<Props> = ({ initial, onSubmit, onCancel, onUpload
     else setWards([]);
   }, [selectedProvince]);
 
+  // Prefill ward once wards are loaded for the selected province
+  useEffect(() => {
+    if (!hasPrefilledWard.current && wards.length > 0 && (initial as any)?.wardCode && selectedProvince) {
+      const wardCode = (initial as any).wardCode as number;
+      const exists = wards.some(w => w.code === wardCode);
+      if (exists) {
+        setFormData(p => ({ ...p, ...( { wardCode } as any ), divisionCode: wardCode }));
+      }
+      hasPrefilledWard.current = true;
+    }
+  }, [wards, selectedProvince]);
+
   return (
     <>
       <Tabs defaultValue="basic" className="w-full flex-1 overflow-y-auto px-6 pb-24">
@@ -162,11 +216,12 @@ const CreateTourForm: React.FC<Props> = ({ initial, onSubmit, onCancel, onUpload
         <TabsContent value="basic" className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2">
-              <Label htmlFor="title">Tên Tour *</Label>
+              <Label htmlFor="title">Tên Tour <span className="text-red-500">*</span></Label>
               <Input id="title" value={formData.title} onChange={(e) => setFormData(p => ({ ...p, title: e.target.value }))} placeholder="Nhập tên tour" />
+              {errors.title && <p className="text-sm text-red-500 mt-1">{errors.title}</p>}
             </div>
             <div className="col-span-2">
-              <Label htmlFor="shortDescription">Mô tả ngắn *</Label>
+              <Label htmlFor="shortDescription">Mô tả ngắn <span className="text-red-500">*</span></Label>
               <div className="mt-2 h-[180px] ckeditor-container">
                 <CKEditor
                   editor={ClassicEditor}
@@ -183,11 +238,12 @@ const CreateTourForm: React.FC<Props> = ({ initial, onSubmit, onCancel, onUpload
                   }}
                 />
               </div>
+              {errors.shortDescription && <p className="text-sm text-red-500 mt-1">{errors.shortDescription}</p>}
             </div>
             {/* Row: Tỉnh/Thành phố - Phường/Xã - Địa điểm chi tiết */}
             <div className="col-span-2 grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <Label htmlFor="division">Tỉnh/Thành phố</Label>
+                <Label htmlFor="division">Tỉnh/Thành phố <span className="text-red-500">*</span></Label>
                 <Select value={selectedProvince?.toString() ?? ""} onValueChange={(value) => {
                   const code = value ? parseInt(value) : undefined;
                   setSelectedProvince(code);
@@ -202,9 +258,10 @@ const CreateTourForm: React.FC<Props> = ({ initial, onSubmit, onCancel, onUpload
                     ))}
                   </SelectContent>
                 </Select>
+                {errors.provinceCode && <p className="text-sm text-red-500 mt-1">{errors.provinceCode}</p>}
               </div>
               <div>
-                <Label htmlFor="ward">Phường/Xã</Label>
+                <Label htmlFor="ward">Phường/Xã <span className="text-red-500">*</span></Label>
                 <Select value={formData.wardCode ? String(formData.wardCode) : ""}
                   onValueChange={(value) => setFormData(p => ({ ...p, wardCode: value ? parseInt(value) : undefined, divisionCode: value ? parseInt(value) : selectedProvince } as any))}>
                   <SelectTrigger>
@@ -216,16 +273,18 @@ const CreateTourForm: React.FC<Props> = ({ initial, onSubmit, onCancel, onUpload
                     ))}
                   </SelectContent>
                 </Select>
+                {errors.wardCode && <p className="text-sm text-red-500 mt-1">{errors.wardCode}</p>}
               </div>
               <div>
-                <Label htmlFor="location">Địa điểm chi tiết *</Label>
+                <Label htmlFor="location">Địa điểm chi tiết <span className="text-red-500">*</span></Label>
                 <Input id="location" value={formData.location} onChange={(e) => setFormData(p => ({ ...p, location: e.target.value }))} placeholder="Ví dụ: 123 Phố Huế, Hai Bà Trưng" />
+                {errors.location && <p className="text-sm text-red-500 mt-1">{errors.location}</p>}
               </div>
             </div>
-            {/* Row(s): Danh mục - Thời gian - Số người tối đa - Giá - Tiền tệ - Độ khó (3 cột) */}
+            {/* Row(s): Danh mục - Thời gian - Số người tối đa - Giá (3 cột) */}
             <div className="col-span-2 grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <Label htmlFor="category">Danh mục *</Label>
+                <Label htmlFor="category">Danh mục <span className="text-red-500">*</span></Label>
                 <Select value={formData.category} onValueChange={(value) => setFormData(p => ({ ...p, category: value }))}>
                   <SelectTrigger>
                     <SelectValue placeholder="Chọn danh mục" />
@@ -237,45 +296,30 @@ const CreateTourForm: React.FC<Props> = ({ initial, onSubmit, onCancel, onUpload
                     <SelectItem value="food">Ẩm thực</SelectItem>
                   </SelectContent>
                 </Select>
+                {errors.category && <p className="text-sm text-red-500 mt-1">{errors.category}</p>}
               </div>
               <div>
-                <Label htmlFor="duration">Thời gian (ngày) *</Label>
+                <Label htmlFor="duration">Thời gian (ngày) <span className="text-red-500">*</span></Label>
                 <Input id="duration" type="number" min={1} value={formData.duration} onChange={(e) => setFormData(p => ({ ...p, duration: parseInt(e.target.value) || 1 }))} />
+                {errors.duration && <p className="text-sm text-red-500 mt-1">{errors.duration}</p>}
               </div>
               <div>
-                <Label htmlFor="maxParticipants">Số người tối đa *</Label>
+                <Label htmlFor="maxParticipants">Số người tối đa <span className="text-red-500">*</span></Label>
                 <Input id="maxParticipants" type="number" min={1} value={formData.maxParticipants} onChange={(e) => setFormData(p => ({ ...p, maxParticipants: parseInt(e.target.value) || 1 }))} />
+                {errors.maxParticipants && <p className="text-sm text-red-500 mt-1">{errors.maxParticipants}</p>}
               </div>
               <div>
-                <Label htmlFor="price">Giá *</Label>
-                <Input id="price" type="number" min={0} step="1000" value={formData.price} onChange={(e) => setFormData(p => ({ ...p, price: parseFloat(e.target.value) || 0 }))} />
-              </div>
-              <div>
-                <Label htmlFor="currency">Tiền tệ</Label>
-                <Select value={formData.currency} onValueChange={(value) => setFormData(p => ({ ...p, currency: value }))}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="VND">VND</SelectItem>
-                    <SelectItem value="USD">USD</SelectItem>
-                    <SelectItem value="EUR">EUR</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="difficulty">Độ khó *</Label>
-                <Select value={formData.difficulty} onValueChange={(value) => setFormData(p => ({ ...p, difficulty: value }))}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Easy">Dễ</SelectItem>
-                    <SelectItem value="Moderate">Trung bình</SelectItem>
-                    <SelectItem value="Challenging">Khó</SelectItem>
-                    <SelectItem value="Expert">Chuyên gia</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label htmlFor="price">Giá (VND) <span className="text-red-500">*</span></Label>
+                <Input id="price" inputMode="numeric" pattern="[0-9]*" value={new Intl.NumberFormat('vi-VN').format(formData.price || 0)} onChange={(e) => {
+                  const digits = e.target.value.replace(/[^0-9]/g, "");
+                  const amount = digits ? parseInt(digits, 10) : 0;
+                  setFormData(p => ({ ...p, price: amount }));
+                }} onBlur={(e) => {
+                  const digits = e.target.value.replace(/[^0-9]/g, "");
+                  const amount = digits ? parseInt(digits, 10) : 0;
+                  setFormData(p => ({ ...p, price: amount }));
+                }} />
+                {errors.price && <p className="text-sm text-red-500 mt-1">{errors.price}</p>}
               </div>
             </div>
           </div>
@@ -285,13 +329,32 @@ const CreateTourForm: React.FC<Props> = ({ initial, onSubmit, onCancel, onUpload
           <div className="space-y-4">
             <div>
               <Label>Hình ảnh</Label>
-              <Input type="file" accept="image/*" multiple onChange={handleFiles} />
+              <p className="text-sm text-gray-500 mt-1">Tải lên tối đa nhiều ảnh. Bạn có thể xóa ảnh đã tải.</p>
+              <div className="relative mt-2">
+                <Input type="file" accept="image/*" multiple onChange={handleFiles} disabled={uploading} aria-busy={uploading} />
+                {uploading && (
+                  <div className="absolute inset-0 bg-white/60 flex items-center gap-2 px-3 rounded-md">
+                    <span className="animate-spin inline-block w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full" />
+                    <span className="text-sm text-gray-600">Đang tải ảnh, vui lòng đợi...</span>
+                  </div>
+                )}
+              </div>
               <div className="mt-3 flex flex-wrap gap-3">
                 {(formData.imageUrls || []).map(url => (
-                  <img key={url} src={url} alt="preview" className="w-20 h-20 object-cover rounded-lg border" />
+                  <div key={url} className="relative group">
+                    <img src={url} alt="preview" className="w-20 h-20 object-cover rounded-lg border" />
+                    <button
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, imageUrls: (prev.imageUrls || []).filter(u => u !== url) }))}
+                      className="absolute -top-2 -right-2 bg-white border rounded-full w-6 h-6 text-gray-600 shadow hover:text-red-600"
+                      aria-label="Xóa ảnh"
+                      title="Xóa ảnh"
+                    >
+                      ×
+                    </button>
+                  </div>
                 ))}
               </div>
-              {uploading && <div className="text-sm text-gray-500 mt-2">Đang tải ảnh...</div>}
             </div>
             <div>
               <div className="flex items-center justify-between">
@@ -316,7 +379,27 @@ const CreateTourForm: React.FC<Props> = ({ initial, onSubmit, onCancel, onUpload
                     </div>
                     <div>
                       <Label htmlFor={`desc-${index}`}>Mô tả</Label>
-                      <Textarea id={`desc-${index}`} rows={3} value={item.description} onChange={(e) => setItineraryItems(prev => prev.map((it, i) => i === index ? { ...it, description: e.target.value } : it))} placeholder="Lịch trình chi tiết trong ngày" />
+                      <div className="mt-2">
+                        <CKEditor
+                          editor={ClassicEditor}
+                          data={item.description}
+                          config={{
+                            language: 'vi',
+                            toolbar: [
+                              'heading','|','bold','italic','underline','link','bulletedList','numberedList','blockQuote','imageUpload','undo','redo','|','sourceEditing'
+                            ]
+                          } as any}
+                          onReady={(editor: any) => {
+                            const base = baseApiUrl;
+                            const token = authToken;
+                            editor.plugins.get('FileRepository').createUploadAdapter = (loader: any) => new CkUploadAdapter(loader, base, token);
+                          }}
+                          onChange={(_, editor: any) => {
+                            const data = editor.getData();
+                            setItineraryItems(prev => prev.map((it, i) => i === index ? { ...it, description: data } : it));
+                          }}
+                        />
+                      </div>
                     </div>
                     <div className="flex justify-end">
                       <Button type="button" variant="outline" onClick={() => setItineraryItems(prev => prev.filter((_, i) => i !== index))}>Xóa ngày</Button>
@@ -336,12 +419,12 @@ const CreateTourForm: React.FC<Props> = ({ initial, onSubmit, onCancel, onUpload
                 <CKEditor
                     editor={ClassicEditor}
                     data={formData.description}
-                    config={{
+                  config={{
                       language: 'vi',
                       toolbar: [
                         "heading","|","bold","italic","underline","link","bulletedList","numberedList","blockQuote","insertTable","undo","redo","imageUpload","|","videoUpload","|","sourceEditing"
                       ],
-                      htmlSupport: {
+                    htmlSupport: {
                         allow: [
                           {
                             name: /.*/,
@@ -350,8 +433,8 @@ const CreateTourForm: React.FC<Props> = ({ initial, onSubmit, onCancel, onUpload
                             styles: true
                           }
                         ]
-                      }
-                    }}
+                    }
+                  } as any}
                     onReady={(editor: any) => {
                       const base = baseApiUrl;
                       const token = authToken;
@@ -484,12 +567,15 @@ const CreateTourForm: React.FC<Props> = ({ initial, onSubmit, onCancel, onUpload
         {onCancel && (
           <Button variant="outline" onClick={onCancel}>Hủy</Button>
         )}
-        <Button onClick={() => onSubmit({
+        <Button onClick={() => {
+          if (!validate()) return;
+          onSubmit({
           ...formData,
           includes: JSON.stringify(includesList),
           excludes: JSON.stringify(excludesList),
           itinerary: JSON.stringify(itineraryItems)
-        })}>Tạo Tour</Button>
+        });
+        }}>{submitLabel || "Tạo Tour"}</Button>
       </div>
     </>
   );

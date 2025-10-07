@@ -13,9 +13,8 @@ namespace tourimate.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropIndex(
-                name: "IX_Users_Email",
-                table: "Users");
+            migrationBuilder.Sql(
+                "IF EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_Users_Email' AND object_id = OBJECT_ID('[dbo].[Users]')) DROP INDEX [IX_Users_Email] ON [dbo].[Users];");
 
             migrationBuilder.DeleteData(
                 table: "SystemSettings",
@@ -120,9 +119,8 @@ namespace tourimate.Migrations
             migrationBuilder.DropTable(
                 name: "Divisions");
 
-            migrationBuilder.DropIndex(
-                name: "IX_Users_Email",
-                table: "Users");
+            migrationBuilder.Sql(
+                "IF EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_Users_Email' AND object_id = OBJECT_ID('[dbo].[Users]')) DROP INDEX [IX_Users_Email] ON [dbo].[Users];");
 
             migrationBuilder.DropIndex(
                 name: "IX_Tours_DivisionCode_IsActive",

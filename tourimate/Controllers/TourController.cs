@@ -80,7 +80,6 @@ public sealed class TourController : ControllerBase
             Price = tour.Price,
             Currency = tour.Currency,
             Category = tour.Category,
-            Difficulty = tour.Difficulty,
             Images = tour.Images,
             ImageUrls = DeserializeImageUrls(tour.Images),
             Itinerary = tour.Itinerary,
@@ -117,7 +116,6 @@ public sealed class TourController : ControllerBase
             Price = tour.Price,
             Currency = tour.Currency,
             Category = tour.Category,
-            Difficulty = tour.Difficulty,
             Images = tour.Images,
             ImageUrls = DeserializeImageUrls(tour.Images),
             IsActive = tour.IsActive,
@@ -168,10 +166,7 @@ public sealed class TourController : ControllerBase
                 query = query.Where(t => t.Category.ToLower().Contains(request.Category.ToLower()));
             }
 
-            if (!string.IsNullOrWhiteSpace(request.Difficulty))
-            {
-                query = query.Where(t => t.Difficulty == request.Difficulty);
-            }
+            // Difficulty removed from search filters
 
             if (request.MinPrice.HasValue)
             {
@@ -292,13 +287,14 @@ public sealed class TourController : ControllerBase
     /// </summary>
     [HttpPost]
     [Authorize]
+
     public async Task<ActionResult<TourDto>> CreateTour([FromBody] CreateTourRequest request)
     {
         try
         {
             if (!await IsTourGuide())
             {
-                return Forbid("Chỉ hướng dẫn viên hoặc quản trị viên mới có thể tạo tour");
+                return StatusCode(403, "Chỉ hướng dẫn viên hoặc quản trị viên mới có thể tạo tour");
             }
 
             var userId = GetCurrentUserId();
@@ -307,7 +303,6 @@ public sealed class TourController : ControllerBase
                 return Unauthorized();
             }
 
-            // Verify tour guide exists
             var tourGuide = await _db.Users.FirstOrDefaultAsync(u => u.Id == userId.Value);
             if (tourGuide == null)
             {
@@ -324,9 +319,9 @@ public sealed class TourController : ControllerBase
                 Duration = request.Duration,
                 MaxParticipants = request.MaxParticipants,
                 Price = request.Price,
-                Currency = request.Currency,
+                Currency = string.IsNullOrWhiteSpace(request.Currency) ? "VND" : request.Currency,
                 Category = request.Category,
-                Difficulty = request.Difficulty,
+                
                 Images = request.ImageUrls != null ? SerializeImageUrls(request.ImageUrls) : request.Images,
                 Itinerary = request.Itinerary,
                 Includes = request.Includes,
@@ -337,7 +332,6 @@ public sealed class TourController : ControllerBase
                 Status = TourStatus.PendingApproval,
                 TourGuideId = userId.Value,
                 CreatedBy = userId.Value,
-                UpdatedBy = userId.Value,
                 DivisionCode = request.DivisionCode,
                 ProvinceCode = request.ProvinceCode,
                 WardCode = request.WardCode
@@ -377,10 +371,9 @@ public sealed class TourController : ControllerBase
             var userId = GetCurrentUserId();
             var isAdmin = await IsAdmin();
 
-            // Check ownership or admin rights
             if (tour.TourGuideId != userId && !isAdmin)
             {
-                return Forbid("Bạn chỉ có thể chỉnh sửa tour của mình");
+                return StatusCode(403, "Bạn chỉ có thể chỉnh sửa tour của mình");
             }
 
             // Update fields
@@ -402,8 +395,7 @@ public sealed class TourController : ControllerBase
                 tour.Currency = request.Currency;
             if (!string.IsNullOrWhiteSpace(request.Category))
                 tour.Category = request.Category;
-            if (!string.IsNullOrWhiteSpace(request.Difficulty))
-                tour.Difficulty = request.Difficulty;
+            // Difficulty removed
             if (request.ImageUrls != null)
                 tour.Images = SerializeImageUrls(request.ImageUrls);
             else if (request.Images != null)
@@ -423,8 +415,8 @@ public sealed class TourController : ControllerBase
                 tour.IsActive = request.IsActive.Value;
             if (request.IsFeatured.HasValue)
                 tour.IsFeatured = request.IsFeatured.Value;
-            if (request.Status.HasValue && isAdmin)
-                tour.Status = request.Status.Value;
+            //if (request.Status.HasValue && isAdmin)
+            //    tour.Status = request.Status.Value;
 
             tour.UpdatedBy = userId;
 
@@ -464,7 +456,7 @@ public sealed class TourController : ControllerBase
             // Check ownership or admin rights
             if (tour.TourGuideId != userId && !isAdmin)
             {
-                return Forbid("Bạn chỉ có thể xóa tour của mình");
+                return StatusCode(403, "Bạn chỉ có thể xóa tour của mình");
             }
 
             // Check if tour has bookings
@@ -477,7 +469,7 @@ public sealed class TourController : ControllerBase
             _db.Tours.Remove(tour);
             await _db.SaveChangesAsync();
 
-            return NoContent();
+            return Ok();
         }
         catch (Exception ex)
         {
@@ -548,7 +540,7 @@ public sealed class TourController : ControllerBase
         {
             if (!await IsAdmin())
             {
-                return Forbid("Chỉ quản trị viên mới có thể xem thống kê");
+                return StatusCode(403, "Chỉ quản trị viên mới có thể xem thống kê");
             }
 
             var totalTours = await _db.Tours.CountAsync();
@@ -596,7 +588,7 @@ public sealed class TourController : ControllerBase
         {
             if (!await IsAdmin())
             {
-                return Forbid("Chỉ quản trị viên mới có thể thay đổi trạng thái tour");
+                return StatusCode(403, "Chỉ quản trị viên mới có thể thay đổi trạng thái tour");
             }
 
             var tour = await _db.Tours

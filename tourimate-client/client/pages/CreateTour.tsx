@@ -126,7 +126,7 @@ export default function CreateTour() {
     <div className="min-h-screen bg-white">
       {/* Header */}
       <header className="relative z-20 p-4 md:p-6 bg-white shadow-sm">
-        <div className="flex items-center justify-between max-w-7xl mx-auto">
+        <div className="flex items-center justify-between max-w-9xl mx-auto">
           {/* Navigation Menu */}
           <nav className="flex space-x-6 md:space-x-8">
             <button onClick={() => navigate("/home")} className="bg-gray-200 hover:bg-tour-teal transition-colors duration-200 px-6 py-2 rounded-2xl">
@@ -165,7 +165,7 @@ export default function CreateTour() {
         </div>
       </header>
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 py-8 pb-28">
+      <main className="max-w-9xl mx-auto px-4 py-8 pb-28">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
           {/* Left: Hình ảnh minh họa */}
           <div className="hidden lg:block">
@@ -245,7 +245,7 @@ export default function CreateTour() {
 
       {/* Bottom action bar */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg">
-        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+        <div className="max-w-9xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="text-sm text-gray-600">
             Hãy kiểm tra thông tin trước khi lưu
           </div>

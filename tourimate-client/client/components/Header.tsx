@@ -92,7 +92,7 @@ export default function Header({ hideRegister = false, hideLogin = false }: Head
 
   return (
     <header className="sticky top-0 z-40 bg-white/70 backdrop-blur-md border-b border-white/20 shadow-sm">
-      <div className="max-w-7xl mx-auto px-4 md:px-6">
+      <div className="max-w-9xl mx-auto px-4 md:px-6">
         <div className="flex items-center justify-between h-16 md:h-20">
           {/* Left: Logo */}
           <button onClick={() => navigate("/")} className="flex items-center gap-3 group">

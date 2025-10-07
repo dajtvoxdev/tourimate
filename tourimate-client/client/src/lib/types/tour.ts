@@ -9,7 +9,7 @@ export interface TourDto {
   price: number;
   currency: string;
   category: string;
-  difficulty: string;
+  
   images?: string;
   itinerary?: string;
   includes?: string;
@@ -38,7 +38,7 @@ export interface TourListDto {
   price: number;
   currency: string;
   category: string;
-  difficulty: string;
+  
   images?: string;
   isActive: boolean;
   isFeatured: boolean;
@@ -56,7 +56,6 @@ export interface TourSearchRequest {
   searchTerm?: string;
   location?: string;
   category?: string;
-  difficulty?: string;
   minPrice?: number;
   maxPrice?: number;
   minDuration?: number;
@@ -89,7 +88,6 @@ export interface CreateTourRequest {
   price: number;
   currency: string;
   category: string;
-  difficulty: string;
   images?: string;
   itinerary?: string;
   includes?: string;
@@ -108,7 +106,6 @@ export interface UpdateTourRequest {
   price?: number;
   currency?: string;
   category?: string;
-  difficulty?: string;
   images?: string;
   itinerary?: string;
   includes?: string;

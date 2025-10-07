@@ -14,7 +14,6 @@ public class TourDto
     public decimal Price { get; set; }
     public string Currency { get; set; } = "VND";
     public string Category { get; set; } = string.Empty;
-    public string Difficulty { get; set; } = string.Empty;
     public string? Images { get; set; }
     public List<string>? ImageUrls { get; set; }
     public string? Itinerary { get; set; }
@@ -48,7 +47,6 @@ public class TourListDto
     public decimal Price { get; set; }
     public string Currency { get; set; } = "VND";
     public string Category { get; set; } = string.Empty;
-    public string Difficulty { get; set; } = string.Empty;
     public string? Images { get; set; }
     public List<string>? ImageUrls { get; set; }
     public bool IsActive { get; set; }
@@ -71,7 +69,7 @@ public class TourSearchRequest
     public string SearchTerm { get; set; } = string.Empty;
     public string Location { get; set; } = string.Empty;
     public string Category { get; set; } = string.Empty;
-    public string Difficulty { get; set; } = string.Empty;
+    // Removed Difficulty
     public decimal? MinPrice { get; set; }
     public decimal? MaxPrice { get; set; }
     public int? MinDuration { get; set; }
@@ -133,7 +131,6 @@ public class UpdateTourRequest
     public decimal? Price { get; set; }
     public string? Currency { get; set; }
     public string? Category { get; set; }
-    public string? Difficulty { get; set; }
     public string? Images { get; set; }
     public List<string>? ImageUrls { get; set; }
     public string? Itinerary { get; set; }

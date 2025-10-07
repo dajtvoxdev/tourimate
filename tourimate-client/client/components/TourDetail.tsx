@@ -216,7 +216,7 @@ export default function TourDetail() {
     <div className="min-h-screen bg-white">
       {/* Header */}
       <header className="relative z-20 p-4 md:p-6 bg-white shadow-sm">
-        <div className="flex items-center justify-between max-w-7xl mx-auto">
+        <div className="flex items-center justify-between max-w-9xl mx-auto">
           {/* Back Button & Navigation */}
           <div className="flex items-center space-x-6">
             <button
@@ -293,7 +293,7 @@ export default function TourDetail() {
       </header>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 py-8">
+      <main className="max-w-9xl mx-auto px-4 py-8">
         {/* Image Gallery Section */}
         <section className="mb-8">
           <div className="relative">

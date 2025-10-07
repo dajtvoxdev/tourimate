@@ -6,6 +6,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import TourDetailDialog from "./TourDetailDialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
@@ -15,7 +17,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import AdminLayout from "./AdminLayout";
 import CreateTourForm from "./CreateTourForm";
 import { tourApi } from "../src/lib/tourApi";
-import { TourListDto, TourSearchRequest, CreateTourRequest, UpdateTourRequest } from "../src/lib/types/tour";
+import { TourListDto, TourSearchRequest, CreateTourRequest, UpdateTourRequest, TourDto } from "../src/lib/types/tour";
 import { 
   Plus, 
   Search, 
@@ -49,6 +51,8 @@ const AdminTourManagement = () => {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
   const [selectedTour, setSelectedTour] = useState<TourListDto | null>(null);
+  const [editDetail, setEditDetail] = useState<TourDto | null>(null);
+  const [editLoading, setEditLoading] = useState(false);
   
   // Form states
   const [formData, setFormData] = useState<CreateTourRequest>({
@@ -61,7 +65,6 @@ const AdminTourManagement = () => {
     price: 0,
     currency: "VND",
     category: "",
-    difficulty: "Easy",
     images: "",
     itinerary: "",
     includes: "",
@@ -150,7 +153,6 @@ const AdminTourManagement = () => {
         price: formData.price,
         currency: formData.currency,
         category: formData.category,
-        difficulty: formData.difficulty,
         isFeatured: formData.isFeatured
       };
       if (imageUrls.length > 0) {
@@ -169,8 +171,6 @@ const AdminTourManagement = () => {
   };
 
   const handleDeleteTour = async (tourId: string) => {
-    if (!confirm("Bạn có chắc chắn muốn xóa tour này?")) return;
-    
     try {
       await tourApi.deleteTour(tourId);
       toast.success("Xóa tour thành công");
@@ -203,7 +203,6 @@ const AdminTourManagement = () => {
       price: 0,
       currency: "VND",
       category: "",
-      difficulty: "Easy",
       images: "",
       itinerary: "",
       includes: "",
@@ -217,34 +216,20 @@ const AdminTourManagement = () => {
     setUploading(false);
   };
 
-  const openEditDialog = (tour: TourListDto) => {
+  const openEditDialog = async (tour: TourListDto) => {
     setSelectedTour(tour);
-    setFormData({
-      title: tour.title,
-      description: "",
-      shortDescription: tour.shortDescription,
-      location: tour.location,
-      duration: tour.duration,
-      maxParticipants: 10,
-      price: tour.price,
-      currency: tour.currency,
-      category: tour.category,
-      difficulty: tour.difficulty,
-      images: tour.images || "",
-      itinerary: "",
-      includes: "",
-      excludes: "",
-      terms: "",
-      isFeatured: tour.isFeatured
-    });
-    // If backend provides imageUrls in DTOs, prefer them for preview
-    // @ts-ignore optional field from backend
-    if ((tour as any).imageUrls && Array.isArray((tour as any).imageUrls)) {
-      setImageUrls((tour as any).imageUrls as string[]);
-    } else {
-      setImageUrls([]);
-    }
     setIsEditDialogOpen(true);
+    setEditLoading(true);
+    try {
+      const detail = await tourApi.getTour(tour.id);
+      setEditDetail(detail);
+    } catch (e) {
+      console.error("Failed to load tour detail", e);
+      toast.error("Không thể tải chi tiết tour");
+      setEditDetail(null);
+    } finally {
+      setEditLoading(false);
+    }
   };
   const onFilesSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -288,8 +273,26 @@ const AdminTourManagement = () => {
     setIsViewDialogOpen(true);
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status.toLowerCase()) {
+  const getStatusBadge = (status: any) => {
+    const map = (s: any): 'approved' | 'pendingapproval' | 'rejected' | 'other' => {
+      if (typeof s === 'number') {
+        // Backend enum: PendingApproval=1, Approved=2, Rejected=3
+        if (s === 2) return 'approved';
+        if (s === 1) return 'pendingapproval';
+        if (s === 3) return 'rejected';
+        return 'other';
+      }
+      if (typeof s === 'string') {
+        const v = s.toLowerCase();
+        if (v === 'approved') return 'approved';
+        if (v === 'pendingapproval' || v === 'pending_approval' || v === 'pending') return 'pendingapproval';
+        if (v === 'rejected') return 'rejected';
+        return 'other';
+      }
+      return 'other';
+    };
+    const key = map(status);
+    switch (key) {
       case 'approved':
         return <Badge variant="default">Đã duyệt</Badge>;
       case 'pendingapproval':
@@ -297,7 +300,7 @@ const AdminTourManagement = () => {
       case 'rejected':
         return <Badge variant="destructive">Từ chối</Badge>;
       default:
-        return <Badge variant="secondary">{status}</Badge>;
+        return <Badge variant="secondary">Khác</Badge>;
     }
   };
 
@@ -305,7 +308,7 @@ const AdminTourManagement = () => {
 
   return (
     <AdminLayout>
-      <div className="max-w-7xl mx-auto">
+      <div className="max-w-9xl mx-auto">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Quản lý Tour</h1>
           <p className="text-gray-600 mt-2">Quản lý tất cả tour trên nền tảng</p>
@@ -378,6 +381,7 @@ const AdminTourManagement = () => {
                       </DialogDescription>
                     </DialogHeader>
                     <CreateTourForm
+                      submitLabel="Tạo Tour"
                       onCancel={() => setIsCreateDialogOpen(false)}
                       onUploadImages={async (files) => {
                         const token = localStorage.getItem("accessToken");
@@ -473,13 +477,25 @@ const AdminTourManagement = () => {
                           <Button size="sm" variant="outline" onClick={() => openEditDialog(tour)}>
                             <Edit className="h-4 w-4" />
                           </Button>
-                          <Button 
-                            size="sm" 
-                            variant="outline" 
-                            onClick={() => handleDeleteTour(tour.id)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button size="sm" variant="outline">
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Xóa tour?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Hành động này không thể hoàn tác. Tour sẽ bị xóa vĩnh viễn.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Hủy</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => handleDeleteTour(tour.id)}>Xóa</AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -529,318 +545,72 @@ const AdminTourManagement = () => {
                 Cập nhật thông tin tour
               </DialogDescription>
             </DialogHeader>
-            
-            <Tabs defaultValue="basic" className="w-full flex-1 overflow-y-auto px-6 pb-24">
-              <TabsList className="grid w-full grid-cols-4">
-                <TabsTrigger value="basic">Thông tin cơ bản</TabsTrigger>
-                <TabsTrigger value="details">Chi tiết</TabsTrigger>
-                <TabsTrigger value="content">Nội dung</TabsTrigger>
-                <TabsTrigger value="settings">Cài đặt</TabsTrigger>
-              </TabsList>
-              
-              <TabsContent value="basic" className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="col-span-2">
-                    <Label htmlFor="edit-title">Tên Tour *</Label>
-                    <Input
-                      id="edit-title"
-                      value={formData.title}
-                      onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-                      placeholder="Nhập tên tour"
-                    />
+            {editLoading && (
+              <div className="flex-1 flex items-center justify-center text-gray-500">
+                <Loader2 className="h-5 w-5 animate-spin mr-2" /> Đang tải chi tiết tour...
                   </div>
-                  <div className="col-span-2">
-                    <Label htmlFor="edit-shortDescription">Mô tả ngắn *</Label>
-                    <Textarea
-                      id="edit-shortDescription"
-                      value={formData.shortDescription}
-                      onChange={(e) => setFormData(prev => ({ ...prev, shortDescription: e.target.value }))}
-                      placeholder="Mô tả ngắn gọn về tour"
-                      rows={3}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="edit-location">Địa điểm *</Label>
-                    <Input
-                      id="edit-location"
-                      value={formData.location}
-                      onChange={(e) => setFormData(prev => ({ ...prev, location: e.target.value }))}
-                      placeholder="Ví dụ: Hà Nội, Việt Nam"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="edit-category">Danh mục *</Label>
-                    <Select value={formData.category} onValueChange={(value) => setFormData(prev => ({ ...prev, category: value }))}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Chọn danh mục" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="adventure">Phiêu lưu</SelectItem>
-                        <SelectItem value="cultural">Văn hóa</SelectItem>
-                        <SelectItem value="nature">Thiên nhiên</SelectItem>
-                        <SelectItem value="food">Ẩm thực</SelectItem>
-                        <SelectItem value="historical">Lịch sử</SelectItem>
-                        <SelectItem value="religious">Tôn giáo</SelectItem>
-                        <SelectItem value="beach">Biển</SelectItem>
-                        <SelectItem value="mountain">Núi</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label htmlFor="edit-duration">Thời gian (ngày) *</Label>
-                    <Input
-                      id="edit-duration"
-                      type="number"
-                      min="1"
-                      value={formData.duration}
-                      onChange={(e) => setFormData(prev => ({ ...prev, duration: parseInt(e.target.value) || 1 }))}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="edit-maxParticipants">Số người tối đa *</Label>
-                    <Input
-                      id="edit-maxParticipants"
-                      type="number"
-                      min="1"
-                      value={formData.maxParticipants}
-                      onChange={(e) => setFormData(prev => ({ ...prev, maxParticipants: parseInt(e.target.value) || 1 }))}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="edit-price">Giá *</Label>
-                    <Input
-                      id="edit-price"
-                      type="number"
-                      min="0"
-                      step="1000"
-                      value={formData.price}
-                      onChange={(e) => setFormData(prev => ({ ...prev, price: parseFloat(e.target.value) || 0 }))}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="edit-currency">Tiền tệ</Label>
-                    <Select value={formData.currency} onValueChange={(value) => setFormData(prev => ({ ...prev, currency: value }))}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="VND">VND</SelectItem>
-                        <SelectItem value="USD">USD</SelectItem>
-                        <SelectItem value="EUR">EUR</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label htmlFor="edit-difficulty">Độ khó *</Label>
-                    <Select value={formData.difficulty} onValueChange={(value) => setFormData(prev => ({ ...prev, difficulty: value }))}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Easy">Dễ</SelectItem>
-                        <SelectItem value="Moderate">Trung bình</SelectItem>
-                        <SelectItem value="Challenging">Khó</SelectItem>
-                        <SelectItem value="Expert">Chuyên gia</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              </TabsContent>
-              
-              <TabsContent value="details" className="space-y-4">
-                <div className="space-y-4">
-                  <div>
-                    <Label>Hình ảnh</Label>
-                    <Input id="edit-images" type="file" accept="image/*" multiple onChange={onFilesSelected} />
-                    <div className="mt-3 flex flex-wrap gap-3">
-                      {imageUrls.map((url) => (
-                        <img key={url} src={url} alt="preview" className="w-20 h-20 object-cover rounded-lg border" />
-                      ))}
-                    </div>
-                    <div className="mt-3">
-                      <Button type="button" onClick={uploadImages} disabled={uploading || selectedFiles.length === 0}>
-                        {uploading ? "Đang tải ảnh..." : "Tải ảnh lên"}
-                      </Button>
-                    </div>
-                  </div>
-                  <div>
-                    <Label htmlFor="edit-itinerary">Lịch trình (JSON)</Label>
-                    <Textarea
-                      id="edit-itinerary"
-                      value={formData.itinerary}
-                      onChange={(e) => setFormData(prev => ({ ...prev, itinerary: e.target.value }))}
-                      placeholder='[{"day": 1, "title": "Ngày 1", "description": "..."}]'
-                      rows={5}
-                    />
-                    <p className="text-sm text-gray-500 mt-1">Nhập lịch trình chi tiết dưới dạng JSON array</p>
-                  </div>
-                </div>
-              </TabsContent>
-              
-              <TabsContent value="content" className="space-y-4">
-                <div className="space-y-4">
-                  <div>
-                    <Label htmlFor="edit-description">Mô tả chi tiết *</Label>
-                    <Textarea
-                      id="edit-description"
-                      value={formData.description}
-                      onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                      placeholder="Mô tả chi tiết về tour"
-                      rows={6}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="edit-includes">Bao gồm (JSON)</Label>
-                    <Textarea
-                      id="edit-includes"
-                      value={formData.includes}
-                      onChange={(e) => setFormData(prev => ({ ...prev, includes: e.target.value }))}
-                      placeholder='["Vé tham quan", "Ăn trưa", "Hướng dẫn viên"]'
-                      rows={4}
-                    />
-                    <p className="text-sm text-gray-500 mt-1">Nhập danh sách dịch vụ bao gồm dưới dạng JSON array</p>
-                  </div>
-                  <div>
-                    <Label htmlFor="edit-excludes">Không bao gồm (JSON)</Label>
-                    <Textarea
-                      id="edit-excludes"
-                      value={formData.excludes}
-                      onChange={(e) => setFormData(prev => ({ ...prev, excludes: e.target.value }))}
-                      placeholder='["Vé máy bay", "Khách sạn", "Chi phí cá nhân"]'
-                      rows={4}
-                    />
-                    <p className="text-sm text-gray-500 mt-1">Nhập danh sách dịch vụ không bao gồm dưới dạng JSON array</p>
-                  </div>
-                  <div>
-                    <Label htmlFor="edit-terms">Điều khoản</Label>
-                    <Textarea
-                      id="edit-terms"
-                      value={formData.terms}
-                      onChange={(e) => setFormData(prev => ({ ...prev, terms: e.target.value }))}
-                      placeholder="Điều khoản và điều kiện của tour"
-                      rows={4}
-                    />
-                  </div>
-                </div>
-              </TabsContent>
-              
-              <TabsContent value="settings" className="space-y-4">
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <Label htmlFor="edit-isFeatured">Tour nổi bật</Label>
-                      <p className="text-sm text-gray-500">Hiển thị tour này ở vị trí nổi bật</p>
-                    </div>
-                    <Switch
-                      id="edit-isFeatured"
-                      checked={formData.isFeatured}
-                      onCheckedChange={(checked) => setFormData(prev => ({ ...prev, isFeatured: checked }))}
-                    />
-                  </div>
-                  <Separator />
-                  <div className="text-sm text-gray-500">
-                    <p><strong>Lưu ý:</strong></p>
-                    <ul className="list-disc list-inside space-y-1 mt-2">
-                      <li>Các trường có dấu * là bắt buộc</li>
-                      <li>Thay đổi sẽ được lưu ngay lập tức</li>
-                    </ul>
-                  </div>
-                </div>
-              </TabsContent>
-            </Tabs>
-            
-            <div className="mt-0 sticky bottom-0 bg-white border-t pt-3 px-6 py-4 flex justify-end space-x-2">
-              <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
-                Hủy
-              </Button>
-              <Button onClick={handleUpdateTour}>
-                Cập nhật Tour
-              </Button>
-            </div>
+            )}
+            {!editLoading && selectedTour && (
+              <CreateTourForm
+                submitLabel="Cập nhật Tour"
+                initial={{
+                  title: editDetail?.title ?? selectedTour.title,
+                  shortDescription: editDetail?.shortDescription ?? selectedTour.shortDescription,
+                  description: editDetail?.description ?? "",
+                  location: editDetail?.location ?? selectedTour.location,
+                  duration: editDetail?.duration ?? selectedTour.duration,
+                  maxParticipants: editDetail?.maxParticipants ?? 10,
+                  price: editDetail?.price ?? selectedTour.price,
+                  currency: editDetail?.currency ?? selectedTour.currency,
+                  category: editDetail?.category ?? selectedTour.category,
+                  imageUrls: (() => { try { return editDetail?.images ? JSON.parse(editDetail.images) : undefined; } catch { return undefined; } })(),
+                  itinerary: editDetail?.itinerary ?? "",
+                  includes: editDetail?.includes ?? "",
+                  excludes: editDetail?.excludes ?? "",
+                  terms: editDetail?.terms ?? "",
+                  isFeatured: editDetail?.isFeatured ?? selectedTour.isFeatured,
+                  provinceCode: (editDetail as any)?.provinceCode ?? (selectedTour as any)?.provinceCode,
+                  wardCode: (editDetail as any)?.wardCode ?? (selectedTour as any)?.wardCode,
+                }}
+                onCancel={() => setIsEditDialogOpen(false)}
+                onUploadImages={async (files) => {
+                  const token = localStorage.getItem("accessToken");
+                  const form = new FormData();
+                  files.forEach(f => form.append("files", f));
+                  const res = await fetch(((import.meta as any).env?.VITE_API_BASE_URL || "https://localhost:7181") + "/api/media/uploads", {
+                    method: "POST",
+                    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+                    body: form,
+                  });
+                  const data = await res.json();
+                  if (!res.ok) throw new Error(data || res.statusText);
+                  return (data.urls || []) as string[];
+                }}
+                onSubmit={async (payload) => {
+                  if (!selectedTour) return;
+                  try {
+                    const updateData: any = { ...payload };
+                    delete updateData.images;
+                    await tourApi.updateTour(selectedTour.id, updateData);
+                    toast.success("Cập nhật tour thành công");
+                    setIsEditDialogOpen(false);
+                    setEditDetail(null);
+                    loadTours();
+                  } catch (e) {
+                    console.error(e);
+                    toast.error("Không thể cập nhật tour");
+                  }
+                }}
+              />
+            )}
           </DialogContent>
         </Dialog>
 
         {/* View Tour Dialog */}
         <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Chi tiết Tour</DialogTitle>
-              <DialogDescription>
-                Thông tin chi tiết về tour
-              </DialogDescription>
-            </DialogHeader>
-            
-            {selectedTour && (
-              <div className="space-y-6">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-sm font-medium text-gray-500">Tên Tour</Label>
-                    <p className="text-lg font-semibold">{selectedTour.title}</p>
-                  </div>
-                  <div>
-                    <Label className="text-sm font-medium text-gray-500">Hướng dẫn viên</Label>
-                    <p className="text-lg">{selectedTour.tourGuideName}</p>
-                  </div>
-                  <div>
-                    <Label className="text-sm font-medium text-gray-500">Địa điểm</Label>
-                    <p className="text-lg">{selectedTour.location}</p>
-                  </div>
-                  <div>
-                    <Label className="text-sm font-medium text-gray-500">Danh mục</Label>
-                    <p className="text-lg">{selectedTour.category}</p>
-                  </div>
-                  <div>
-                    <Label className="text-sm font-medium text-gray-500">Thời gian</Label>
-                    <p className="text-lg">{selectedTour.duration} ngày</p>
-                  </div>
-                  <div>
-                    <Label className="text-sm font-medium text-gray-500">Độ khó</Label>
-                    <p className="text-lg">{selectedTour.difficulty}</p>
-                  </div>
-                  <div>
-                    <Label className="text-sm font-medium text-gray-500">Giá</Label>
-                    <p className="text-lg font-semibold text-green-600">
-                      {selectedTour.price.toLocaleString('vi-VN')} {selectedTour.currency}
-                    </p>
-                  </div>
-                  <div>
-                    <Label className="text-sm font-medium text-gray-500">Trạng thái</Label>
-                    <div className="mt-1">
-                      {getStatusBadge(selectedTour.status)}
-                    </div>
-                  </div>
-                </div>
-                
-                <Separator />
-                
-                <div>
-                  <Label className="text-sm font-medium text-gray-500">Mô tả ngắn</Label>
-                  <p className="text-lg mt-1">{selectedTour.shortDescription}</p>
-                </div>
-                
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="text-center p-4 bg-gray-50 rounded-lg">
-                    <p className="text-2xl font-bold text-blue-600">{selectedTour.totalBookings}</p>
-                    <p className="text-sm text-gray-500">Đặt tour</p>
-                  </div>
-                  <div className="text-center p-4 bg-gray-50 rounded-lg">
-                    <p className="text-2xl font-bold text-yellow-600">{selectedTour.averageRating.toFixed(1)}</p>
-                    <p className="text-sm text-gray-500">Đánh giá</p>
-                  </div>
-                  <div className="text-center p-4 bg-gray-50 rounded-lg">
-                    <p className="text-2xl font-bold text-green-600">{selectedTour.viewCount}</p>
-                    <p className="text-sm text-gray-500">Lượt xem</p>
-                  </div>
-                </div>
-              </div>
-            )}
-            
-            <div className="flex justify-end space-x-2 mt-6">
-              <Button variant="outline" onClick={() => setIsViewDialogOpen(false)}>
-                Đóng
-              </Button>
-            </div>
-          </DialogContent>
+          {selectedTour && (
+            <TourDetailDialog tour={selectedTour} onClose={() => setIsViewDialogOpen(false)} />
+          )}
         </Dialog>
       </div>
     </AdminLayout>

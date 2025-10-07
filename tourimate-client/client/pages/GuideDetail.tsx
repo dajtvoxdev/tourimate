@@ -42,7 +42,7 @@ export default function GuideDetail() {
     <div className="min-h-screen bg-white">
       {/* Header */}
       <header className="relative z-20 p-4 md:p-6 bg-white shadow-sm">
-        <div className="flex items-center justify-between max-w-7xl mx-auto">
+        <div className="flex items-center justify-between max-w-9xl mx-auto">
           <nav className="flex space-x-6 md:space-x-8">
             <button onClick={() => navigate("/home")} className="bg-gray-200 hover:bg-tour-teal transition-colors duration-200 px-6 py-2 rounded-2xl">
               <span className="font-nunito text-lg md:text-xl font-bold text-black">Trang chủ</span>
