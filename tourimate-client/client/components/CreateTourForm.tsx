@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type CreateTourPayload = {
   title: string;
@@ -67,6 +68,8 @@ const CreateTourForm: React.FC<Props> = ({ initial, onSubmit, onCancel, onUpload
   const [divisions, setDivisions] = useState<Array<{ code: number; name: string }>>([]);
   const [wards, setWards] = useState<Array<{ code: number; name: string }>>([]);
   const [selectedProvince, setSelectedProvince] = useState<number | undefined>(undefined);
+  const [divisionsLoading, setDivisionsLoading] = useState<boolean>(true);
+  const [wardsLoading, setWardsLoading] = useState<boolean>(false);
   const hasPrefilledProvince = useRef(false);
   const hasPrefilledWard = useRef(false);
   const [itineraryItems, setItineraryItems] = useState<ItineraryItem[]>(() => {
@@ -148,6 +151,7 @@ const CreateTourForm: React.FC<Props> = ({ initial, onSubmit, onCancel, onUpload
   useEffect(() => {
     const loadDivisions = async () => {
       try {
+        setDivisionsLoading(true);
         const res = await fetch(((import.meta as any).env?.VITE_API_BASE_URL || "https://localhost:7181") + "/api/divisions");
         if (!res.ok) return;
         const data = await res.json();
@@ -155,6 +159,8 @@ const CreateTourForm: React.FC<Props> = ({ initial, onSubmit, onCancel, onUpload
         setDivisions(provinces.map((d: any) => ({ code: d.code ?? d.Code, name: d.name ?? d.Name })));
       } catch {
         // non-blocking
+      } finally {
+        setDivisionsLoading(false);
       }
     };
     loadDivisions();
@@ -178,6 +184,7 @@ const CreateTourForm: React.FC<Props> = ({ initial, onSubmit, onCancel, onUpload
   useEffect(() => {
     const loadWards = async (provinceCode: number) => {
       try {
+        setWardsLoading(true);
         const base = ((import.meta as any).env?.VITE_API_BASE_URL || "https://localhost:7181");
         const res = await fetch(`${base}/api/divisions/wards?provinceCode=${provinceCode}`);
         if (!res.ok) { setWards([]); return; }
@@ -185,6 +192,8 @@ const CreateTourForm: React.FC<Props> = ({ initial, onSubmit, onCancel, onUpload
         setWards((data || []).map((d: any) => ({ code: d.code ?? d.Code, name: d.name ?? d.Name })));
       } catch {
         setWards([]);
+      } finally {
+        setWardsLoading(false);
       }
     };
     if (selectedProvince) loadWards(selectedProvince);
@@ -205,6 +214,25 @@ const CreateTourForm: React.FC<Props> = ({ initial, onSubmit, onCancel, onUpload
 
   return (
     <>
+      {(divisionsLoading || (((initial as any)?.provinceCode) && wardsLoading)) ? (
+        <div className="w-full p-6 space-y-4">
+          <div className="space-y-2">
+            <Skeleton className="h-6 w-40" />
+            <Skeleton className="h-10 w-full" />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Skeleton className="h-16 w-full" />
+            <Skeleton className="h-16 w-full" />
+            <Skeleton className="h-16 w-full" />
+          </div>
+          <div className="space-y-2">
+            <Skeleton className="h-6 w-32" />
+            <Skeleton className="h-24 w-full" />
+          </div>
+          <div className="text-sm text-gray-500">Đang tải dữ liệu, vui lòng đợi...</div>
+        </div>
+      ) : null}
+      {!(divisionsLoading || (((initial as any)?.provinceCode) && wardsLoading)) && (
       <Tabs defaultValue="basic" className="w-full flex-1 overflow-y-auto px-6 pb-24">
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="basic">Thông tin cơ bản</TabsTrigger>
@@ -562,6 +590,7 @@ const CreateTourForm: React.FC<Props> = ({ initial, onSubmit, onCancel, onUpload
           </div>
         </TabsContent>
       </Tabs>
+      )}
 
       <div className="mt-0  bottom-0 bg-white border-t pt-3 flex justify-end space-x-2">
         {onCancel && (
