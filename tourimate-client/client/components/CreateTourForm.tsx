@@ -6,7 +6,7 @@ import { CKEditor } from "@ckeditor/ckeditor5-react";
 import ClassicEditor from "@ckeditor/ckeditor5-build-classic";
 import CkUploadAdapter from "../src/components/CkUploadAdapter";
 import { useRef } from "react";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SearchableSelect } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
@@ -30,6 +30,8 @@ type CreateTourPayload = {
   terms?: string;
   isFeatured: boolean;
   divisionCode?: number;
+  provinceCode?: number;
+  wardCode?: number;
 };
 
 interface Props {
@@ -188,34 +190,31 @@ const CreateTourForm: React.FC<Props> = ({ initial, onSubmit, onCancel, onUpload
             <div className="col-span-2 grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <Label htmlFor="division">Tỉnh/Thành phố</Label>
-                <Select value={selectedProvince?.toString() ?? ""} onValueChange={(value) => {
-                  const code = value ? parseInt(value) : undefined;
-                  setSelectedProvince(code);
-                  setFormData(p => ({ ...p, divisionCode: code, provinceCode: code, wardCode: undefined } as any));
-                }}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Chọn tỉnh/thành" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {divisions.map(d => (
-                      <SelectItem key={d.code} value={String(d.code)}>{d.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SearchableSelect 
+                  value={selectedProvince?.toString() ?? ""} 
+                  onValueChange={(value) => {
+                    const code = value ? parseInt(value) : undefined;
+                    setSelectedProvince(code);
+                    setFormData(p => ({ ...p, divisionCode: code, provinceCode: code, wardCode: undefined } as any));
+                  }}
+                  placeholder="Chọn tỉnh/thành"
+                  searchPlaceholder="Tìm kiếm tỉnh/thành..."
+                  options={divisions.map(d => ({ value: String(d.code), label: d.name }))}
+                />
               </div>
               <div>
-                <Label htmlFor="ward">Phường/Xã</Label>
-                <Select value={formData.wardCode ? String(formData.wardCode) : ""}
-                  onValueChange={(value) => setFormData(p => ({ ...p, wardCode: value ? parseInt(value) : undefined, divisionCode: value ? parseInt(value) : selectedProvince } as any))}>
-                  <SelectTrigger>
-                    <SelectValue placeholder={selectedProvince ? (wards.length ? "Chọn phường/xã" : "Không có dữ liệu") : "Chọn tỉnh trước"} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {wards.map(w => (
-                      <SelectItem key={w.code} value={String(w.code)}>{w.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label htmlFor="ward">Phường/Xã (tùy chọn)</Label>
+                <SearchableSelect 
+                  value={formData.wardCode ? String(formData.wardCode) : ""}
+                  onValueChange={(value) => setFormData(p => ({ ...p, wardCode: value ? parseInt(value) : undefined, divisionCode: value ? parseInt(value) : selectedProvince } as any))}
+                  placeholder={selectedProvince ? (wards.length ? "Chọn phường/xã (tùy chọn)" : "Không có dữ liệu") : "Chọn tỉnh trước"}
+                  searchPlaceholder="Tìm kiếm phường/xã..."
+                  options={[
+                    { value: "", label: "Không chọn" },
+                    ...wards.map(w => ({ value: String(w.code), label: w.name }))
+                  ]}
+                  disabled={!selectedProvince || wards.length === 0}
+                />
               </div>
               <div>
                 <Label htmlFor="location">Địa điểm chi tiết *</Label>
@@ -340,17 +339,7 @@ const CreateTourForm: React.FC<Props> = ({ initial, onSubmit, onCancel, onUpload
                       language: 'vi',
                       toolbar: [
                         "heading","|","bold","italic","underline","link","bulletedList","numberedList","blockQuote","insertTable","undo","redo","imageUpload","|","videoUpload","|","sourceEditing"
-                      ],
-                      htmlSupport: {
-                        allow: [
-                          {
-                            name: /.*/,
-                            attributes: true,
-                            classes: true,
-                            styles: true
-                          }
-                        ]
-                      }
+                      ]
                     }}
                     onReady={(editor: any) => {
                       const base = baseApiUrl;

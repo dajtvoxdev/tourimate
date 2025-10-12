@@ -1,6 +1,6 @@
 import * as React from "react";
 import * as SelectPrimitive from "@radix-ui/react-select";
-import { Check, ChevronDown, ChevronUp } from "lucide-react";
+import { Check, ChevronDown, ChevronUp, Search } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -65,36 +65,70 @@ const SelectScrollDownButton = React.forwardRef<
 SelectScrollDownButton.displayName =
   SelectPrimitive.ScrollDownButton.displayName;
 
+interface SelectContentProps extends React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content> {
+  searchable?: boolean;
+  searchPlaceholder?: string;
+  onSearchChange?: (value: string) => void;
+}
+
 const SelectContent = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content>
->(({ className, children, position = "popper", ...props }, ref) => (
-  <SelectPrimitive.Portal>
-    <SelectPrimitive.Content
-      ref={ref}
-      className={cn(
-        "relative z-50 max-h-96 min-w-[8rem] overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
-        position === "popper" &&
-          "data-[side=bottom]:translate-y-1 data-[side=left]:-translate-x-1 data-[side=right]:translate-x-1 data-[side=top]:-translate-y-1",
-        className,
-      )}
-      position={position}
-      {...props}
-    >
-      <SelectScrollUpButton />
-      <SelectPrimitive.Viewport
+  SelectContentProps
+>(({ className, children, position = "popper", searchable = false, searchPlaceholder = "Search...", onSearchChange, ...props }, ref) => {
+  const [searchValue, setSearchValue] = React.useState("");
+  
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setSearchValue(value);
+    onSearchChange?.(value);
+  };
+
+  return (
+    <SelectPrimitive.Portal>
+      <SelectPrimitive.Content
+        ref={ref}
         className={cn(
-          "p-1",
+          "relative z-50 max-h-96 min-w-[8rem] overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
           position === "popper" &&
-            "h-[var(--radix-select-trigger-height)] w-full min-w-[var(--radix-select-trigger-width)]",
+            "data-[side=bottom]:translate-y-1 data-[side=left]:-translate-x-1 data-[side=right]:translate-x-1 data-[side=top]:-translate-y-1",
+          className,
         )}
+        position={position}
+        {...props}
       >
-        {children}
-      </SelectPrimitive.Viewport>
-      <SelectScrollDownButton />
-    </SelectPrimitive.Content>
-  </SelectPrimitive.Portal>
-));
+        <SelectScrollUpButton />
+        {searchable && (
+          <div className="sticky top-0 z-10 bg-popover border-b p-2">
+            <div className="relative">
+              <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <input
+                type="text"
+                placeholder={searchPlaceholder}
+                value={searchValue}
+                onChange={handleSearchChange}
+                className="w-full rounded-md border border-input bg-background px-8 py-1.5 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                onKeyDown={(e) => {
+                  // Prevent the select from closing when typing
+                  e.stopPropagation();
+                }}
+              />
+            </div>
+          </div>
+        )}
+        <SelectPrimitive.Viewport
+          className={cn(
+            "p-1",
+            position === "popper" &&
+              "h-[var(--radix-select-trigger-height)] w-full min-w-[var(--radix-select-trigger-width)]",
+          )}
+        >
+          {children}
+        </SelectPrimitive.Viewport>
+        <SelectScrollDownButton />
+      </SelectPrimitive.Content>
+    </SelectPrimitive.Portal>
+  );
+});
 SelectContent.displayName = SelectPrimitive.Content.displayName;
 
 const SelectLabel = React.forwardRef<
@@ -144,6 +178,71 @@ const SelectSeparator = React.forwardRef<
 ));
 SelectSeparator.displayName = SelectPrimitive.Separator.displayName;
 
+/**
+ * SearchableSelect - An enhanced select component with built-in search functionality
+ * 
+ * Usage:
+ * <SearchableSelect
+ *   value={selectedValue}
+ *   onValueChange={setSelectedValue}
+ *   placeholder="Select an option"
+ *   searchPlaceholder="Search options..."
+ *   options={[
+ *     { value: "1", label: "Option 1" },
+ *     { value: "2", label: "Option 2" }
+ *   ]}
+ * />
+ */
+interface SearchableSelectProps {
+  value?: string;
+  onValueChange?: (value: string) => void;
+  placeholder?: string;
+  searchPlaceholder?: string;
+  options: Array<{ value: string; label: string }>;
+  className?: string;
+  disabled?: boolean;
+}
+
+const SearchableSelect = React.forwardRef<
+  React.ElementRef<typeof SelectPrimitive.Trigger>,
+  SearchableSelectProps
+>(({ value, onValueChange, placeholder, searchPlaceholder, options, className, disabled, ...props }, ref) => {
+  const [searchTerm, setSearchTerm] = React.useState("");
+  
+  const filteredOptions = React.useMemo(() => {
+    if (!searchTerm) return options;
+    return options.filter(option =>
+      option.label.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      option.value.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [options, searchTerm]);
+
+  const handleSearchChange = (searchValue: string) => {
+    setSearchTerm(searchValue);
+  };
+
+  return (
+    <Select value={value} onValueChange={onValueChange} disabled={disabled}>
+      <SelectTrigger ref={ref} className={className} {...props}>
+        <SelectValue placeholder={placeholder} />
+      </SelectTrigger>
+      <SelectContent searchable searchPlaceholder={searchPlaceholder} onSearchChange={handleSearchChange}>
+        {filteredOptions.map((option) => (
+          <SelectItem key={option.value} value={option.value}>
+            {option.label}
+          </SelectItem>
+        ))}
+        {filteredOptions.length === 0 && searchTerm && (
+          <div className="px-2 py-1.5 text-sm text-muted-foreground">
+            Không tìm thấy kết quả nào
+          </div>
+        )}
+      </SelectContent>
+    </Select>
+  );
+});
+SearchableSelect.displayName = "SearchableSelect";
+
 export {
   Select,
   SelectGroup,
@@ -155,4 +254,5 @@ export {
   SelectSeparator,
   SelectScrollUpButton,
   SelectScrollDownButton,
+  SearchableSelect,
 };
