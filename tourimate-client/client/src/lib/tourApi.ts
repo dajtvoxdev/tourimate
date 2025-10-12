@@ -22,6 +22,15 @@ class TourApiService {
       throw new Error(`API Error: ${response.status} - ${errorText}`);
     }
 
+    // Handle 204 No Content or empty bodies gracefully
+    if (response.status === 204) {
+      return undefined as unknown as T;
+    }
+    const contentType = response.headers.get("content-type") || "";
+    if (!contentType.toLowerCase().includes("application/json")) {
+      const text = await response.text();
+      return (text ? (JSON.parse(text) as T) : (undefined as unknown as T));
+    }
     return response.json();
   }
 

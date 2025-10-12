@@ -107,7 +107,7 @@ export default function AboutUs() {
     <div className="min-h-screen bg-white">
       {/* Header */}
       <header className="relative z-20 p-4 md:p-6">
-        <div className="flex items-center justify-between max-w-7xl mx-auto">
+        <div className="flex items-center justify-between max-w-9xl mx-auto">
           {/* Navigation Menu */}
           <nav className="flex space-x-6 md:space-x-8">
             <button

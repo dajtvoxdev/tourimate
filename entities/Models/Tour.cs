@@ -42,10 +42,6 @@ public class Tour : BaseEntity, IAuditableEntity
     [MaxLength(50)]
     public string Category { get; set; } = string.Empty;
 
-    [Required]
-    [MaxLength(20)]
-    public string Difficulty { get; set; } = string.Empty; // Easy, Moderate, Challenging, Expert
-
     [Column(TypeName = "nvarchar(max)")]
     public string? Images { get; set; } // JSON array of image URLs
 

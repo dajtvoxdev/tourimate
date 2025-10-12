@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { Eye, EyeOff, ArrowLeft, LogIn } from "lucide-react";
 import { setupRecaptcha, clearRecaptcha, sendOTP, verifyOTP, getIdToken } from "../../lib/firebase";
 import Header from "../../../components/Header";
-import { Link } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 
 type RegisterForm = Omit<RegisterRequest, 'firebaseIdToken'> & { 
   confirmPassword: string; 
@@ -35,6 +35,8 @@ export default function Register() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [verificationId, setVerificationId] = useState<string | null>(null);
+  const navigate = useNavigate();
+  const location = useLocation();
 
   // Helper to fully reset reCAPTCHA container and any existing verifier
   const resetRecaptcha = () => {
@@ -187,10 +189,18 @@ export default function Register() {
       if ((res as any).refreshTokenExpiresAt) localStorage.setItem("refreshTokenExpiresAt", String((res as any).refreshTokenExpiresAt));
       toast.success("Đăng ký thành công! Đang chuyển hướng...");
       
-      // Small delay before redirect to show success message
-      setTimeout(() => {
-        window.location.href = "/";
-      }, 1000);
+      // Check if there's a return URL from the protected route
+      const from = location.state?.from;
+      if (from) {
+        setTimeout(() => {
+          navigate(from, { replace: true });
+        }, 1000);
+      } else {
+        // Small delay before redirect to show success message
+        setTimeout(() => {
+          navigate("/");
+        }, 1000);
+      }
     } catch (e: any) {
       toast.error(e.message || "Đăng ký thất bại");
     } finally {

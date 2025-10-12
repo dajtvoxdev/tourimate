@@ -19,9 +19,6 @@ public class UserProfile : BaseEntity
     public string? Address { get; set; }
 
     [MaxLength(100)]
-    public string? City { get; set; }
-
-    [MaxLength(100)]
     public string Country { get; set; } = "Vietnam";
 
     [MaxLength(2000)]
@@ -35,6 +32,9 @@ public class UserProfile : BaseEntity
 
     [Column(TypeName = "nvarchar(max)")]
     public string? NotificationSettings { get; set; } // JSON: {"emailNotifications": true, "smsNotifications": false, "pushNotifications": true, "marketingEmails": false}
+
+    public int? ProvinceCode { get; set; }
+    public int? WardCode { get; set; }
 
     // Navigation properties
     [ForeignKey("UserId")]

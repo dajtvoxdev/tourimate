@@ -3,8 +3,9 @@ import { toast } from "sonner";
 import { AuthApi, LoginRequest } from "./api";
 import { useState } from "react";
 import Header from "../../../components/Header";
-import { Link } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { ArrowLeft, UserPlus } from "lucide-react";
+import { useAuth } from "../../hooks/useAuth";
 
 // Helper: normalize Vietnamese phone numbers to +84 format
 const normalizePhone = (raw: string) => {
@@ -22,6 +23,9 @@ export default function Login() {
   });
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { login } = useAuth();
 
   const onSubmit = async (data: LoginRequest) => {
     setError(null);
@@ -29,10 +33,21 @@ export default function Login() {
     try {
       const normalized = normalizePhone(data.phoneNumberE164);
       const res = await AuthApi.login({ ...data, phoneNumberE164: normalized });
-      localStorage.setItem("accessToken", res.accessToken);
-      if ((res as any).refreshToken) localStorage.setItem("refreshToken", (res as any).refreshToken);
-      if ((res as any).refreshTokenExpiresAt) localStorage.setItem("refreshTokenExpiresAt", String((res as any).refreshTokenExpiresAt));
-      window.location.href = "/";
+      
+      await login({
+        accessToken: res.accessToken,
+        refreshToken: (res as any).refreshToken || "",
+        expiresAt: String((res as any).refreshTokenExpiresAt || new Date()),
+      });
+      
+      // Check if there's a return URL from the protected route
+      const from = location.state?.from;
+      if (from) {
+        navigate(from, { replace: true });
+      } else {
+        // Navigation will be handled by the Header component based on user role
+        navigate("/");
+      }
     } catch (e: any) {
       const message = e.message || "Đăng nhập thất bại";
       setError(message);

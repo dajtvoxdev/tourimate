@@ -25,6 +25,9 @@ import Checkout from "./pages/Checkout";
 import AdminDashboard from "./components/AdminDashboard";
 import AdminTourManagement from "./components/AdminTourManagement";
 import AdminDivisions from "./components/AdminDivisions";
+import AdminTourCategories from "./components/AdminTourCategories";
+import ProtectedRoute from "./components/ProtectedRoute";
+import NonAdminProtectedRoute from "./components/NonAdminProtectedRoute";
 
 const queryClient = new QueryClient();
 
@@ -46,7 +49,11 @@ const App = () => (
           <Route path="/profile" element={<PersonalProfile />} />
           <Route
             path="/tour-guide-registration"
-            element={<TourGuideRegistration />}
+            element={
+              <ProtectedRoute>
+                <TourGuideRegistration />
+              </ProtectedRoute>
+            }
           />
           <Route path="/create-tour" element={<CreateTour />} />
           <Route path="/guide/:guideId" element={<GuideDetail />} />
@@ -54,6 +61,7 @@ const App = () => (
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/admin/tours" element={<AdminTourManagement />} />
           <Route path="/admin/divisions" element={<AdminDivisions />} />
+          <Route path="/admin/tour-categories" element={<AdminTourCategories />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

@@ -157,6 +157,7 @@ public class TouriMateDbContext : DbContext
             .HasPrincipalKey(d => d.Code)
             .OnDelete(DeleteBehavior.SetNull);
 
+
         // TourAvailability unique constraint
         modelBuilder.Entity<TourAvailability>()
             .HasIndex(ta => new { ta.TourId, ta.Date })
@@ -426,6 +427,7 @@ public class TouriMateDbContext : DbContext
         modelBuilder.Entity<ProductCategory>().HasData(
             foodCategory, handicraftCategory, textileCategory
         );
+
 
         // Seed system settings
         modelBuilder.Entity<SystemSetting>().HasData(

@@ -209,24 +209,39 @@ const SearchableSelect = React.forwardRef<
 >(({ value, onValueChange, placeholder, searchPlaceholder, options, className, disabled, ...props }, ref) => {
   const [searchTerm, setSearchTerm] = React.useState("");
   
+  // Filter out empty values and handle them separately
+  const validOptions = options.filter(option => option.value && option.value.trim() !== "");
+  const hasEmptyOption = options.some(option => !option.value || option.value.trim() === "");
+  
   const filteredOptions = React.useMemo(() => {
-    if (!searchTerm) return options;
-    return options.filter(option =>
+    if (!searchTerm) return validOptions;
+    return validOptions.filter(option =>
       option.label.toLowerCase().includes(searchTerm.toLowerCase()) ||
       option.value.toLowerCase().includes(searchTerm.toLowerCase())
     );
-  }, [options, searchTerm]);
+  }, [validOptions, searchTerm]);
 
   const handleSearchChange = (searchValue: string) => {
     setSearchTerm(searchValue);
   };
 
+  const handleValueChange = (newValue: string) => {
+    // Convert "none" back to empty string for the callback
+    const actualValue = newValue === "none" ? "" : newValue;
+    onValueChange?.(actualValue);
+  };
+
   return (
-    <Select value={value} onValueChange={onValueChange} disabled={disabled}>
+    <Select value={value || "none"} onValueChange={handleValueChange} disabled={disabled}>
       <SelectTrigger ref={ref} className={className} {...props}>
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
       <SelectContent searchable searchPlaceholder={searchPlaceholder} onSearchChange={handleSearchChange}>
+        {hasEmptyOption && (
+          <SelectItem key="none" value="none">
+            Không chọn
+          </SelectItem>
+        )}
         {filteredOptions.map((option) => (
           <SelectItem key={option.value} value={option.value}>
             {option.label}

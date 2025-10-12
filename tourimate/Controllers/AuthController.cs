@@ -237,16 +237,21 @@ public sealed class AuthController : ControllerBase
                 PhoneNumber = user.PhoneNumber,
                 FirstName = user.FirstName,
                 LastName = user.LastName,
+                Role = user.Role.ToString(),
                 AcceptEmailMarketing = user.AcceptEmailMarketing,
                 IsPhoneVerified = user.IsPhoneVerified,
-                    Avatar = user.Avatar,
+                Avatar = user.Avatar,
                 Address = user.Profile?.Address,
-                City = user.Profile?.City,
                 Country = user.Profile?.Country ?? "Vietnam",
                 DateOfBirth = user.Profile?.DateOfBirth,
-                    Bio = user.Profile?.Bio,
-                    Gender = user.Profile?.Gender,
-                    Website = user.Profile?.Website
+                Bio = user.Profile?.Bio,
+                Gender = user.Profile?.Gender,
+                Website = user.Profile?.Website,
+                SocialMedia = user.Profile?.SocialMedia,
+                NotificationSettings = user.Profile?.NotificationSettings,
+                ProvinceCode = user.Profile?.ProvinceCode,
+                WardCode = user.Profile?.WardCode,
+                LastLoginAt = user.LastLoginAt
             };
             return Ok(dto);
         }
@@ -283,12 +288,15 @@ public sealed class AuthController : ControllerBase
                 _db.UserProfiles.Add(user.Profile);
             }
             user.Profile.Address = request.Address;
-            user.Profile.City = request.City;
             user.Profile.Country = request.Country;
             user.Profile.DateOfBirth = request.DateOfBirth;
             user.Profile.Bio = request.Bio;
             user.Profile.Gender = request.Gender;
             user.Profile.Website = request.Website;
+            user.Profile.SocialMedia = request.SocialMedia;
+            user.Profile.NotificationSettings = request.NotificationSettings;
+            user.Profile.ProvinceCode = request.ProvinceCode;
+            user.Profile.WardCode = request.WardCode;
 
             await _db.SaveChangesAsync();
             return NoContent();

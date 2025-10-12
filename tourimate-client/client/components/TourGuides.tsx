@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { User, ChevronDown, LogOut, ArrowRight } from "lucide-react";
+import { ArrowRight } from "lucide-react";
+import Header from "./Header";
 
 interface TourGuide {
   id: number;
@@ -10,16 +11,7 @@ interface TourGuide {
 }
 
 export default function TourGuides() {
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const navigate = useNavigate();
-
-  const handleLogout = () => {
-    navigate("/");
-  };
-
-  const handleNavigation = (path: string) => {
-    navigate(path);
-  };
 
   const tourGuides: TourGuide[] = [
     {
@@ -99,70 +91,7 @@ export default function TourGuides() {
   return (
     <div className="min-h-screen bg-white">
       {/* Header */}
-      <header className="relative z-20 p-4 md:p-6">
-        <div className="flex items-center justify-between max-w-7xl mx-auto">
-          {/* Navigation Menu */}
-          <nav className="flex space-x-6 md:space-x-8">
-            <button
-              onClick={() => handleNavigation("/home")}
-              className="bg-gray-200 hover:bg-tour-teal transition-colors duration-200 px-6 py-2 rounded-2xl"
-            >
-              <span className="font-nunito text-lg md:text-xl font-bold text-black">
-                Trang chủ
-              </span>
-            </button>
-            <button className="bg-gray-200 hover:bg-tour-teal transition-colors duration-200 px-6 py-2 rounded-2xl">
-              <span className="font-nunito text-lg md:text-xl font-bold text-black">
-                Về chúng tôi
-              </span>
-            </button>
-            <button className="bg-tour-teal hover:bg-tour-blue transition-colors duration-200 px-6 py-2 rounded-2xl">
-              <span className="font-nunito text-lg md:text-xl font-bold text-black">
-                Hướng dẫn viên
-              </span>
-            </button>
-          </nav>
-
-          {/* Avatar Dropdown */}
-          <div className="relative">
-            <button
-              onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-              className="flex items-center space-x-2 p-2 hover:bg-gray-100 rounded-full transition-colors duration-200"
-            >
-              <div className="w-12 h-12 md:w-16 md:h-16 bg-tour-light-blue rounded-full flex items-center justify-center">
-                <User className="w-6 h-6 md:w-8 md:h-8 text-black" />
-              </div>
-              <ChevronDown
-                className={`w-4 h-4 text-black transition-transform duration-200 ${isDropdownOpen ? "rotate-180" : ""}`}
-              />
-            </button>
-
-            {/* Dropdown Menu */}
-            {isDropdownOpen && (
-              <div className="absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden">
-                <div className="py-2">
-                  <button className="w-full px-6 py-3 text-left hover:bg-gray-50 transition-colors duration-200 flex items-center space-x-3">
-                    <User className="w-5 h-5 text-gray-600" />
-                    <span className="font-nunito text-lg font-medium text-black">
-                      Thông tin cá nhân
-                    </span>
-                  </button>
-                  <div className="border-t border-gray-100 my-1"></div>
-                  <button
-                    onClick={handleLogout}
-                    className="w-full px-6 py-3 text-left hover:bg-red-50 transition-colors duration-200 flex items-center space-x-3 text-red-600"
-                  >
-                    <LogOut className="w-5 h-5" />
-                    <span className="font-nunito text-lg font-medium">
-                      Đăng xuất
-                    </span>
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </header>
+      <Header />
 
       {/* Hero Section */}
       <section
@@ -176,7 +105,7 @@ export default function TourGuides() {
 
         {/* Hero Content */}
         <div className="absolute inset-0 flex items-center justify-center p-4">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center max-w-7xl w-full mx-auto">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center max-w-9xl w-full mx-auto">
             {/* Left Side - Glassmorphism Card */}
             <div className="bg-white bg-opacity-60 backdrop-blur-md rounded-[40px] p-8 md:p-12 lg:p-16">
               <h1 className="font-josefin text-3xl md:text-5xl lg:text-6xl font-bold text-white text-center lg:text-left leading-tight">

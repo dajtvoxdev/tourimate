@@ -27,7 +27,8 @@ import {
   Cog
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useAuth } from "@/src/hooks/useAuth";
 
 interface AdminSidebarProps {
   isOpen: boolean;
@@ -46,6 +47,7 @@ interface NavItem {
 const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user, logout } = useAuth();
 
   const navItems: NavItem[] = [
     {
@@ -261,22 +263,26 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) => {
         <div className="p-3 border-t border-gray-200">
           <div className="flex items-center space-x-2 p-2 bg-gray-50 rounded-lg">
             <Avatar className="h-8 w-8">
+              <AvatarImage src={user?.avatar || ""} />
               <AvatarFallback className="bg-tour-light-blue text-black text-sm font-medium">
-                AD
+                {user ? `${user.firstName?.[0] || ""}${user.lastName?.[0] || ""}`.toUpperCase() : "U"}
               </AvatarFallback>
             </Avatar>
             {isOpen && (
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-900 truncate">Quản trị viên</p>
-                <p className="text-xs text-gray-500 truncate">admin@tourimate.com</p>
+                <p className="text-sm font-medium text-gray-900 truncate">
+                  {user ? `${user.firstName || ""} ${user.lastName || ""}`.trim() || "Người dùng" : "Khách"}
+                </p>
+                <p className="text-xs text-gray-500 truncate">
+                  {user?.email || user?.phoneNumber || "Chưa cập nhật"}
+                </p>
               </div>
             )}
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => {
-                localStorage.removeItem("accessToken");
-                localStorage.removeItem("refreshToken");
+              onClick={async () => {
+                await logout();
                 navigate("/");
               }}
               className="p-1 hover:bg-gray-200 rounded"

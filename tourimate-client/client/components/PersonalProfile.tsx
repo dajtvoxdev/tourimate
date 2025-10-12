@@ -9,15 +9,32 @@ import {
   Mail,
   Phone,
   MapPin,
-  Calendar,
+  Calendar as CalendarIcon,
   Star,
   Heart,
   Eye,
   Save,
   X,
+  Globe,
+  Settings,
+  Bell,
+  Check,
 } from "lucide-react";
 import { toast } from "sonner";
 import Header from "./Header";
+import ClassicEditor from '@ckeditor/ckeditor5-build-classic';
+import { CKEditor } from '@ckeditor/ckeditor5-react';
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Button } from "@/components/ui/button";
+import { format } from "date-fns";
+import { vi } from "date-fns/locale";
+import { cn } from "@/lib/utils";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://localhost:7181";
 
@@ -56,12 +73,32 @@ export default function PersonalProfile() {
     birthDate: "",
     gender: "",
     website: "",
-    avatar:
-      "https://cdn.builder.io/api/v1/image/assets/TEMP/db84159ff10c8b7bceb41b0f85ded4139e62ae21?width=712",
+    avatar: "https://cdn.builder.io/api/v1/image/assets/TEMP/db84159ff10c8b7bceb41b0f85ded4139e62ae21?width=712",
+    bio: "",
+    country: "Vietnam",
+    acceptEmailMarketing: false,
+    lastLoginAt: "",
+    provinceCode: null as number | null,
+    socialMedia: {
+      facebook: "",
+      instagram: "",
+      twitter: "",
+      zalo: "",
+      tiktok: "",
+      youtube: ""
+    },
+    notificationSettings: {
+      emailNotifications: true,
+      smsNotifications: false,
+      pushNotifications: true,
+      marketingEmails: false
+    }
   });
 
   const [editedProfile, setEditedProfile] = useState(profile);
   const [loading, setLoading] = useState(false);
+  const [provinces, setProvinces] = useState<any[]>([]);
+  const [calendarOpen, setCalendarOpen] = useState(false);
 
   const formatDob = (d: string) => {
     if (!d) return "";
@@ -69,6 +106,21 @@ export default function PersonalProfile() {
     if (isNaN(dt.getTime())) return "";
     return dt.toLocaleDateString("vi-VN");
   };
+
+  // Load provinces
+  const loadProvinces = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/divisions`);
+      if (res.ok) {
+        const data = await res.json();
+        const provinces = (data || []).filter((d: any) => (d.parentCode ?? d.ParentCode) == null);
+        setProvinces(provinces.map((d: any) => ({ code: d.code ?? d.Code, name: d.name ?? d.Name })));
+      }
+    } catch (e) {
+      console.error("Failed to load provinces:", e);
+    }
+  };
+
 
   // Fetch profile from API
   useEffect(() => {
@@ -104,6 +156,25 @@ export default function PersonalProfile() {
           gender: data.gender ?? "",
           website: data.website ?? "",
           avatar: data.avatar || profile.avatar,
+          bio: data.bio ?? "",
+          country: data.country ?? "Vietnam",
+          acceptEmailMarketing: data.acceptEmailMarketing ?? false,
+          lastLoginAt: data.lastLoginAt ? new Date(data.lastLoginAt).toLocaleString("vi-VN") : "",
+          provinceCode: data.provinceCode ?? null,
+          socialMedia: data.socialMedia ? JSON.parse(data.socialMedia) : {
+            facebook: "",
+            instagram: "",
+            twitter: "",
+            zalo: "",
+            tiktok: "",
+            youtube: ""
+          },
+          notificationSettings: data.notificationSettings ?? {
+            emailNotifications: true,
+            smsNotifications: false,
+            pushNotifications: true,
+            marketingEmails: false
+          }
         };
         setProfile(next);
         setEditedProfile(next);
@@ -113,6 +184,7 @@ export default function PersonalProfile() {
       }
     };
     load();
+    loadProvinces();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -131,22 +203,24 @@ export default function PersonalProfile() {
       navigate("/login");
       return;
     }
-    // Split name into first/last (best-effort)
+    // Split name into first/last (Vietnamese format: FirstName + LastName)
     const parts = (editedProfile.name || "").trim().split(/\s+/);
-    const lastName = parts.pop() || "";
-    const firstName = parts.join(" ");
+    const firstName = parts[0] || "";
+    const lastName = parts.slice(1).join(" ") || "";
     const payload = {
       email: editedProfile.email,
       firstName,
       lastName,
-      acceptEmailMarketing: false,
+      acceptEmailMarketing: editedProfile.acceptEmailMarketing,
       address: editedProfile.address,
-      city: undefined,
-      country: "Vietnam",
+      country: editedProfile.country || "Vietnam",
       dateOfBirth: editedProfile.birthDate || null,
-      bio: undefined,
+      bio: editedProfile.bio || null,
       gender: editedProfile.gender || null,
       website: editedProfile.website || null,
+      provinceCode: editedProfile.provinceCode,
+      socialMedia: JSON.stringify(editedProfile.socialMedia),
+      notificationSettings: editedProfile.notificationSettings,
     } as any;
 
     setLoading(true);
@@ -220,8 +294,8 @@ export default function PersonalProfile() {
       try {
         const payload = {
           email: next.email,
-          firstName: (next.name || "").trim().split(/\s+/).slice(0, -1).join(" "),
-          lastName: (next.name || "").trim().split(/\s+/).slice(-1)[0] || "",
+          firstName: (next.name || "").trim().split(/\s+/)[0] || "",
+          lastName: (next.name || "").trim().split(/\s+/).slice(1).join(" ") || "",
           acceptEmailMarketing: false,
           address: next.address,
           city: undefined,
@@ -364,7 +438,7 @@ export default function PersonalProfile() {
       <Header />
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 py-8">
+      <main className="max-w-9xl mx-auto px-4 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
           {/* Left Sidebar - Profile Summary */}
           <div className="lg:col-span-1">
@@ -431,6 +505,18 @@ export default function PersonalProfile() {
                       Tour yêu thích
                     </span>
                   </button>
+                  <button
+                    onClick={() => setActiveTab("notifications")}
+                    className={`w-full text-left px-4 py-3 rounded-lg transition-colors duration-200 ${
+                      activeTab === "notifications"
+                        ? "bg-tour-light-blue text-tour-blue"
+                        : "hover:bg-gray-100"
+                    }`}
+                  >
+                    <span className="font-nunito font-medium">
+                      Cài đặt thông báo
+                    </span>
+                  </button>
                 </div>
               </div>
             </div>
@@ -473,183 +559,463 @@ export default function PersonalProfile() {
                   )}
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label className="block font-nunito text-sm font-medium text-gray-700 mb-2">
-                      Họ và tên
-                    </label>
-                    {isEditing ? (
-                      <input
-                        type="text"
-                        value={editedProfile.name}
-                        onChange={(e) =>
-                          setEditedProfile({
-                            ...editedProfile,
-                            name: e.target.value,
-                          })
-                        }
-                        className="w-full p-3 border border-gray-300 rounded-lg font-nunito focus:outline-none focus:ring-2 focus:ring-tour-blue"
-                      />
-                    ) : (
-                      <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
-                        <User className="w-5 h-5 text-gray-500" />
-                        <span className="font-nunito text-lg">
-                          {profile.name}
-                        </span>
+                {/* Basic Information Section */}
+                <div className="space-y-8">
+                  <div className="bg-gray-50 p-6 rounded-xl">
+                    <h4 className="font-nunito text-lg font-bold text-gray-900 mb-6 flex items-center">
+                      <User className="w-5 h-5 mr-2" />
+                      Thông tin cơ bản
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                        <Label htmlFor="name" className="text-sm font-medium">Họ và tên</Label>
+                        {isEditing ? (
+                          <Input
+                            id="name"
+                            value={editedProfile.name}
+                            onChange={(e) => setEditedProfile({ ...editedProfile, name: e.target.value })}
+                            placeholder="Nhập tên và họ (ví dụ: James Võ Thành)"
+                          />
+                        ) : (
+                          <div className="flex items-center space-x-3 p-3 bg-white rounded-lg border">
+                            <User className="w-5 h-5 text-gray-500" />
+                            <span className="text-sm">{profile.name}</span>
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
 
-                  <div>
-                    <label className="block font-nunito text-sm font-medium text-gray-700 mb-2">
-                      Email
-                    </label>
-                    {isEditing ? (
-                      <input
-                        type="email"
-                        value={editedProfile.email}
-                        onChange={(e) =>
-                          setEditedProfile({
-                            ...editedProfile,
-                            email: e.target.value,
-                          })
-                        }
-                        className="w-full p-3 border border-gray-300 rounded-lg font-nunito focus:outline-none focus:ring-2 focus:ring-tour-blue"
-                      />
-                    ) : (
-                      <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
-                        <Mail className="w-5 h-5 text-gray-500" />
-                        <span className="font-nunito text-lg">
-                          {profile.email}
-                        </span>
+                      <div className="space-y-2">
+                        <Label htmlFor="email" className="text-sm font-medium">Email</Label>
+                        {isEditing ? (
+                          <Input
+                            id="email"
+                            type="email"
+                            value={editedProfile.email}
+                            onChange={(e) => setEditedProfile({ ...editedProfile, email: e.target.value })}
+                            placeholder="Nhập email"
+                          />
+                        ) : (
+                          <div className="flex items-center space-x-3 p-3 bg-white rounded-lg border">
+                            <Mail className="w-5 h-5 text-gray-500" />
+                            <span className="text-sm">{profile.email}</span>
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
 
-                  <div>
-                    <label className="block font-nunito text-sm font-medium text-gray-700 mb-2">
-                      Số điện thoại
-                    </label>
-                    <div className="flex items-center space-x-3 p-3 bg-gray-100 rounded-lg">
-                      <Phone className="w-5 h-5 text-gray-500" />
-                      <span className="font-nunito text-lg text-gray-700">
-                        {profile.phone}
-                      </span>
-                      <span className="ml-auto text-xs text-green-600 bg-green-100 px-2 py-1 rounded-full">
-                        Đã xác thực
-                      </span>
+                      <div className="space-y-2">
+                        <Label htmlFor="phone" className="text-sm font-medium">Số điện thoại</Label>
+                        <div className="flex items-center space-x-3 p-3 bg-gray-100 rounded-lg border">
+                          <Phone className="w-5 h-5 text-gray-500" />
+                          <span className="text-sm text-gray-700">{profile.phone}</span>
+                          <span className="ml-auto text-xs text-green-600 bg-green-100 px-2 py-1 rounded-full">
+                            Đã xác thực
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-500">Số điện thoại đã được xác thực và không thể thay đổi</p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="gender" className="text-sm font-medium">Giới tính</Label>
+                        {isEditing ? (
+                          <Select value={editedProfile.gender || "none"} onValueChange={(value) => setEditedProfile({ ...editedProfile, gender: value === "none" ? "" : value })}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Chọn giới tính" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">Không xác định</SelectItem>
+                              <SelectItem value="Male">Nam</SelectItem>
+                              <SelectItem value="Female">Nữ</SelectItem>
+                              <SelectItem value="Other">Khác</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <div className="flex items-center space-x-3 p-3 bg-white rounded-lg border">
+                            <User className="w-5 h-5 text-gray-500" />
+                            <span className="text-sm">
+                              {profile.gender === "Male" ? "Nam" : profile.gender === "Female" ? "Nữ" : profile.gender === "Other" ? "Khác" : "-"}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="birthDate" className="text-sm font-medium">Ngày sinh</Label>
+                        {isEditing ? (
+                          <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+                            <PopoverTrigger asChild>
+                              <Button
+                                variant="outline"
+                                className={cn(
+                                  "w-full justify-start text-left font-normal",
+                                  !editedProfile.birthDate && "text-muted-foreground"
+                                )}
+                              >
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {editedProfile.birthDate ? (
+                                  format(new Date(editedProfile.birthDate), "dd/MM/yyyy", { locale: vi })
+                                ) : (
+                                  <span>Chọn ngày sinh</span>
+                                )}
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                              <Calendar
+                                mode="single"
+                                selected={editedProfile.birthDate ? new Date(editedProfile.birthDate) : undefined}
+                                onSelect={(date) => {
+                                  if (date) {
+                                    setEditedProfile({
+                                      ...editedProfile,
+                                      birthDate: format(date, "yyyy-MM-dd")
+                                    });
+                                    setCalendarOpen(false);
+                                  }
+                                }}
+                                disabled={(date) =>
+                                  date > new Date() || date < new Date("1900-01-01")
+                                }
+                                initialFocus
+                                locale={vi}
+                              />
+                            </PopoverContent>
+                          </Popover>
+                        ) : (
+                          <div className="flex items-center space-x-3 p-3 bg-white rounded-lg border">
+                            <CalendarIcon className="w-5 h-5 text-gray-500" />
+                            <span className="text-sm">{formatDob(profile.birthDate)}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="website" className="text-sm font-medium">Website</Label>
+                        {isEditing ? (
+                          <Input
+                            id="website"
+                            type="url"
+                            value={editedProfile.website}
+                            onChange={(e) => setEditedProfile({ ...editedProfile, website: e.target.value })}
+                            placeholder="https://example.com"
+                          />
+                        ) : (
+                          <div className="flex items-center space-x-3 p-3 bg-white rounded-lg border">
+                            <Globe className="w-5 h-5 text-gray-500" />
+                            <span className="text-sm break-all">{profile.website || "-"}</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    <p className="text-xs text-gray-500 mt-1">
-                      Số điện thoại đã được xác thực và không thể thay đổi
+                  </div>
+
+                  {/* Location Section */}
+                  <div className="bg-gray-50 p-6 rounded-xl">
+                    <h4 className="font-nunito text-lg font-bold text-gray-900 mb-6 flex items-center">
+                      <MapPin className="w-5 h-5 mr-2" />
+                      Thông tin địa chỉ
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                        <Label htmlFor="country" className="text-sm font-medium">Quốc gia</Label>
+                        <div className="flex items-center space-x-3 p-3 bg-gray-100 rounded-lg border">
+                          <Globe className="w-5 h-5 text-gray-500" />
+                          <span className="text-sm text-gray-700">{profile.country}</span>
+                        </div>
+                        <p className="text-xs text-gray-500">Quốc gia không thể thay đổi</p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="province" className="text-sm font-medium">Tỉnh/Thành phố</Label>
+                        {isEditing ? (
+                          <Select 
+                            value={editedProfile.provinceCode?.toString() || "none"} 
+                            onValueChange={(value) => setEditedProfile({ ...editedProfile, provinceCode: value === "none" ? null : Number(value) })}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Chọn tỉnh/thành phố" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">Chọn tỉnh/thành phố</SelectItem>
+                              {provinces.map((province) => (
+                                <SelectItem key={province.code} value={province.code.toString()}>
+                                  {province.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <div className="flex items-center space-x-3 p-3 bg-white rounded-lg border">
+                            <MapPin className="w-5 h-5 text-gray-500" />
+                            <span className="text-sm">
+                              {provinces.find(p => p.code === profile.provinceCode)?.name || "-"}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="md:col-span-2 space-y-2">
+                        <Label htmlFor="address" className="text-sm font-medium">Địa chỉ chi tiết</Label>
+                        {isEditing ? (
+                          <Input
+                            id="address"
+                            value={editedProfile.address}
+                            onChange={(e) => setEditedProfile({ ...editedProfile, address: e.target.value })}
+                            placeholder="Nhập địa chỉ chi tiết"
+                          />
+                        ) : (
+                          <div className="flex items-center space-x-3 p-3 bg-white rounded-lg border">
+                            <MapPin className="w-5 h-5 text-gray-500" />
+                            <span className="text-sm">{profile.address}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Bio Section */}
+                  <div className="bg-gray-50 p-6 rounded-xl">
+                    <h4 className="font-nunito text-lg font-bold text-gray-900 mb-6 flex items-center">
+                      <User className="w-5 h-5 mr-2" />
+                      Giới thiệu bản thân
+                    </h4>
+                    {isEditing ? (
+                      <div className="ckeditor-container" style={{ height: '200px' }}>
+                        <CKEditor
+                          editor={ClassicEditor}
+                          data={editedProfile.bio}
+                          onChange={(event, editor) => {
+                            const data = editor.getData();
+                            setEditedProfile({
+                              ...editedProfile,
+                              bio: data,
+                            });
+                          }}
+                          config={{
+                            toolbar: ['heading', '|', 'bold', 'italic', 'link', 'bulletedList', 'numberedList', '|', 'outdent', 'indent', '|', 'blockQuote', 'insertTable', 'undo', 'redo'],
+                            language: 'vi'
+                          }}
+                        />
+                      </div>
+                    ) : (
+                      <div className="p-4 bg-white rounded-lg border">
+                        {profile.bio ? (
+                          <div 
+                            className="prose prose-sm max-w-none"
+                            dangerouslySetInnerHTML={{ __html: profile.bio }}
+                          />
+                        ) : (
+                          <span className="text-gray-500">Chưa có giới thiệu</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Social Media Section */}
+                  <div className="bg-gray-50 p-6 rounded-xl">
+                    <h4 className="font-nunito text-lg font-bold text-gray-900 mb-6 flex items-center">
+                      <Globe className="w-5 h-5 mr-2" />
+                      Mạng xã hội
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                        <Label htmlFor="facebook" className="text-sm font-medium flex items-center">
+                          <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24" fill="#1877F2">
+                            <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                          </svg>
+                          Facebook
+                        </Label>
+                        {isEditing ? (
+                          <Input
+                            id="facebook"
+                            value={editedProfile.socialMedia.facebook}
+                            onChange={(e) => setEditedProfile({
+                              ...editedProfile,
+                              socialMedia: { ...editedProfile.socialMedia, facebook: e.target.value }
+                            })}
+                            placeholder="https://facebook.com/username"
+                          />
+                        ) : (
+                          <div className="flex items-center space-x-3 p-3 bg-white rounded-lg border">
+                            <span className="text-sm break-all">{profile.socialMedia.facebook || "-"}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="instagram" className="text-sm font-medium flex items-center">
+                          <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24" fill="#E4405F">
+                            <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
+                          </svg>
+                          Instagram
+                        </Label>
+                        {isEditing ? (
+                          <Input
+                            id="instagram"
+                            value={editedProfile.socialMedia.instagram}
+                            onChange={(e) => setEditedProfile({
+                              ...editedProfile,
+                              socialMedia: { ...editedProfile.socialMedia, instagram: e.target.value }
+                            })}
+                            placeholder="https://instagram.com/username"
+                          />
+                        ) : (
+                          <div className="flex items-center space-x-3 p-3 bg-white rounded-lg border">
+                            <span className="text-sm break-all">{profile.socialMedia.instagram || "-"}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="twitter" className="text-sm font-medium flex items-center">
+                          <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24" fill="#1DA1F2">
+                            <path d="M23.953 4.57a10 10 0 01-2.825.775 4.958 4.958 0 002.163-2.723c-.951.555-2.005.959-3.127 1.184a4.92 4.92 0 00-8.384 4.482C7.69 8.095 4.067 6.13 1.64 3.162a4.822 4.822 0 00-.666 2.475c0 1.71.87 3.213 2.188 4.096a4.904 4.904 0 01-2.228-.616v.06a4.923 4.923 0 003.946 4.827 4.996 4.996 0 01-2.212.085 4.936 4.936 0 004.604 3.417 9.867 9.867 0 01-6.102 2.105c-.39 0-.779-.023-1.17-.067a13.995 13.995 0 007.557 2.209c9.053 0 13.998-7.496 13.998-13.985 0-.21 0-.42-.015-.63A9.935 9.935 0 0024 4.59z"/>
+                          </svg>
+                          X (Twitter)
+                        </Label>
+                        {isEditing ? (
+                          <Input
+                            id="twitter"
+                            value={editedProfile.socialMedia.twitter}
+                            onChange={(e) => setEditedProfile({
+                              ...editedProfile,
+                              socialMedia: { ...editedProfile.socialMedia, twitter: e.target.value }
+                            })}
+                            placeholder="https://x.com/username"
+                          />
+                        ) : (
+                          <div className="flex items-center space-x-3 p-3 bg-white rounded-lg border">
+                            <span className="text-sm break-all">{profile.socialMedia.twitter || "-"}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="zalo" className="text-sm font-medium flex items-center">
+                          <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24" fill="#0068FF">
+                            <path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm-1 15h-1v-6h1v6zm2 0h-1v-6h1v6zm3 0h-1v-6h1v6z"/>
+                          </svg>
+                          Zalo
+                        </Label>
+                        {isEditing ? (
+                          <Input
+                            id="zalo"
+                            value={editedProfile.socialMedia.zalo}
+                            onChange={(e) => setEditedProfile({
+                              ...editedProfile,
+                              socialMedia: { ...editedProfile.socialMedia, zalo: e.target.value }
+                            })}
+                            placeholder="Zalo ID hoặc link"
+                          />
+                        ) : (
+                          <div className="flex items-center space-x-3 p-3 bg-white rounded-lg border">
+                            <span className="text-sm break-all">{profile.socialMedia.zalo || "-"}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="tiktok" className="text-sm font-medium flex items-center">
+                          <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24" fill="#000000">
+                            <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/>
+                          </svg>
+                          TikTok
+                        </Label>
+                        {isEditing ? (
+                          <Input
+                            id="tiktok"
+                            value={editedProfile.socialMedia.tiktok}
+                            onChange={(e) => setEditedProfile({
+                              ...editedProfile,
+                              socialMedia: { ...editedProfile.socialMedia, tiktok: e.target.value }
+                            })}
+                            placeholder="https://tiktok.com/@username"
+                          />
+                        ) : (
+                          <div className="flex items-center space-x-3 p-3 bg-white rounded-lg border">
+                            <span className="text-sm break-all">{profile.socialMedia.tiktok || "-"}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="youtube" className="text-sm font-medium flex items-center">
+                          <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24" fill="#FF0000">
+                            <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+                          </svg>
+                          YouTube
+                        </Label>
+                        {isEditing ? (
+                          <Input
+                            id="youtube"
+                            value={editedProfile.socialMedia.youtube}
+                            onChange={(e) => setEditedProfile({
+                              ...editedProfile,
+                              socialMedia: { ...editedProfile.socialMedia, youtube: e.target.value }
+                            })}
+                            placeholder="https://youtube.com/@username"
+                          />
+                        ) : (
+                          <div className="flex items-center space-x-3 p-3 bg-white rounded-lg border">
+                            <span className="text-sm break-all">{profile.socialMedia.youtube || "-"}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Preferences Section */}
+                  <div className="bg-gray-50 p-6 rounded-xl">
+                    <h4 className="font-nunito text-lg font-bold text-gray-900 mb-6 flex items-center">
+                      <Settings className="w-5 h-5 mr-2" />
+                      Tùy chọn
+                    </h4>
+                    <div className="space-y-6">
+                      <div className="flex items-center justify-between">
+                        <div className="space-y-1">
+                          <Label htmlFor="emailMarketing" className="text-sm font-medium">Nhận email khuyến mãi</Label>
+                          <p className="text-xs text-gray-500">Đồng ý nhận thông tin khuyến mãi và cập nhật từ TouriMate</p>
+                        </div>
+                        {isEditing ? (
+                          <Checkbox
+                            id="emailMarketing"
+                            checked={editedProfile.acceptEmailMarketing}
+                            onCheckedChange={(checked) => setEditedProfile({
+                              ...editedProfile,
+                              acceptEmailMarketing: checked as boolean
+                            })}
+                          />
+                        ) : (
+                          <div className="flex items-center">
+                            {profile.acceptEmailMarketing ? (
+                              <Check className="w-5 h-5 text-green-500" />
+                            ) : (
+                              <X className="w-5 h-5 text-red-500" />
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* System Information Section */}
+                  <div className="bg-gray-50 p-6 rounded-xl">
+                    <h4 className="font-nunito text-lg font-bold text-gray-900 mb-6 flex items-center">
+                      <CalendarIcon className="w-5 h-5 mr-2" />
+                      Thông tin hệ thống
+                    </h4>
+                    <div className="space-y-4">
+                      <div className="flex items-center space-x-3 p-3 bg-white rounded-lg border">
+                        <CalendarIcon className="w-5 h-5 text-gray-500" />
+                        <div>
+                          <p className="text-sm font-medium">Đăng nhập lần cuối</p>
+                          <p className="text-xs text-gray-500">
+                            {profile.lastLoginAt || "Chưa có thông tin"}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-3">
+                      Thông tin hệ thống chỉ đọc, không thể thay đổi
                     </p>
-                  </div>
-
-                  <div>
-                    <label className="block font-nunito text-sm font-medium text-gray-700 mb-2">
-                      Giới tính
-                    </label>
-                    {isEditing ? (
-                      <select
-                        value={editedProfile.gender}
-                        onChange={(e) =>
-                          setEditedProfile({
-                            ...editedProfile,
-                            gender: e.target.value,
-                          })
-                        }
-                        className="w-full p-3 border border-gray-300 rounded-lg font-nunito focus:outline-none focus:ring-2 focus:ring-tour-blue"
-                      >
-                        <option value="">Không xác định</option>
-                        <option value="Male">Nam</option>
-                        <option value="Female">Nữ</option>
-                        <option value="Other">Khác</option>
-                      </select>
-                    ) : (
-                      <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
-                        <User className="w-5 h-5 text-gray-500" />
-                        <span className="font-nunito text-lg">
-                          {profile.gender === "Male" ? "Nam" : profile.gender === "Female" ? "Nữ" : profile.gender === "Other" ? "Khác" : "-"}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-
-                  <div>
-                    <label className="block font-nunito text-sm font-medium text-gray-700 mb-2">
-                      Ngày sinh
-                    </label>
-                    {isEditing ? (
-                      <input
-                        type="date"
-                        value={editedProfile.birthDate}
-                        onChange={(e) =>
-                          setEditedProfile({
-                            ...editedProfile,
-                            birthDate: e.target.value,
-                          })
-                        }
-                        className="w-full p-3 border border-gray-300 rounded-lg font-nunito focus:outline-none focus:ring-2 focus:ring-tour-blue"
-                      />
-                    ) : (
-                      <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
-                        <Calendar className="w-5 h-5 text-gray-500" />
-                        <span className="font-nunito text-lg">
-                              {formatDob(profile.birthDate)}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="md:col-span-2">
-                    <label className="block font-nunito text-sm font-medium text-gray-700 mb-2">
-                      Địa chỉ
-                    </label>
-                    {isEditing ? (
-                      <input
-                        type="text"
-                        value={editedProfile.address}
-                        onChange={(e) =>
-                          setEditedProfile({
-                            ...editedProfile,
-                            address: e.target.value,
-                          })
-                        }
-                        className="w-full p-3 border border-gray-300 rounded-lg font-nunito focus:outline-none focus:ring-2 focus:ring-tour-blue"
-                      />
-                    ) : (
-                      <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
-                        <MapPin className="w-5 h-5 text-gray-500" />
-                        <span className="font-nunito text-lg">
-                          {profile.address}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="md:col-span-2">
-                    <label className="block font-nunito text-sm font-medium text-gray-700 mb-2">
-                      Website
-                    </label>
-                    {isEditing ? (
-                      <input
-                        type="url"
-                        value={editedProfile.website}
-                        onChange={(e) =>
-                          setEditedProfile({
-                            ...editedProfile,
-                            website: e.target.value,
-                          })
-                        }
-                        placeholder="https://example.com"
-                        className="w-full p-3 border border-gray-300 rounded-lg font-nunito focus:outline-none focus:ring-2 focus:ring-tour-blue"
-                      />
-                    ) : (
-                      <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
-                        <span className="font-nunito text-lg break-all">
-                          {profile.website || "-"}
-                        </span>
-                      </div>
-                    )}
                   </div>
                 </div>
               </div>
@@ -835,6 +1201,184 @@ export default function PersonalProfile() {
                       </div>
                     </div>
                   ))}
+                </div>
+              </div>
+            )}
+
+            {/* Notification Settings Tab */}
+            {activeTab === "notifications" && (
+              <div className="bg-white rounded-[20px] p-6 md:p-8 shadow-lg">
+                <div className="flex items-center justify-between mb-8">
+                  <h3 className="font-itim text-2xl md:text-3xl text-black">
+                    Cài đặt thông báo
+                  </h3>
+                  {!isEditing ? (
+                    <button
+                      onClick={() => setIsEditing(true)}
+                      className="flex items-center space-x-2 bg-tour-blue hover:bg-tour-teal text-white px-4 py-2 rounded-lg transition-colors duration-200"
+                    >
+                      <Edit className="w-4 h-4" />
+                      <span className="font-nunito">Chỉnh sửa</span>
+                    </button>
+                  ) : (
+                    <div className="flex space-x-3">
+                      <button
+                        onClick={handleSaveProfile}
+                        className="flex items-center space-x-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition-colors duration-200"
+                      >
+                        <Save className="w-4 h-4" />
+                        <span className="font-nunito">Lưu</span>
+                      </button>
+                      <button
+                        onClick={handleCancelEdit}
+                        className="flex items-center space-x-2 bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg transition-colors duration-200"
+                      >
+                        <X className="w-4 h-4" />
+                        <span className="font-nunito">Hủy</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-6">
+                  <div className="border border-gray-200 rounded-[15px] p-6">
+                    <h4 className="font-nunito text-lg font-bold text-black mb-4 flex items-center">
+                      <Bell className="w-5 h-5 mr-2" />
+                      Thông báo qua Email
+                    </h4>
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div className="space-y-1">
+                          <Label className="text-sm font-medium">Thông báo đặt tour</Label>
+                          <p className="text-xs text-gray-500">Nhận email khi có đặt tour mới</p>
+                        </div>
+                        {isEditing ? (
+                          <Checkbox
+                            checked={editedProfile.notificationSettings.emailNotifications}
+                            onCheckedChange={(checked) =>
+                              setEditedProfile({
+                                ...editedProfile,
+                                notificationSettings: {
+                                  ...editedProfile.notificationSettings,
+                                  emailNotifications: checked as boolean,
+                                },
+                              })
+                            }
+                          />
+                        ) : (
+                          <div className="flex items-center">
+                            {profile.notificationSettings.emailNotifications ? (
+                              <Check className="w-5 h-5 text-green-500" />
+                            ) : (
+                              <X className="w-5 h-5 text-red-500" />
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div className="space-y-1">
+                          <Label className="text-sm font-medium">Email khuyến mãi</Label>
+                          <p className="text-xs text-gray-500">Nhận thông tin về chương trình khuyến mãi</p>
+                        </div>
+                        {isEditing ? (
+                          <Checkbox
+                            checked={editedProfile.notificationSettings.marketingEmails}
+                            onCheckedChange={(checked) =>
+                              setEditedProfile({
+                                ...editedProfile,
+                                notificationSettings: {
+                                  ...editedProfile.notificationSettings,
+                                  marketingEmails: checked as boolean,
+                                },
+                              })
+                            }
+                          />
+                        ) : (
+                          <div className="flex items-center">
+                            {profile.notificationSettings.marketingEmails ? (
+                              <Check className="w-5 h-5 text-green-500" />
+                            ) : (
+                              <X className="w-5 h-5 text-red-500" />
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="border border-gray-200 rounded-[15px] p-6">
+                    <h4 className="font-nunito text-lg font-bold text-black mb-4 flex items-center">
+                      <Phone className="w-5 h-5 mr-2" />
+                      Thông báo qua SMS
+                    </h4>
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div className="space-y-1">
+                          <Label className="text-sm font-medium">Thông báo SMS</Label>
+                          <p className="text-xs text-gray-500">Nhận thông báo qua tin nhắn SMS</p>
+                        </div>
+                        {isEditing ? (
+                          <Checkbox
+                            checked={editedProfile.notificationSettings.smsNotifications}
+                            onCheckedChange={(checked) =>
+                              setEditedProfile({
+                                ...editedProfile,
+                                notificationSettings: {
+                                  ...editedProfile.notificationSettings,
+                                  smsNotifications: checked as boolean,
+                                },
+                              })
+                            }
+                          />
+                        ) : (
+                          <div className="flex items-center">
+                            {profile.notificationSettings.smsNotifications ? (
+                              <Check className="w-5 h-5 text-green-500" />
+                            ) : (
+                              <X className="w-5 h-5 text-red-500" />
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="border border-gray-200 rounded-[15px] p-6">
+                    <h4 className="font-nunito text-lg font-bold text-black mb-4 flex items-center">
+                      <Settings className="w-5 h-5 mr-2" />
+                      Thông báo Push
+                    </h4>
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div className="space-y-1">
+                          <Label className="text-sm font-medium">Thông báo Push</Label>
+                          <p className="text-xs text-gray-500">Nhận thông báo trên thiết bị</p>
+                        </div>
+                        {isEditing ? (
+                          <Checkbox
+                            checked={editedProfile.notificationSettings.pushNotifications}
+                            onCheckedChange={(checked) =>
+                              setEditedProfile({
+                                ...editedProfile,
+                                notificationSettings: {
+                                  ...editedProfile.notificationSettings,
+                                  pushNotifications: checked as boolean,
+                                },
+                              })
+                            }
+                          />
+                        ) : (
+                          <div className="flex items-center">
+                            {profile.notificationSettings.pushNotifications ? (
+                              <Check className="w-5 h-5 text-green-500" />
+                            ) : (
+                              <X className="w-5 h-5 text-red-500" />
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             )}

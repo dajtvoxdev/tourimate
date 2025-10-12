@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { useAuth } from "@/src/hooks/useAuth";
 
 interface AdminHeaderProps {
   onMenuToggle: () => void;
@@ -23,16 +24,11 @@ interface AdminHeaderProps {
 const AdminHeader: React.FC<AdminHeaderProps> = ({ onMenuToggle, isSidebarOpen }) => {
   const navigate = useNavigate();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
-  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(!!localStorage.getItem("accessToken"));
-  const [avatar, setAvatar] = useState<string | null>(null);
+  const { isLoggedIn, user, logout } = useAuth();
 
   const handleLogout = async () => {
     try {
-      localStorage.removeItem("accessToken");
-      localStorage.removeItem("refreshToken");
-      localStorage.removeItem("refreshTokenExpiresAt");
-      setIsLoggedIn(false);
-      setAvatar(null);
+      await logout();
       toast.success("Đã đăng xuất");
       navigate("/");
     } catch (error) {
@@ -88,14 +84,14 @@ const AdminHeader: React.FC<AdminHeaderProps> = ({ onMenuToggle, isSidebarOpen }
               className="flex items-center space-x-2 p-2 hover:bg-gray-100 rounded-lg transition-colors"
             >
               <Avatar className="h-8 w-8">
-                <AvatarImage src={avatar || ""} />
+                <AvatarImage src={user?.avatar || ""} />
                 <AvatarFallback className="bg-tour-light-blue text-black text-sm font-medium">
-                  {isLoggedIn ? "AD" : "U"}
+                  {user ? `${user.firstName?.[0] || ""}${user.lastName?.[0] || ""}`.toUpperCase() : "U"}
                 </AvatarFallback>
               </Avatar>
               <div className="hidden md:block text-left">
                 <p className="text-sm font-medium text-gray-900">
-                  {isLoggedIn ? "Quản trị viên" : "Khách"}
+                  {user ? `${user.firstName || ""} ${user.lastName || ""}`.trim() || "Người dùng" : "Khách"}
                 </p>
                 <p className="text-xs text-gray-500">Quản trị viên</p>
               </div>
@@ -107,16 +103,16 @@ const AdminHeader: React.FC<AdminHeaderProps> = ({ onMenuToggle, isSidebarOpen }
                 <div className="p-4 border-b border-gray-100">
                   <div className="flex items-center space-x-3">
                     <Avatar className="h-12 w-12">
-                      <AvatarImage src={avatar || ""} />
+                      <AvatarImage src={user?.avatar || ""} />
                       <AvatarFallback className="bg-tour-light-blue text-black font-medium">
-                        {isLoggedIn ? "AD" : "U"}
+                        {user ? `${user.firstName?.[0] || ""}${user.lastName?.[0] || ""}`.toUpperCase() : "U"}
                       </AvatarFallback>
                     </Avatar>
                     <div>
                       <p className="font-medium text-gray-900">
-                        {isLoggedIn ? "Quản trị viên" : "Khách"}
+                        {user ? `${user.firstName || ""} ${user.lastName || ""}`.trim() || "Người dùng" : "Khách"}
                       </p>
-                      <p className="text-sm text-gray-500">admin@tourimate.com</p>
+                      <p className="text-sm text-gray-500">{user?.email || user?.phoneNumberE164 || "Chưa cập nhật"}</p>
                     </div>
                   </div>
                 </div>

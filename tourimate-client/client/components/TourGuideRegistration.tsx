@@ -1,9 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  User,
-  ChevronDown,
-  LogOut,
   Upload,
   X,
   Check,
@@ -12,12 +9,11 @@ import {
   Award,
   FileText,
   Camera,
-  Phone,
-  Mail,
-  Calendar,
   ArrowLeft,
   Send,
 } from "lucide-react";
+import Header from "./Header";
+import { useAuth } from "@/src/hooks/useAuth";
 
 interface FormData {
   // Personal Information
@@ -42,9 +38,9 @@ interface FormData {
 }
 
 export default function TourGuideRegistration() {
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
   const navigate = useNavigate();
+  const { isAdmin } = useAuth();
 
   const [formData, setFormData] = useState<FormData>({
     fullName: "",
@@ -65,13 +61,43 @@ export default function TourGuideRegistration() {
 
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const handleLogout = () => {
-    navigate("/");
-  };
-
-  const handleNavigation = (path: string) => {
-    navigate(path);
-  };
+  // Redirect admin users to admin dashboard
+  if (isAdmin) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Header />
+        <main className="max-w-4xl mx-auto px-4 py-8">
+          <div className="bg-white rounded-[30px] shadow-xl p-8 text-center">
+            <div className="mb-8">
+              <div className="w-20 h-20 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <span className="text-3xl">⚠️</span>
+              </div>
+              <h1 className="font-josefin text-3xl md:text-4xl font-bold text-black mb-4">
+                Không thể đăng ký làm hướng dẫn viên
+              </h1>
+              <p className="font-nunito text-lg md:text-xl text-gray-700 mb-8">
+                Bạn đã là quản trị viên của hệ thống và không thể đăng ký làm hướng dẫn viên.
+              </p>
+              <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                <button
+                  onClick={() => navigate("/admin")}
+                  className="bg-tour-blue hover:bg-tour-teal text-white px-8 py-3 rounded-[15px] font-nunito font-bold transition-colors duration-200"
+                >
+                  Về trang quản trị
+                </button>
+                <button
+                  onClick={() => navigate("/tour-guides")}
+                  className="bg-gray-500 hover:bg-gray-600 text-white px-8 py-3 rounded-[15px] font-nunito font-bold transition-colors duration-200"
+                >
+                  Xem hướng dẫn viên
+                </button>
+              </div>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   const availableLanguages = [
     "Tiếng Việt",
@@ -626,91 +652,21 @@ export default function TourGuideRegistration() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="relative z-20 p-4 md:p-6 bg-white shadow-sm">
-        <div className="flex items-center justify-between max-w-7xl mx-auto">
-          {/* Back Button & Navigation */}
-          <div className="flex items-center space-x-6">
-            <button
-              onClick={() => navigate(-1)}
-              className="flex items-center space-x-2 text-black hover:text-tour-blue transition-colors duration-200"
-            >
-              <ArrowLeft className="w-6 h-6" />
-              <span className="font-nunito text-lg font-medium">Quay lại</span>
-            </button>
-
-            <nav className="hidden md:flex space-x-6">
-              <button
-                onClick={() => handleNavigation("/home")}
-                className="bg-gray-200 hover:bg-tour-teal transition-colors duration-200 px-6 py-2 rounded-2xl"
-              >
-                <span className="font-nunito text-lg font-bold text-black">
-                  Trang chủ
-                </span>
-              </button>
-              <button
-                onClick={() => handleNavigation("/about")}
-                className="bg-gray-200 hover:bg-tour-teal transition-colors duration-200 px-6 py-2 rounded-2xl"
-              >
-                <span className="font-nunito text-lg font-bold text-black">
-                  Về chúng tôi
-                </span>
-              </button>
-              <button
-                onClick={() => handleNavigation("/tour-guides")}
-                className="bg-gray-200 hover:bg-tour-teal transition-colors duration-200 px-6 py-2 rounded-2xl"
-              >
-                <span className="font-nunito text-lg font-bold text-black">
-                  Hướng dẫn viên
-                </span>
-              </button>
-            </nav>
-          </div>
-
-          {/* Avatar Dropdown */}
-          <div className="relative">
-            <button
-              onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-              className="flex items-center space-x-2 p-2 hover:bg-gray-100 rounded-full transition-colors duration-200"
-            >
-              <div className="w-12 h-12 md:w-16 md:h-16 bg-tour-light-blue rounded-full flex items-center justify-center">
-                <User className="w-6 h-6 md:w-8 md:h-8 text-black" />
-              </div>
-              <ChevronDown
-                className={`w-4 h-4 text-black transition-transform duration-200 ${isDropdownOpen ? "rotate-180" : ""}`}
-              />
-            </button>
-
-            {isDropdownOpen && (
-              <div className="absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden">
-                <div className="py-2">
-                  <button
-                    onClick={() => handleNavigation("/profile")}
-                    className="w-full px-6 py-3 text-left hover:bg-gray-50 transition-colors duration-200 flex items-center space-x-3"
-                  >
-                    <User className="w-5 h-5 text-gray-600" />
-                    <span className="font-nunito text-lg font-medium text-black">
-                      Thông tin cá nhân
-                    </span>
-                  </button>
-                  <div className="border-t border-gray-100 my-1"></div>
-                  <button
-                    onClick={handleLogout}
-                    className="w-full px-6 py-3 text-left hover:bg-red-50 transition-colors duration-200 flex items-center space-x-3 text-red-600"
-                  >
-                    <LogOut className="w-5 h-5" />
-                    <span className="font-nunito text-lg font-medium">
-                      Đăng xuất
-                    </span>
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </header>
+      <Header />
 
       {/* Main Content */}
       <main className="max-w-4xl mx-auto px-4 py-8">
+        {/* Back Button */}
+        <div className="mb-6">
+          <button
+            onClick={() => navigate(-1)}
+            className="flex items-center space-x-2 text-black hover:text-tour-blue transition-colors duration-200"
+          >
+            <ArrowLeft className="w-6 h-6" />
+            <span className="font-nunito text-lg font-medium">Quay lại</span>
+          </button>
+        </div>
+
         {/* Page Header */}
         <div className="text-center mb-12">
           <h1 className="font-josefin text-3xl md:text-4xl lg:text-5xl font-bold text-black mb-4">

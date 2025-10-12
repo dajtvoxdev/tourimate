@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { ChevronDown, User, LogOut, Menu, X } from "lucide-react";
+import { ChevronDown, User, LogOut, Menu, X, Settings } from "lucide-react";
 import { toast } from "sonner";
-import { AuthApi } from "../src/features/auth/api";
+import { useAuth } from "../src/hooks/useAuth";
 
 interface HeaderProps {
   hideRegister?: boolean;
@@ -14,63 +14,14 @@ export default function Header({ hideRegister = false, hideLogin = false }: Head
   const location = useLocation();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
-  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(!!localStorage.getItem("accessToken"));
-  const [avatar, setAvatar] = useState<string | null>(null);
-  const API_BASE = (import.meta as any).env?.VITE_API_BASE_URL || "https://localhost:7181";
+  const { isLoggedIn, user, isAdmin, logout } = useAuth();
 
-  useEffect(() => {
-    const onStorage = () => setIsLoggedIn(!!localStorage.getItem("accessToken"));
-    window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
-  }, []);
-
-  useEffect(() => {
-    const loadProfile = async () => {
-      const token = localStorage.getItem("accessToken");
-      if (!token) {
-        setAvatar(null);
-        return;
-      }
-      try {
-        const res = await fetch(`${API_BASE}/api/auth/me`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (res.status === 401) {
-          localStorage.removeItem("accessToken");
-          localStorage.removeItem("refreshToken");
-          localStorage.removeItem("refreshTokenExpiresAt");
-          setIsLoggedIn(false);
-          setAvatar(null);
-          return;
-        }
-        const data = await res.json();
-        if (!res.ok) throw new Error(data || res.statusText);
-        setAvatar(data.avatar || null);
-      } catch {
-        setAvatar(null);
-      }
-    };
-    if (isLoggedIn) loadProfile();
-  }, [isLoggedIn, API_BASE]);
+  // Note: Removed auto-redirect to admin page to allow admin users to browse homepage normally
 
   const handleLogout = async () => {
-    try {
-      const refreshToken = localStorage.getItem("refreshToken") || "";
-      if (refreshToken) {
-        await AuthApi.logout(refreshToken);
-      }
-    } catch (e: any) {
-      // Non-blocking
-      console.error(e);
-    } finally {
-      localStorage.removeItem("accessToken");
-      localStorage.removeItem("refreshToken");
-      localStorage.removeItem("refreshTokenExpiresAt");
-      setIsLoggedIn(false);
-      setAvatar(null);
-      toast.success("Đã đăng xuất");
-      navigate("/");
-    }
+    await logout();
+    toast.success("Đã đăng xuất");
+    navigate("/");
   };
 
   const NavButton = ({ to, label }: { to: string; label: string }) => (
@@ -92,7 +43,7 @@ export default function Header({ hideRegister = false, hideLogin = false }: Head
 
   return (
     <header className="sticky top-0 z-40 bg-white/70 backdrop-blur-md border-b border-white/20 shadow-sm">
-      <div className="max-w-7xl mx-auto px-4 md:px-6">
+      <div className="max-w-9xl mx-auto px-4 md:px-6">
         <div className="flex items-center justify-between h-16 md:h-20">
           {/* Left: Logo */}
           <button onClick={() => navigate("/")} className="flex items-center gap-3 group">
@@ -116,8 +67,8 @@ export default function Header({ hideRegister = false, hideLogin = false }: Head
               <div className="relative">
                 <button onClick={() => setIsDropdownOpen(!isDropdownOpen)} className="flex items-center space-x-2 p-1.5 hover:bg-gray-100 rounded-full transition-colors duration-200">
                   <div className="w-10 h-10 md:w-12 md:h-12 bg-tour-light-blue rounded-full flex items-center justify-center ring-1 ring-white/40 overflow-hidden">
-                    {avatar ? (
-                      <img src={avatar} alt="avatar" className="w-full h-full object-cover" />
+                    {user?.avatar ? (
+                      <img src={user.avatar} alt="avatar" className="w-full h-full object-cover" />
                     ) : (
                       <User className="w-5 h-5 md:w-6 md:h-6 text-black" />
                     )}
@@ -131,6 +82,14 @@ export default function Header({ hideRegister = false, hideLogin = false }: Head
                         <User className="w-5 h-5 text-gray-600" />
                         <span className="font-nunito text-lg font-medium text-black">Thông tin cá nhân</span>
                       </button>
+                      {isAdmin && (
+                        <>
+                          <button onClick={() => navigate("/admin")} className="w-full px-6 py-3 text-left hover:bg-gray-50 transition-colors duration-200 flex items-center space-x-3">
+                            <Settings className="w-5 h-5 text-gray-600" />
+                            <span className="font-nunito text-lg font-medium text-black">Quản trị</span>
+                          </button>
+                        </>
+                      )}
                       <div className="border-t border-gray-100 my-1"></div>
                       <button onClick={handleLogout} className="w-full px-6 py-3 text-left hover:bg-red-50 transition-colors duration-200 flex items-center space-x-3 text-red-600">
                         <LogOut className="w-5 h-5" />
@@ -176,6 +135,9 @@ export default function Header({ hideRegister = false, hideLogin = false }: Head
               <NavButton to="/about" label="Về chúng tôi" />
               <NavButton to="/tour-guides" label="Hướng dẫn viên" />
               <NavButton to="/create-tour" label="Tạo tour" />
+              {isLoggedIn && isAdmin && (
+                <NavButton to="/admin" label="Quản trị" />
+              )}
               {!isLoggedIn && (
                 <div className="flex gap-2 pt-2">
                   {!hideLogin && (

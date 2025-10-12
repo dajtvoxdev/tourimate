@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using TouriMate.Data;
 
@@ -11,9 +12,11 @@ using TouriMate.Data;
 namespace tourimate.Migrations
 {
     [DbContext(typeof(TouriMateDbContext))]
-    partial class TouriMateDbContextModelSnapshot : ModelSnapshot
+    [Migration("20251007075307_RemoveTourDifficulty1")]
+    partial class RemoveTourDifficulty1
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -73,7 +76,7 @@ namespace tourimate.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("AuditLogs", (string)null);
+                    b.ToTable("AuditLogs");
                 });
 
             modelBuilder.Entity("Entities.Models.Booking", b =>
@@ -179,7 +182,7 @@ namespace tourimate.Migrations
 
                     b.HasIndex("TourDate", "Status");
 
-                    b.ToTable("Bookings", (string)null);
+                    b.ToTable("Bookings");
                 });
 
             modelBuilder.Entity("Entities.Models.Division", b =>
@@ -232,7 +235,7 @@ namespace tourimate.Migrations
                     b.HasIndex("Code")
                         .IsUnique();
 
-                    b.ToTable("Divisions", (string)null);
+                    b.ToTable("Divisions");
                 });
 
             modelBuilder.Entity("Entities.Models.File", b =>
@@ -306,7 +309,7 @@ namespace tourimate.Migrations
 
                     b.HasIndex("UploadedBy");
 
-                    b.ToTable("Files", (string)null);
+                    b.ToTable("Files");
                 });
 
             modelBuilder.Entity("Entities.Models.Order", b =>
@@ -418,7 +421,7 @@ namespace tourimate.Migrations
 
                     b.HasIndex("Status", "CreatedAt");
 
-                    b.ToTable("Orders", (string)null);
+                    b.ToTable("Orders");
                 });
 
             modelBuilder.Entity("Entities.Models.OrderItem", b =>
@@ -469,7 +472,7 @@ namespace tourimate.Migrations
 
                     b.HasIndex("ProductId");
 
-                    b.ToTable("OrderItems", (string)null);
+                    b.ToTable("OrderItems");
                 });
 
             modelBuilder.Entity("Entities.Models.OtpCode", b =>
@@ -519,7 +522,7 @@ namespace tourimate.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("OtpCodes", (string)null);
+                    b.ToTable("OtpCodes");
                 });
 
             modelBuilder.Entity("Entities.Models.Product", b =>
@@ -644,7 +647,7 @@ namespace tourimate.Migrations
 
                     b.HasIndex("Price", "IsActive");
 
-                    b.ToTable("Products", (string)null);
+                    b.ToTable("Products");
                 });
 
             modelBuilder.Entity("Entities.Models.ProductCategory", b =>
@@ -691,7 +694,7 @@ namespace tourimate.Migrations
 
                     b.HasIndex("ParentId");
 
-                    b.ToTable("ProductCategories", (string)null);
+                    b.ToTable("ProductCategories");
 
                     b.HasData(
                         new
@@ -822,7 +825,7 @@ namespace tourimate.Migrations
 
                     b.HasIndex("TourId");
 
-                    b.ToTable("Promotions", (string)null);
+                    b.ToTable("Promotions");
                 });
 
             modelBuilder.Entity("Entities.Models.RefreshToken", b =>
@@ -867,7 +870,7 @@ namespace tourimate.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("RefreshTokens", (string)null);
+                    b.ToTable("RefreshTokens");
                 });
 
             modelBuilder.Entity("Entities.Models.Revenue", b =>
@@ -939,7 +942,7 @@ namespace tourimate.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("Revenue", (string)null);
+                    b.ToTable("Revenue");
                 });
 
             modelBuilder.Entity("Entities.Models.Review", b =>
@@ -1030,7 +1033,7 @@ namespace tourimate.Migrations
 
                     b.HasIndex("EntityId", "EntityType", "Status");
 
-                    b.ToTable("Reviews", (string)null);
+                    b.ToTable("Reviews");
                 });
 
             modelBuilder.Entity("Entities.Models.ReviewHelpfulVote", b =>
@@ -1067,7 +1070,7 @@ namespace tourimate.Migrations
                     b.HasIndex("ReviewId", "UserId")
                         .IsUnique();
 
-                    b.ToTable("ReviewHelpfulVotes", (string)null);
+                    b.ToTable("ReviewHelpfulVotes");
                 });
 
             modelBuilder.Entity("Entities.Models.ReviewReply", b =>
@@ -1116,7 +1119,7 @@ namespace tourimate.Migrations
 
                     b.HasIndex("UserId1");
 
-                    b.ToTable("ReviewReplies", (string)null);
+                    b.ToTable("ReviewReplies");
                 });
 
             modelBuilder.Entity("Entities.Models.ShoppingCart", b =>
@@ -1153,7 +1156,7 @@ namespace tourimate.Migrations
                     b.HasIndex("UserId", "ProductId")
                         .IsUnique();
 
-                    b.ToTable("ShoppingCart", (string)null);
+                    b.ToTable("ShoppingCart");
                 });
 
             modelBuilder.Entity("Entities.Models.SystemSetting", b =>
@@ -1198,7 +1201,7 @@ namespace tourimate.Migrations
                     b.HasIndex("Key")
                         .IsUnique();
 
-                    b.ToTable("SystemSettings", (string)null);
+                    b.ToTable("SystemSettings");
 
                     b.HasData(
                         new
@@ -1361,7 +1364,7 @@ namespace tourimate.Migrations
 
                     b.HasIndex("Price", "IsActive");
 
-                    b.ToTable("Tours", (string)null);
+                    b.ToTable("Tours");
                 });
 
             modelBuilder.Entity("Entities.Models.TourAvailability", b =>
@@ -1405,7 +1408,7 @@ namespace tourimate.Migrations
                     b.HasIndex("TourId", "Date")
                         .IsUnique();
 
-                    b.ToTable("TourAvailability", (string)null);
+                    b.ToTable("TourAvailability");
                 });
 
             modelBuilder.Entity("Entities.Models.TourGuideApplication", b =>
@@ -1463,7 +1466,7 @@ namespace tourimate.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("TourGuideApplications", (string)null);
+                    b.ToTable("TourGuideApplications");
                 });
 
             modelBuilder.Entity("Entities.Models.Transaction", b =>
@@ -1551,7 +1554,7 @@ namespace tourimate.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("Transactions", (string)null);
+                    b.ToTable("Transactions");
                 });
 
             modelBuilder.Entity("Entities.Models.User", b =>
@@ -1634,7 +1637,7 @@ namespace tourimate.Migrations
                         .IsUnique()
                         .HasFilter("[PhoneNumber] IS NOT NULL");
 
-                    b.ToTable("Users", (string)null);
+                    b.ToTable("Users");
                 });
 
             modelBuilder.Entity("Entities.Models.UserProfile", b =>
@@ -1697,7 +1700,7 @@ namespace tourimate.Migrations
                     b.HasIndex("UserId")
                         .IsUnique();
 
-                    b.ToTable("UserProfiles", (string)null);
+                    b.ToTable("UserProfiles");
                 });
 
             modelBuilder.Entity("Entities.Models.AuditLog", b =>
