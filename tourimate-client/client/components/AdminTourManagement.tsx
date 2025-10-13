@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useAuth } from "@/src/hooks/useAuth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -30,12 +31,18 @@ import {
   MapPin,
   Calendar,
   DollarSign,
-  Users
+  Users,
+  Check,
+  X,
+  RotateCcw
 } from "lucide-react";
 import { toast } from "sonner";
 
 const AdminTourManagement = () => {
   const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
+  const isTourGuide = user?.role === 'TourGuide';
+  const isAdmin = user?.role === 'Admin';
   const [tours, setTours] = useState<TourListDto[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
@@ -86,7 +93,9 @@ const AdminTourManagement = () => {
   const loadTours = async () => {
     try {
       setLoading(true);
-      const response = await tourApi.getTours(searchParams);
+      // If TourGuide is in limited mode (mine=1 in URL), ensure only own tours are fetched
+      const params = { ...searchParams } as any;
+      const response = await tourApi.getTours(params);
       setTours(response.tours);
       setTotalCount(response.totalCount);
       setCurrentPage(response.page);
@@ -124,6 +133,11 @@ const AdminTourManagement = () => {
   const handleCreateTour = async () => {
     try {
       const payload: any = { ...formData };
+      const mine = new URLSearchParams(window.location.search).get('mine');
+      if (mine === '1') {
+        // TourGuide cannot mark featured directly
+        payload.isFeatured = false;
+      }
       if (imageUrls.length > 0) {
         payload.imageUrls = imageUrls;
       }
@@ -154,7 +168,10 @@ const AdminTourManagement = () => {
         price: formData.price,
         currency: formData.currency,
         category: formData.category,
-        isFeatured: formData.isFeatured
+        isFeatured: (() => {
+          const mine = new URLSearchParams(window.location.search).get('mine');
+          return mine === '1' ? false : formData.isFeatured;
+        })()
       };
       if (imageUrls.length > 0) {
         updateData.imageUrls = imageUrls;
@@ -463,7 +480,7 @@ const AdminTourManagement = () => {
                           <Button size="sm" variant="outline" onClick={() => openViewDialog(tour)}>
                             <Eye className="h-4 w-4" />
                           </Button>
-                          <Button size="sm" variant="outline" onClick={() => openEditDialog(tour)}>
+                  <Button size="sm" variant="outline" onClick={() => openEditDialog(tour)}>
                             <Edit className="h-4 w-4" />
                           </Button>
                           <AlertDialog>
@@ -485,6 +502,53 @@ const AdminTourManagement = () => {
                               </AlertDialogFooter>
                             </AlertDialogContent>
                           </AlertDialog>
+                          {isAdmin && (
+                            <>
+                              {(() => {
+                                const key = ((): 'approved' | 'pendingapproval' | 'rejected' | 'other' => {
+                                  const s: any = tour.status;
+                                  if (typeof s === 'number') {
+                                    if (s === 2) return 'approved';
+                                    if (s === 1) return 'pendingapproval';
+                                    if (s === 3) return 'rejected';
+                                    return 'other';
+                                  }
+                                  const v = String(s || '').toLowerCase();
+                                  if (v === 'approved') return 'approved';
+                                  if (v === 'pendingapproval' || v === 'pending_approval' || v === 'pending') return 'pendingapproval';
+                                  if (v === 'rejected') return 'rejected';
+                                  return 'other';
+                                })();
+                                if (key === 'pendingapproval') {
+                                  return (
+                                    <>
+                                      <Button size="sm" variant="outline" title="Duyệt" aria-label="Duyệt" onClick={() => handleUpdateStatus(tour.id, 'approved')}>
+                                        <Check className="h-4 w-4" />
+                                      </Button>
+                                      <Button size="sm" variant="outline" title="Từ chối" aria-label="Từ chối" onClick={() => handleUpdateStatus(tour.id, 'rejected')}>
+                                        <X className="h-4 w-4" />
+                                      </Button>
+                                    </>
+                                  );
+                                }
+                                if (key === 'rejected') {
+                                  return (
+                                    <Button size="sm" variant="outline" title="Duyệt" aria-label="Duyệt" onClick={() => handleUpdateStatus(tour.id, 'approved')}>
+                                      <Check className="h-4 w-4" />
+                                    </Button>
+                                  );
+                                }
+                                if (key === 'approved') {
+                                  return (
+                                    <Button size="sm" variant="outline" title="Huỷ duyệt" aria-label="Huỷ duyệt" onClick={() => handleUpdateStatus(tour.id, 'pendingapproval')}>
+                                      <RotateCcw className="h-4 w-4" />
+                                    </Button>
+                                  );
+                                }
+                                return null;
+                              })()}
+                            </>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>

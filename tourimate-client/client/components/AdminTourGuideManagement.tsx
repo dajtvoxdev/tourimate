@@ -134,6 +134,10 @@ const AdminTourGuideManagement = () => {
 
   const handleReview = async () => {
     if (!selectedApplication) return;
+  if (selectedApplication.status !== "pending_review") {
+    toast.error("Chỉ có thể cập nhật đơn ở trạng thái chờ xem xét");
+    return;
+  }
     
     try {
       setReviewLoading(true);
@@ -528,15 +532,19 @@ const AdminTourGuideManagement = () => {
                       />
                     </div>
 
-                    <div className="flex justify-end gap-2">
-                      <Button variant="outline" onClick={() => setIsReviewDialogOpen(false)}>
-                        Hủy
-                      </Button>
-                      <Button onClick={handleReview} disabled={reviewLoading}>
-                        {reviewLoading ? <Spinner size="sm" className="mr-2" /> : null}
-                        Gửi đánh giá
-                      </Button>
-                    </div>
+                    {selectedApplication.status === "pending_review" ? (
+                      <div className="flex justify-end gap-2">
+                        <Button variant="outline" onClick={() => setIsReviewDialogOpen(false)}>
+                          Hủy
+                        </Button>
+                        <Button onClick={handleReview} disabled={reviewLoading}>
+                          {reviewLoading ? <Spinner size="sm" className="mr-2" /> : null}
+                          Gửi đánh giá
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="text-sm text-gray-500">Đơn không ở trạng thái chờ xem xét, không thể cập nhật.</div>
+                    )}
                   </div>
                 </div>
               </div>

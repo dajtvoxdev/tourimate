@@ -13,6 +13,7 @@ import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { httpWithRefresh, httpJson, httpUpload, getApiBase } from "@/src/lib/http";
+import { useAuth } from "@/src/hooks/useAuth";
 
 type CreateTourPayload = {
   title: string;
@@ -66,6 +67,8 @@ const CreateTourForm: React.FC<Props> = ({ initial, onSubmit, onCancel, onUpload
     isFeatured: initial?.isFeatured ?? false,
   });
   const [uploading, setUploading] = useState(false);
+  const { user } = useAuth();
+  const isTourGuide = user?.role === 'TourGuide';
   const [divisions, setDivisions] = useState<Array<{ code: number; name: string }>>([]);
   const [wards, setWards] = useState<Array<{ code: number; name: string }>>([]);
   const [categories, setCategories] = useState<Array<{ id: string; name: string; code: string }>>([]);
@@ -575,13 +578,17 @@ const CreateTourForm: React.FC<Props> = ({ initial, onSubmit, onCancel, onUpload
 
         <TabsContent value="settings" className="space-y-4">
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label htmlFor="isFeatured">Tour nổi bật</Label>
-                <p className="text-sm text-gray-500">Hiển thị tour này ở vị trí nổi bật</p>
+            {!isTourGuide ? (
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label htmlFor="isFeatured">Tour nổi bật</Label>
+                  <p className="text-sm text-gray-500">Hiển thị tour này ở vị trí nổi bật</p>
+                </div>
+                <Switch id="isFeatured" checked={formData.isFeatured} onCheckedChange={(checked) => setFormData(p => ({ ...p, isFeatured: checked }))} />
               </div>
-              <Switch id="isFeatured" checked={formData.isFeatured} onCheckedChange={(checked) => setFormData(p => ({ ...p, isFeatured: checked }))} />
-            </div>
+            ) : (
+              <div className="text-sm text-gray-500">Yêu cầu nổi bật sẽ do quản trị viên phê duyệt.</div>
+            )}
             <Separator />
             <div className="text-sm text-gray-500">
               <ul className="list-disc list-inside space-y-1 mt-2">

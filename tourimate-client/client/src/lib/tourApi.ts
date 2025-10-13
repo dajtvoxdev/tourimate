@@ -101,10 +101,18 @@ class TourApiService {
   }
 
   // Update tour status (Admin only)
-  async updateTourStatus(id: string, status: string): Promise<TourDto> {
+  async updateTourStatus(id: string, status: string | number): Promise<TourDto> {
+    const normalize = (v: string | number): number => {
+      if (typeof v === 'number') return v;
+      const s = v.toLowerCase();
+      if (s === 'approved') return 2;
+      if (s === 'pendingapproval' || s === 'pending_approval' || s === 'pending') return 1;
+      if (s === 'rejected') return 3;
+      return 1;
+    };
     return this.request<TourDto>(`/api/tour/${id}/status`, {
       method: 'PUT',
-      body: JSON.stringify(status),
+      body: JSON.stringify(normalize(status)),
     });
   }
 

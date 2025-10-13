@@ -27,6 +27,8 @@ import AdminTourManagement from "./components/AdminTourManagement";
 import AdminDivisions from "./components/AdminDivisions";
 import AdminTourCategories from "./components/AdminTourCategories";
 import AdminTourGuideManagement from "./components/AdminTourGuideManagement";
+import AdminUsers from "./components/AdminUsers";
+import AdminGuides from "./components/AdminGuides";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AdminProtectedRoute from "./components/AdminProtectedRoute";
 import NonAdminProtectedRoute from "./components/NonAdminProtectedRoute";
@@ -97,6 +99,22 @@ const App = () => (
             element={
               <AdminProtectedRoute>
                 <AdminTourGuideManagement />
+              </AdminProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/admin/users" 
+            element={
+              <AdminProtectedRoute>
+                <AdminUsers />
+              </AdminProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/admin/guides" 
+            element={
+              <AdminProtectedRoute>
+                <AdminGuides />
               </AdminProtectedRoute>
             } 
           />

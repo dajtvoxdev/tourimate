@@ -24,8 +24,8 @@ export default function AdminProtectedRoute({ children }: AdminProtectedRoutePro
     return <Navigate to="/login" state={{ from: location.pathname }} replace />;
   }
 
-  // Redirect to home if not admin
-  if (!isAdmin) {
+  // Allow Admin and TourGuide roles into the admin area; TourGuide will see limited features in the UI
+  if (!(isAdmin || user?.role === 'TourGuide')) {
     return <Navigate to="/" replace />;
   }
 

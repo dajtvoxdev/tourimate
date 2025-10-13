@@ -1,15 +1,15 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from '@/components/ui/carousel';
 import { Badge } from '@/components/ui/badge';
 import { File, Image, FileText, Download, Eye } from 'lucide-react';
-import { Worker, Viewer } from '@react-pdf-viewer/core';
-import { defaultLayoutPlugin } from '@react-pdf-viewer/default-layout';
-
-// Import styles
-import '@react-pdf-viewer/core/lib/styles/index.css';
-import '@react-pdf-viewer/default-layout/lib/styles/index.css';
+import { Document, Page, pdfjs } from 'react-pdf';
+// Configure pdf.js worker to bundled local file (avoids CORS)
+pdfjs.GlobalWorkerOptions.workerSrc = new URL(
+  'pdfjs-dist/build/pdf.worker.min.mjs',
+  import.meta.url
+).toString();
 
 interface FilePreviewProps {
   files: string[];
@@ -31,8 +31,15 @@ const FilePreview: React.FC<FilePreviewProps> = ({ files, title = "Tài liệu" 
   const [isOpen, setIsOpen] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
 
-  // Create new plugin instance
-  const defaultLayoutPluginInstance = defaultLayoutPlugin();
+  const [numPagesByUrl, setNumPagesByUrl] = useState<Record<string, number>>({});
+  const onDocumentLoadSuccess = (url: string) => (info: { numPages: number }) => {
+    setNumPagesByUrl((prev) => ({ ...prev, [url]: info.numPages }));
+  };
+  const renderLoader = useMemo(() => (
+    <div className="flex items-center justify-center h-full text-gray-500">
+      <div className="animate-spin h-8 w-8 border-4 border-gray-300 border-t-transparent rounded-full" />
+    </div>
+  ), []);
 
   if (!files || files.length === 0) {
     return (
@@ -172,16 +179,19 @@ const FilePreview: React.FC<FilePreviewProps> = ({ files, title = "Tài liệu" 
                               className="w-full h-full object-contain"
                             />
                           ) : type === 'pdf' ? (
-                            <div className="w-full h-full">
-                              <Worker workerUrl="https://unpkg.com/pdfjs-dist@5.4.296/build/pdf.worker.mjs">
-                                <Viewer
-                                  fileUrl={file}
-                                  plugins={[
-                                    // Register plugins
-                                    defaultLayoutPluginInstance,
-                                  ]}
-                                />
-                              </Worker>
+                            <div className="w-full h-full overflow-auto p-2">
+                              <Document
+                                file={file}
+                                onLoadSuccess={onDocumentLoadSuccess(file)}
+                                loading={renderLoader}
+                                error={<div className="text-center text-red-500">Không thể tải PDF</div>}
+                              >
+                                {Array.from({ length: numPagesByUrl[file] || 1 }, (_, i) => (
+                                  <div key={i} className="mb-4 flex justify-center">
+                                    <Page pageNumber={i + 1} width={900} loading={renderLoader} renderTextLayer={false} renderAnnotationLayer={false} />
+                                  </div>
+                                ))}
+                              </Document>
                             </div>
                           ) : (
                             <div className="flex flex-col items-center justify-center h-full text-gray-500">
@@ -222,16 +232,19 @@ const FilePreview: React.FC<FilePreviewProps> = ({ files, title = "Tài liệu" 
                       );
                     case 'pdf':
                       return (
-                        <div className="w-full h-full">
-                          <Worker workerUrl="https://unpkg.com/pdfjs-dist@5.4.296/build/pdf.worker.mjs">
-                            <Viewer
-                              fileUrl={file}
-                              plugins={[
-                                // Register plugins
-                                defaultLayoutPluginInstance,
-                              ]}
-                            />
-                          </Worker>
+                        <div className="w-full h-full overflow-auto p-2">
+                          <Document
+                            file={file}
+                            onLoadSuccess={onDocumentLoadSuccess(file)}
+                            loading={renderLoader}
+                            error={<div className="text-center text-red-500">Không thể tải PDF</div>}
+                          >
+                            {Array.from({ length: numPagesByUrl[file] || 1 }, (_, i) => (
+                              <div key={i} className="mb-4 flex justify-center">
+                                <Page pageNumber={i + 1} width={900} loading={renderLoader} renderTextLayer={false} renderAnnotationLayer={false} />
+                              </div>
+                            ))}
+                          </Document>
                         </div>
                       );
                     default:

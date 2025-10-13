@@ -15,6 +15,7 @@ export default function Header({ hideRegister = false, hideLogin = false }: Head
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const { isLoggedIn, user, isAdmin, logout } = useAuth();
+  const isTourGuide = user?.role === 'TourGuide';
 
   // Note: Removed auto-redirect to admin page to allow admin users to browse homepage normally
 
@@ -58,7 +59,9 @@ export default function Header({ hideRegister = false, hideLogin = false }: Head
             <NavButton to="/" label="Trang chủ" />
             <NavButton to="/about" label="Về chúng tôi" />
             <NavButton to="/tour-guides" label="Hướng dẫn viên" />
-            <NavButton to="/create-tour" label="Tạo tour" />
+            {isLoggedIn && isTourGuide && (
+              <NavButton to="/admin/tours" label="Tạo tour" />
+            )}
           </nav>
 
           {/* Right: Auth / Avatar */}
@@ -82,7 +85,7 @@ export default function Header({ hideRegister = false, hideLogin = false }: Head
                         <User className="w-5 h-5 text-gray-600" />
                         <span className="font-nunito text-lg font-medium text-black">Thông tin cá nhân</span>
                       </button>
-                      {isAdmin && (
+                      {(isAdmin || isTourGuide) && (
                         <>
                           <button onClick={() => navigate("/admin")} className="w-full px-6 py-3 text-left hover:bg-gray-50 transition-colors duration-200 flex items-center space-x-3">
                             <Settings className="w-5 h-5 text-gray-600" />
@@ -134,8 +137,10 @@ export default function Header({ hideRegister = false, hideLogin = false }: Head
               <NavButton to="/" label="Trang chủ" />
               <NavButton to="/about" label="Về chúng tôi" />
               <NavButton to="/tour-guides" label="Hướng dẫn viên" />
-              <NavButton to="/create-tour" label="Tạo tour" />
-              {isLoggedIn && isAdmin && (
+              {isLoggedIn && isTourGuide && (
+                <NavButton to="/admin/tours" label="Tạo tour" />
+              )}
+              {isLoggedIn && (isAdmin || isTourGuide) && (
                 <NavButton to="/admin" label="Quản trị" />
               )}
               {!isLoggedIn && (

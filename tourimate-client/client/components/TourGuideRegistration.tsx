@@ -178,37 +178,35 @@ export default function TourGuideRegistration() {
         const data = await response.json();
         setExistingApplication(data);
         
-        // If application exists and status allows editing, load the data
-        if (data.status === "allow_edit" || data.status === "rejected") {
-          try {
-            const applicationData = JSON.parse(data.applicationData);
-            const documents = data.documents ? JSON.parse(data.documents) : [];
-            
-            setFormData(prev => ({
-              ...prev,
-              ...applicationData,
-              // Convert back to proper types
-              languages: Array.isArray(applicationData.languages) ? applicationData.languages : [],
-              specializations: Array.isArray(applicationData.specializations) ? applicationData.specializations : [],
-              // Handle documents - first item is avatar, second is idCard, rest are certificates
-              avatar: documents[0] || null,
-              idCard: documents[1] || null,
-              certificates: documents.slice(2) || [],
-            }));
-            
-            // Load wards for the selected province and then set the wardCode
-            if (applicationData.provinceCode) {
-              const wardCode = applicationData.wardCode;
-              loadWards(applicationData.provinceCode).then(() => {
-                // Set the wardCode after wards are loaded
-                if (wardCode) {
-                  setFormData(prev => ({ ...prev, wardCode }));
-                }
-              });
-            }
-          } catch (e) {
-            console.error("Failed to parse existing application data:", e);
+        // Always load existing data for display, regardless of editability
+        try {
+          const applicationData = JSON.parse(data.applicationData);
+          const documents = data.documents ? JSON.parse(data.documents) : [];
+          
+          setFormData(prev => ({
+            ...prev,
+            ...applicationData,
+            // Convert back to proper types
+            languages: Array.isArray(applicationData.languages) ? applicationData.languages : [],
+            specializations: Array.isArray(applicationData.specializations) ? applicationData.specializations : [],
+            // Handle documents - first item is avatar, second is idCard, rest are certificates
+            avatar: documents[0] || null,
+            idCard: documents[1] || null,
+            certificates: documents.slice(2) || [],
+          }));
+          
+          // Load wards for the selected province and then set the wardCode
+          if (applicationData.provinceCode) {
+            const wardCode = applicationData.wardCode;
+            loadWards(applicationData.provinceCode).then(() => {
+              // Set the wardCode after wards are loaded
+              if (wardCode) {
+                setFormData(prev => ({ ...prev, wardCode }));
+              }
+            });
           }
+        } catch (e) {
+          console.error("Failed to parse existing application data:", e);
         }
       } else if (response.status === 404) {
         // No existing application
@@ -577,14 +575,7 @@ export default function TourGuideRegistration() {
     }
 
     if (!existingApplication) {
-      return (
-        <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
-          <div className="flex items-center gap-3">
-            <Check className="w-5 h-5 text-green-600" />
-            <span className="text-green-800 font-medium">Chưa có đơn đăng ký nào. Bạn có thể tạo đơn đăng ký mới.</span>
-          </div>
-        </div>
-      );
+      return null;
     }
 
     const statusConfig = {

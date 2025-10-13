@@ -5,7 +5,8 @@ import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { tourApi } from "../src/lib/tourApi";
 import { TourDto, TourListDto } from "../src/lib/types/tour";
-import { Loader2 } from "lucide-react";
+import { Loader2, Check, X, RotateCcw } from "lucide-react";
+import { useAuth } from "@/src/hooks/useAuth";
 
 interface Props {
   tour?: TourListDto | null;
@@ -22,6 +23,8 @@ export const TourDetailDialog: React.FC<Props> = ({ tour, tourId, onClose }) => 
   const [wardName, setWardName] = useState<string | undefined>(undefined);
   const id = tourId || tour?.id;
   const baseApiUrl = ((import.meta as any).env?.VITE_API_BASE_URL || "https://localhost:7181");
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'Admin';
 
   useEffect(() => {
     let isMounted = true;
@@ -246,7 +249,50 @@ export const TourDetailDialog: React.FC<Props> = ({ tour, tourId, onClose }) => 
             </div>
           </div>
 
-          <div className="flex justify-end">
+          <div className="flex items-center justify-between">
+            {/* Left-side admin actions for status */}
+            {isAdmin && detail && (() => {
+              const s: any = detail.status;
+              const v = typeof s === 'number' ? s : String(s || '').toLowerCase();
+              const isPending = (typeof v === 'number' ? v === 1 : (v === 'pendingapproval' || v === 'pending_approval' || v === 'pending'));
+              const isRejected = (typeof v === 'number' ? v === 3 : v === 'rejected');
+              const isApproved = (typeof v === 'number' ? v === 2 : v === 'approved');
+              if (!isPending && !isRejected && !isApproved) return null;
+              const approve = async () => {
+                try { await tourApi.updateTourStatus(detail.id, 'approved'); onClose(); } catch {}
+              };
+              const reject = async () => {
+                try { await tourApi.updateTourStatus(detail.id, 'rejected'); onClose(); } catch {}
+              };
+              const unapprove = async () => {
+                try { await tourApi.updateTourStatus(detail.id, 'pendingapproval'); onClose(); } catch {}
+              };
+              return (
+                <div className="flex gap-2">
+                  {isPending && (
+                    <>
+                      <Button variant="outline" size="sm" title="Duyệt" aria-label="Duyệt" onClick={approve}>
+                        <Check className="h-4 w-4" />
+                      </Button>
+                      <Button variant="outline" size="sm" title="Từ chối" aria-label="Từ chối" onClick={reject}>
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </>
+                  )}
+                  {isRejected && (
+                    <Button variant="outline" size="sm" title="Duyệt" aria-label="Duyệt" onClick={approve}>
+                      <Check className="h-4 w-4" />
+                    </Button>
+                  )}
+                  {isApproved && (
+                    <Button variant="outline" size="sm" title="Huỷ duyệt" aria-label="Huỷ duyệt" onClick={unapprove}>
+                      <RotateCcw className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+              );
+            })()}
+
             <Button variant="outline" onClick={onClose}>Đóng</Button>
           </div>
         </div>

@@ -48,7 +48,28 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout } = useAuth();
+  const [pendingGuideApps, setPendingGuideApps] = React.useState<number>(0);
+  const API_BASE = (import.meta as any).env?.VITE_API_BASE_URL || "https://localhost:7181";
 
+  React.useEffect(() => {
+    let mounted = true;
+    const fetchPending = async () => {
+      try {
+        const token = localStorage.getItem("accessToken");
+        const res = await fetch(`${API_BASE}/api/auth/tour-guide-applications?status=pending_review&page=1&pageSize=1`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (mounted) setPendingGuideApps(Number(data.totalCount || 0));
+      } catch {}
+    };
+    fetchPending();
+    const id = window.setInterval(fetchPending, 30000);
+    return () => { mounted = false; window.clearInterval(id); };
+  }, [API_BASE]);
+
+  const isTourGuideOnly = user?.role === 'TourGuide';
   const navItems: NavItem[] = [
     {
       id: "dashboard",
@@ -56,7 +77,15 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) => {
       icon: LayoutDashboard,
       path: "/admin"
     },
-    {
+    isTourGuideOnly ? {
+      id: "tours",
+      label: "Quản lý Tour",
+      icon: MapPin,
+      children: [
+        { id: "my-tours", label: "Tour của tôi", icon: MapPin, path: "/admin/tours?mine=1" },
+        { id: "my-tour-reviews", label: "Đánh giá Tour", icon: Star, path: "/admin/tour-reviews?mine=1" }
+      ]
+    } : {
       id: "tours",
       label: "Quản lý Tour",
       icon: MapPin,
@@ -66,7 +95,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) => {
         { id: "tour-reviews", label: "Đánh giá Tour", icon: Star, path: "/admin/tour-reviews" }
       ]
     },
-    {
+    !isTourGuideOnly ? {
       id: "users",
       label: "Quản lý Người dùng",
       icon: Users,
@@ -76,8 +105,22 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) => {
         { id: "tour-guides", label: "Hướng dẫn viên", icon: Shield, path: "/admin/guides" },
         { id: "user-roles", label: "Phân quyền", icon: Settings, path: "/admin/user-roles" }
       ]
+    } : {
+      id: "guides",
+      label: "Hướng dẫn viên",
+      icon: Shield,
+      children: [
+        { id: "tour-guides", label: "Hồ sơ của tôi", icon: Shield, path: "/profile" }
+      ]
     },
-    {
+    isTourGuideOnly ? {
+      id: "bookings",
+      label: "Đặt Tour",
+      icon: Calendar,
+      children: [
+        { id: "my-bookings", label: "Đặt tour của tôi", icon: Calendar, path: "/admin/bookings?mine=1" }
+      ]
+    } : {
       id: "bookings",
       label: "Đặt Tour",
       icon: Calendar,
@@ -88,7 +131,15 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) => {
         { id: "confirmed-bookings", label: "Đã xác nhận", icon: CheckCircle, path: "/admin/bookings/confirmed" }
       ]
     },
-    {
+    isTourGuideOnly ? {
+      id: "payments",
+      label: "Thanh toán",
+      icon: CreditCard,
+      children: [
+        { id: "transactions", label: "Giao dịch của tôi", icon: CreditCard, path: "/admin/transactions?mine=1" },
+        { id: "revenue", label: "Doanh thu", icon: DollarSign, path: "/admin/revenue?mine=1" }
+      ]
+    } : {
       id: "payments",
       label: "Thanh toán",
       icon: CreditCard,
@@ -98,7 +149,14 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) => {
         { id: "refunds", label: "Hoàn tiền", icon: RotateCcw, path: "/admin/refunds" }
       ]
     },
-    {
+    isTourGuideOnly ? {
+      id: "analytics",
+      label: "Thống kê",
+      icon: BarChart3,
+      children: [
+        { id: "performance", label: "Hiệu suất của tôi", icon: TrendingUp, path: "/admin/performance?mine=1" }
+      ]
+    } : {
       id: "analytics",
       label: "Thống kê",
       icon: BarChart3,
@@ -119,7 +177,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) => {
         { id: "support", label: "Hỗ trợ", icon: HelpCircle, path: "/admin/support" }
       ]
     },
-    {
+    !isTourGuideOnly ? {
       id: "settings",
       label: "Cài đặt",
       icon: Settings,
@@ -129,7 +187,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) => {
         { id: "security", label: "Bảo mật", icon: Shield, path: "/admin/settings/security" },
         { id: "divisions", label: "Đơn vị hành chính", icon: MapPin, path: "/admin/divisions" }
       ]
-    }
+    } : undefined as any
   ];
 
   const handleNavigation = (path: string) => {
@@ -176,14 +234,14 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) => {
           
           {isOpen && (
             <div className="flex items-center space-x-2">
-              {item.badge && (
+              {((item.id === "tour-guide-applications" && pendingGuideApps > 0) || item.badge) && (
                 <span className={cn(
                   "px-2 py-0.5 text-xs font-medium rounded-full",
                   isItemActive || hasActiveChild
                     ? "bg-white/20 text-white"
                     : "bg-tour-blue text-white"
                 )}>
-                  {item.badge}
+                  {item.id === "tour-guide-applications" ? pendingGuideApps : item.badge}
                 </span>
               )}
               {hasChildren && (
@@ -254,7 +312,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) => {
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto overflow-x-hidden py-3">
           <div className="space-y-1 px-2">
-            {navItems.map((item) => (
+            {navItems.filter(Boolean).map((item: any) => (
               <NavItemComponent key={item.id} item={item} />
             ))}
           </div>

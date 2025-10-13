@@ -155,12 +155,14 @@ export default function PersonalProfile() {
             tiktok: "",
             youtube: ""
           },
-          notificationSettings: data.notificationSettings ?? {
-            emailNotifications: true,
-            smsNotifications: false,
-            pushNotifications: true,
-            marketingEmails: false
-          }
+          notificationSettings: typeof data.notificationSettings === "string"
+            ? JSON.parse(data.notificationSettings)
+            : (data.notificationSettings ?? {
+              emailNotifications: true,
+              smsNotifications: false,
+              pushNotifications: true,
+              marketingEmails: false
+            })
         };
         setProfile(next);
         setEditedProfile(next);
@@ -207,7 +209,7 @@ export default function PersonalProfile() {
       website: editedProfile.website || null,
       provinceCode: editedProfile.provinceCode,
       socialMedia: JSON.stringify(editedProfile.socialMedia),
-      notificationSettings: editedProfile.notificationSettings,
+      notificationSettings: JSON.stringify(editedProfile.notificationSettings),
     } as any;
 
     setLoading(true);
