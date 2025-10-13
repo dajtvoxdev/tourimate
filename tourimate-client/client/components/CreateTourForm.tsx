@@ -12,6 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { httpWithRefresh, httpJson, httpUpload, getApiBase } from "@/src/lib/http";
 
 type CreateTourPayload = {
   title: string;
@@ -153,9 +154,7 @@ const CreateTourForm: React.FC<Props> = ({ initial, onSubmit, onCancel, onUpload
     const loadDivisions = async () => {
       try {
         setDivisionsLoading(true);
-        const res = await fetch(((import.meta as any).env?.VITE_API_BASE_URL || "https://localhost:7181") + "/api/divisions");
-        if (!res.ok) return;
-        const data = await res.json();
+        const data = await httpJson<any[]>(`${getApiBase()}/api/divisions`, { skipAuth: true });
         const provinces = (data || []).filter((d: any) => (d.parentCode ?? d.ParentCode) == null);
         setDivisions(provinces.map((d: any) => ({ code: d.code ?? d.Code, name: d.name ?? d.Name })));
       } catch {
@@ -167,9 +166,7 @@ const CreateTourForm: React.FC<Props> = ({ initial, onSubmit, onCancel, onUpload
     
     const loadCategories = async () => {
       try {
-        const res = await fetch(((import.meta as any).env?.VITE_API_BASE_URL || "https://localhost:7181") + "/api/tourcategories");
-        if (!res.ok) return;
-        const data = await res.json();
+        const data = await httpJson<any[]>(`${getApiBase()}/api/tourcategories`, { skipAuth: true });
         setCategories(data);
       } catch {
         // non-blocking
@@ -199,10 +196,7 @@ const CreateTourForm: React.FC<Props> = ({ initial, onSubmit, onCancel, onUpload
     const loadWards = async (provinceCode: number) => {
       try {
         setWardsLoading(true);
-        const base = ((import.meta as any).env?.VITE_API_BASE_URL || "https://localhost:7181");
-        const res = await fetch(`${base}/api/divisions/wards?provinceCode=${provinceCode}`);
-        if (!res.ok) { setWards([]); return; }
-        const data = await res.json();
+        const data = await httpJson<any[]>(`${getApiBase()}/api/divisions/wards?provinceCode=${provinceCode}`, { skipAuth: true });
         setWards((data || []).map((d: any) => ({ code: d.code ?? d.Code, name: d.name ?? d.Name })));
       } catch {
         setWards([]);
@@ -492,9 +486,7 @@ const CreateTourForm: React.FC<Props> = ({ initial, onSubmit, onCancel, onUpload
                 if (!file) return;
                 const form = new FormData();
                 form.append('file', file);
-                const res = await fetch(`${baseApiUrl}/api/media/upload`, { method: 'POST', headers: authToken ? { 'Authorization': `Bearer ${authToken}` } : undefined, body: form });
-                if (!res.ok) return;
-                const data = await res.json();
+                const data = await httpUpload<{ url: string }>(`${getApiBase()}/api/media/upload`, form);
                 const url = data?.url;
                 if (!url || !editorRef.current) return;
                 editorRef.current.model.change((writer: any) => {

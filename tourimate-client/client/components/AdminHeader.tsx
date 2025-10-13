@@ -112,7 +112,7 @@ const AdminHeader: React.FC<AdminHeaderProps> = ({ onMenuToggle, isSidebarOpen }
                       <p className="font-medium text-gray-900">
                         {user ? `${user.firstName || ""} ${user.lastName || ""}`.trim() || "Người dùng" : "Khách"}
                       </p>
-                      <p className="text-sm text-gray-500">{user?.email || user?.phoneNumberE164 || "Chưa cập nhật"}</p>
+                      <p className="text-sm text-gray-500">{user?.email || user?.phoneNumber || "Chưa cập nhật"}</p>
                     </div>
                   </div>
                 </div>

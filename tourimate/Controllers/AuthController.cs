@@ -8,6 +8,7 @@ using TouriMate.Services;
 using Entities.Models;
 using System.Security.Claims;
 using System.IdentityModel.Tokens.Jwt;
+using System.Text.Json;
 
 namespace TouriMate.Controllers;
 
@@ -19,13 +20,15 @@ public sealed class AuthController : ControllerBase
     private readonly IJwtTokenService _tokenService;
     private readonly IOtpService _otpService;
     private readonly IFirebaseAuthService _firebaseAuthService;
+    private readonly IEmailService _emailService;
 
-    public AuthController(TouriMateDbContext db, IJwtTokenService tokenService, IOtpService otpService, IFirebaseAuthService firebaseAuthService)
+    public AuthController(TouriMateDbContext db, IJwtTokenService tokenService, IOtpService otpService, IFirebaseAuthService firebaseAuthService, IEmailService emailService)
     {
         _db = db;
         _tokenService = tokenService;
         _otpService = otpService;
         _firebaseAuthService = firebaseAuthService;
+        _emailService = emailService;
     }
 
     private static string NormalizeToE164VN(string? raw)
@@ -300,6 +303,387 @@ public sealed class AuthController : ControllerBase
 
             await _db.SaveChangesAsync();
             return NoContent();
+        }
+        catch
+        {
+            return StatusCode(500, "Lỗi phía ứng dụng, vui lòng thử lại sau");
+        }
+    }
+
+    [HttpGet("tour-guide-application")]
+    [Microsoft.AspNetCore.Authorization.Authorize]
+    public async Task<IActionResult> GetTourGuideApplication()
+    {
+        try
+        {
+            var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue(JwtRegisteredClaimNames.Sub);
+            if (string.IsNullOrEmpty(userIdClaim)) return Unauthorized();
+            var userId = Guid.Parse(userIdClaim);
+
+            var application = await _db.TourGuideApplications
+                .FirstOrDefaultAsync(a => a.UserId == userId);
+
+            if (application == null)
+            {
+                return NotFound(new { message = "Chưa có đơn đăng ký nào" });
+            }
+
+            return Ok(new { 
+                id = application.Id,
+                status = application.Status,
+                applicationData = application.ApplicationData,
+                documents = application.Documents,
+                feedback = application.Feedback,
+                reviewedAt = application.ReviewedAt,
+                createdAt = application.CreatedAt
+            });
+        }
+        catch
+        {
+            return StatusCode(500, "Lỗi phía ứng dụng, vui lòng thử lại sau");
+        }
+    }
+
+    [HttpPost("tour-guide-application")]
+    [Microsoft.AspNetCore.Authorization.Authorize]
+    public async Task<IActionResult> SubmitTourGuideApplication([FromBody] TourGuideApplicationRequest request)
+    {
+        try
+        {
+            var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue(JwtRegisteredClaimNames.Sub);
+            if (string.IsNullOrEmpty(userIdClaim)) return Unauthorized();
+            var userId = Guid.Parse(userIdClaim);
+
+            // Check if user is already a tour guide
+            var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == userId);
+            if (user?.Role == Entities.Enums.UserRole.TourGuide || user?.Role == Entities.Enums.UserRole.Admin)
+            {
+                return Conflict("Bạn đã là hướng dẫn viên");
+            }
+
+            // Check for existing application
+            var existingApplication = await _db.TourGuideApplications
+                .FirstOrDefaultAsync(a => a.UserId == userId);
+
+            if (existingApplication != null)
+            {
+                // Only allow updates if status is "allow_edit" or "rejected"
+                if (existingApplication.Status == "allow_edit" || existingApplication.Status == "rejected")
+                {
+                    // Update existing application
+                    existingApplication.ApplicationData = request.ApplicationData;
+                    existingApplication.Documents = request.Documents;
+                    existingApplication.Status = "pending_review";
+                    existingApplication.UpdatedBy = userId;
+                    existingApplication.UpdatedAt = DateTime.UtcNow;
+                    existingApplication.ReviewedAt = null;
+                    existingApplication.ReviewedBy = null;
+                    existingApplication.Feedback = null;
+
+                    await _db.SaveChangesAsync();
+                    return Ok(new { message = "Đơn đăng ký đã được cập nhật thành công", applicationId = existingApplication.Id });
+                }
+                else
+                {
+                    return Conflict($"Không thể chỉnh sửa đơn đăng ký với trạng thái: {existingApplication.Status}");
+                }
+            }
+
+            // Create new application
+            var application = new TourGuideApplication
+            {
+                Id = Guid.NewGuid(),
+                UserId = userId,
+                ApplicationData = request.ApplicationData,
+                Documents = request.Documents,
+                Status = "pending_review",
+                CreatedBy = userId
+            };
+
+            _db.TourGuideApplications.Add(application);
+            await _db.SaveChangesAsync();
+
+            return Ok(new { message = "Đơn đăng ký đã được gửi thành công", applicationId = application.Id });
+        }
+        catch
+        {
+            return StatusCode(500, "Lỗi phía ứng dụng, vui lòng thử lại sau");
+        }
+    }
+
+    [HttpGet("tour-guide-applications")]
+    [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin")]
+    public async Task<IActionResult> GetTourGuideApplications(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
+        [FromQuery] string? status = null,
+        [FromQuery] string? search = null)
+    {
+        try
+        {
+            var query = _db.TourGuideApplications
+                .Include(a => a.User)
+                .AsQueryable();
+
+            // Filter by status
+            if (!string.IsNullOrEmpty(status))
+            {
+                query = query.Where(a => a.Status == status);
+            }
+
+            // Search by user name or email (including email from application data)
+            if (!string.IsNullOrEmpty(search))
+            {
+                // For now, we'll search by user profile data since LINQ can't easily search JSON
+                // The application data email will be handled in the display logic above
+                query = query.Where(a => 
+                    a.User.FirstName.Contains(search) || 
+                    a.User.LastName.Contains(search) ||
+                    a.User.Email.Contains(search) ||
+                    a.ApplicationData.Contains(search)); // This will search within the JSON string
+            }
+
+            var totalCount = await query.CountAsync();
+            var applications = await query
+                .OrderByDescending(a => a.CreatedAt)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+
+            // Process applications to get email from application data
+            var processedApplications = applications.Select(a => {
+                string emailToUse = a.User.Email;
+                string firstName = a.User.FirstName;
+                string lastName = a.User.LastName;
+                
+                try
+                {
+                    var applicationData = JsonSerializer.Deserialize<Dictionary<string, object>>(a.ApplicationData);
+                    if (applicationData != null)
+                    {
+                        // Try to get email from application data
+                        if (applicationData.ContainsKey("email") && !string.IsNullOrWhiteSpace(applicationData["email"]?.ToString()))
+                        {
+                            emailToUse = applicationData["email"].ToString();
+                        }
+                        
+                        // Try to get name from application data
+                        if (applicationData.ContainsKey("fullName") && !string.IsNullOrWhiteSpace(applicationData["fullName"]?.ToString()))
+                        {
+                            var fullName = applicationData["fullName"].ToString().Split(' ', 2);
+                            if (fullName.Length >= 1) firstName = fullName[0];
+                            if (fullName.Length >= 2) lastName = string.Join(" ", fullName.Skip(1));
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Failed to parse application data for application {a.Id}: {ex.Message}");
+                }
+                
+                return new
+                {
+                    id = a.Id,
+                    userId = a.UserId,
+                    userFirstName = firstName,
+                    userLastName = lastName,
+                    userEmail = emailToUse,
+                    userPhone = a.User.PhoneNumber,
+                    status = a.Status,
+                    createdAt = a.CreatedAt,
+                    reviewedAt = a.ReviewedAt,
+                    feedback = a.Feedback
+                };
+            }).ToList();
+
+            return Ok(new
+            {
+                applications = processedApplications,
+                totalCount,
+                page,
+                pageSize,
+                totalPages = (int)Math.Ceiling((double)totalCount / pageSize)
+            });
+        }
+        catch
+        {
+            return StatusCode(500, "Lỗi phía ứng dụng, vui lòng thử lại sau");
+        }
+    }
+
+    [HttpGet("tour-guide-applications/{id}")]
+    [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin")]
+    public async Task<IActionResult> GetTourGuideApplication(Guid id)
+    {
+        try
+        {
+            var application = await _db.TourGuideApplications
+                .Include(a => a.User)
+                .Include(a => a.Reviewer)
+                .FirstOrDefaultAsync(a => a.Id == id);
+
+            if (application == null)
+            {
+                return NotFound("Không tìm thấy đơn đăng ký");
+            }
+
+            // Try to get email and name from application data first
+            string emailToUse = application.User.Email;
+            string firstName = application.User.FirstName;
+            string lastName = application.User.LastName;
+            
+            try
+            {
+                var applicationData = JsonSerializer.Deserialize<Dictionary<string, object>>(application.ApplicationData);
+                if (applicationData != null)
+                {
+                    // Try to get email from application data
+                    if (applicationData.ContainsKey("email") && !string.IsNullOrWhiteSpace(applicationData["email"]?.ToString()))
+                    {
+                        emailToUse = applicationData["email"].ToString();
+                    }
+                    
+                    // Try to get name from application data
+                    if (applicationData.ContainsKey("fullName") && !string.IsNullOrWhiteSpace(applicationData["fullName"]?.ToString()))
+                    {
+                        var fullName = applicationData["fullName"].ToString().Split(' ', 2);
+                        if (fullName.Length >= 1) firstName = fullName[0];
+                        if (fullName.Length >= 2) lastName = string.Join(" ", fullName.Skip(1));
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Failed to parse application data for application {application.Id}: {ex.Message}");
+            }
+
+            return Ok(new
+            {
+                id = application.Id,
+                userId = application.UserId,
+                userFirstName = firstName,
+                userLastName = lastName,
+                userEmail = emailToUse,
+                userPhone = application.User.PhoneNumber,
+                status = application.Status,
+                applicationData = application.ApplicationData,
+                documents = application.Documents,
+                feedback = application.Feedback,
+                createdAt = application.CreatedAt,
+                reviewedAt = application.ReviewedAt,
+                reviewerName = application.Reviewer != null ? $"{application.Reviewer.FirstName} {application.Reviewer.LastName}" : null
+            });
+        }
+        catch
+        {
+            return StatusCode(500, "Lỗi phía ứng dụng, vui lòng thử lại sau");
+        }
+    }
+
+    [HttpPost("tour-guide-applications/{id}/review")]
+    [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin")]
+    public async Task<IActionResult> ReviewTourGuideApplication(
+        Guid id, 
+        [FromBody] ReviewTourGuideApplicationRequest request)
+    {
+        try
+        {
+            var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue(JwtRegisteredClaimNames.Sub);
+            if (string.IsNullOrEmpty(userIdClaim)) return Unauthorized();
+            var reviewerId = Guid.Parse(userIdClaim);
+
+            var application = await _db.TourGuideApplications
+                .Include(a => a.User)
+                .FirstOrDefaultAsync(a => a.Id == id);
+
+            if (application == null)
+            {
+                return NotFound("Không tìm thấy đơn đăng ký");
+            }
+
+            if (application.Status != "pending_review")
+            {
+                return BadRequest($"Không thể xem xét đơn đăng ký với trạng thái: {application.Status}");
+            }
+
+            // Update application status
+            application.Status = request.Status;
+            application.ReviewedBy = reviewerId;
+            application.ReviewedAt = DateTime.UtcNow;
+            application.Feedback = request.Feedback;
+            application.UpdatedBy = reviewerId;
+            application.UpdatedAt = DateTime.UtcNow;
+
+            // If approved, update user role to TourGuide
+            if (request.Status == "approved")
+            {
+                application.User.Role = Entities.Enums.UserRole.TourGuide;
+                application.User.UpdatedBy = reviewerId;
+                application.User.UpdatedAt = DateTime.UtcNow;
+            }
+
+            await _db.SaveChangesAsync();
+
+            // Send email notification to the applicant
+            try
+            {
+                var userFullName = $"{application.User.FirstName} {application.User.LastName}".Trim();
+                
+                // Try to get email from application data first, fallback to user profile
+                string emailToUse = null;
+                string applicantName = userFullName;
+                
+                try
+                {
+                    var applicationData = JsonSerializer.Deserialize<Dictionary<string, object>>(application.ApplicationData);
+                    if (applicationData != null && applicationData.ContainsKey("email") && !string.IsNullOrWhiteSpace(applicationData["email"]?.ToString()))
+                    {
+                        emailToUse = applicationData["email"].ToString();
+                        // Also get name from application data if available
+                        if (applicationData.ContainsKey("fullName") && !string.IsNullOrWhiteSpace(applicationData["fullName"]?.ToString()))
+                        {
+                            applicantName = applicationData["fullName"].ToString();
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Failed to parse application data for email: {ex.Message}");
+                }
+                
+                // Fallback to user profile email if application email not found
+                if (string.IsNullOrWhiteSpace(emailToUse))
+                {
+                    emailToUse = application.User.Email;
+                }
+                
+                // Debug logging
+                Console.WriteLine($"Attempting to send email to: '{emailToUse}' for user: '{applicantName}' with status: '{request.Status}'");
+                
+                if (string.IsNullOrWhiteSpace(emailToUse))
+                {
+                    Console.WriteLine("Warning: No email found in application data or user profile, skipping email notification");
+                }
+                else
+                {
+                    await _emailService.SendTourGuideApplicationStatusEmailAsync(
+                        emailToUse, 
+                        applicantName, 
+                        request.Status, 
+                        request.Feedback
+                    );
+                    Console.WriteLine("Email notification sent successfully");
+                }
+            }
+            catch (Exception emailEx)
+            {
+                // Log email error but don't fail the request
+                // The status update was successful, email is secondary
+                Console.WriteLine($"Failed to send email notification: {emailEx.Message}");
+                Console.WriteLine($"Stack trace: {emailEx.StackTrace}");
+            }
+
+            return Ok(new { message = "Đánh giá đơn đăng ký thành công" });
         }
         catch
         {

@@ -68,12 +68,40 @@ const clearStoredAuth = () => {
 
 const fetchUserProfile = async (): Promise<UserProfile | null> => {
   const token = localStorage.getItem('accessToken');
+  const refreshToken = localStorage.getItem('refreshToken');
+  
   if (!token) return null;
 
   try {
-    const res = await fetch(`${API_BASE}/api/auth/me`, {
+    let res = await fetch(`${API_BASE}/api/auth/me`, {
       headers: { Authorization: `Bearer ${token}` },
     });
+
+    // Auto refresh on 401
+    if (res.status === 401 && refreshToken) {
+      try {
+        const refreshed = await fetch(`${API_BASE}/api/auth/refresh`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ refreshToken }),
+        });
+        if (refreshed.ok) {
+          const data = await refreshed.json();
+          localStorage.setItem("accessToken", data.accessToken);
+          // Retry with new token
+          res = await fetch(`${API_BASE}/api/auth/me`, {
+            headers: { Authorization: `Bearer ${data.accessToken}` },
+          });
+        } else {
+          // Refresh failed, clear auth
+          clearStoredAuth();
+          return null;
+        }
+      } catch {
+        clearStoredAuth();
+        return null;
+      }
+    }
 
     if (res.status === 401) {
       clearStoredAuth();
@@ -94,7 +122,22 @@ const fetchUserProfile = async (): Promise<UserProfile | null> => {
 
 const initializeAuth = async () => {
   const token = localStorage.getItem('accessToken');
+  const refreshToken = localStorage.getItem('refreshToken');
+  const refreshTokenExpiry = localStorage.getItem('refreshTokenExpiresAt');
   const storedUser = getStoredUser();
+
+  // Check if refresh token is expired
+  if (refreshTokenExpiry && new Date(refreshTokenExpiry) <= new Date()) {
+    clearStoredAuth();
+    globalAuthState = {
+      isLoggedIn: false,
+      user: null,
+      isLoading: false,
+      error: 'Session expired',
+    };
+    notifyListeners();
+    return;
+  }
 
   if (!token) {
     globalAuthState = {
@@ -143,6 +186,21 @@ const initializeAuth = async () => {
 
 // Initialize on module load
 initializeAuth();
+
+// Periodic check for refresh token expiry (every 5 minutes)
+setInterval(() => {
+  const refreshTokenExpiry = localStorage.getItem('refreshTokenExpiresAt');
+  if (refreshTokenExpiry && new Date(refreshTokenExpiry) <= new Date()) {
+    clearStoredAuth();
+    globalAuthState = {
+      isLoggedIn: false,
+      user: null,
+      isLoading: false,
+      error: 'Session expired',
+    };
+    notifyListeners();
+  }
+}, 5 * 60 * 1000); // 5 minutes
 
 export const useAuth = () => {
   const [state, setState] = useState<AuthState>(globalAuthState);

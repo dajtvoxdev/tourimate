@@ -91,4 +91,16 @@ public sealed class UpdateUserProfileRequest
     public int? WardCode { get; set; }
 }
 
+public sealed class TourGuideApplicationRequest
+{
+    public string ApplicationData { get; set; } = string.Empty; // JSON containing all application info
+    public string? Documents { get; set; } // JSON array of document URLs
+}
+
+public sealed class ReviewTourGuideApplicationRequest
+{
+    public string Status { get; set; } = string.Empty; // approved, rejected, allow_edit
+    public string? Feedback { get; set; }
+}
+
 

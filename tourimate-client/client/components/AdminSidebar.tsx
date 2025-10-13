@@ -72,6 +72,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) => {
       icon: Users,
       children: [
         { id: "all-users", label: "Tất cả Người dùng", icon: Users, path: "/admin/users" },
+        { id: "tour-guide-applications", label: "Đơn đăng ký hướng dẫn viên", icon: FileText, path: "/admin/tour-guide-applications" },
         { id: "tour-guides", label: "Hướng dẫn viên", icon: Shield, path: "/admin/guides" },
         { id: "user-roles", label: "Phân quyền", icon: Settings, path: "/admin/user-roles" }
       ]

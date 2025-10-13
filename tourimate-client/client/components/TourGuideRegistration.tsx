@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Upload,
@@ -11,9 +11,70 @@ import {
   Camera,
   ArrowLeft,
   Send,
+  Calendar as CalendarIcon,
 } from "lucide-react";
 import Header from "./Header";
 import { useAuth } from "@/src/hooks/useAuth";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SearchableSelect } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { format } from "date-fns";
+import { vi } from "date-fns/locale";
+import { cn } from "@/lib/utils";
+import { toast } from "sonner";
+import { Spinner, LoadingButton } from "@/components/ui/spinner";
+// HTTP wrapper with automatic token refresh
+const httpWithRefresh = async (url: string, options: RequestInit = {}): Promise<Response> => {
+  const token = localStorage.getItem("accessToken");
+  const refreshToken = localStorage.getItem("refreshToken");
+  
+  let response = await fetch(url, {
+    ...options,
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(options.headers || {}),
+    },
+  });
+
+  // Auto refresh on 401
+  if (response.status === 401 && refreshToken) {
+    try {
+      const refreshed = await fetch(`${API_BASE}/api/auth/refresh`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refreshToken }),
+      });
+      if (refreshed.ok) {
+        const data = await refreshed.json();
+        localStorage.setItem("accessToken", data.accessToken);
+        // Retry with new token
+        response = await fetch(url, {
+          ...options,
+          headers: {
+            Authorization: `Bearer ${data.accessToken}`,
+            ...(options.headers || {}),
+          },
+        });
+      } else {
+        // Refresh failed, clear auth and redirect to login
+        localStorage.removeItem("accessToken");
+        localStorage.removeItem("refreshToken");
+        localStorage.removeItem("refreshTokenExpiresAt");
+        window.location.href = "/login";
+      }
+    } catch {
+      // Refresh failed, clear auth and redirect to login
+      localStorage.removeItem("accessToken");
+      localStorage.removeItem("refreshToken");
+      localStorage.removeItem("refreshTokenExpiresAt");
+      window.location.href = "/login";
+    }
+  }
+
+  return response;
+};
 
 interface FormData {
   // Personal Information
@@ -23,6 +84,8 @@ interface FormData {
   birthDate: string;
   address: string;
   idNumber: string;
+  provinceCode: number | null;
+  wardCode: number | null;
 
   // Professional Information
   experience: string;
@@ -37,10 +100,19 @@ interface FormData {
   certificates: File[];
 }
 
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://localhost:7181";
+
 export default function TourGuideRegistration() {
   const [currentStep, setCurrentStep] = useState(1);
   const navigate = useNavigate();
-  const { isAdmin } = useAuth();
+  const { isAdmin, user } = useAuth();
+  const [loading, setLoading] = useState(false);
+  const [provinces, setProvinces] = useState<any[]>([]);
+  const [wards, setWards] = useState<any[]>([]);
+  const [wardsLoading, setWardsLoading] = useState(false);
+  const [calendarOpen, setCalendarOpen] = useState(false);
+  const [existingApplication, setExistingApplication] = useState<any>(null);
+  const [applicationLoading, setApplicationLoading] = useState(true);
 
   const [formData, setFormData] = useState<FormData>({
     fullName: "",
@@ -49,6 +121,8 @@ export default function TourGuideRegistration() {
     birthDate: "",
     address: "",
     idNumber: "",
+    provinceCode: null,
+    wardCode: null,
     experience: "",
     languages: [],
     specializations: [],
@@ -60,6 +134,161 @@ export default function TourGuideRegistration() {
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // Load provinces
+  const loadProvinces = async () => {
+    try {
+      const res = await httpWithRefresh(`${API_BASE}/api/divisions`);
+      if (res.ok) {
+        const data = await res.json();
+        const provinces = (data || []).filter((d: any) => (d.parentCode ?? d.ParentCode) == null);
+        setProvinces(provinces.map((d: any) => ({ code: d.code ?? d.Code, name: d.name ?? d.Name })));
+      }
+    } catch (e) {
+      console.error("Failed to load provinces:", e);
+    }
+  };
+
+  // Load wards for selected province
+  const loadWards = async (provinceCode: number) => {
+    try {
+      setWardsLoading(true);
+      const res = await httpWithRefresh(`${API_BASE}/api/divisions/wards?provinceCode=${provinceCode}`);
+      if (res.ok) {
+        const data = await res.json();
+        setWards((data || []).map((d: any) => ({ code: d.code ?? d.Code, name: d.name ?? d.Name })));
+      } else {
+        setWards([]);
+      }
+    } catch {
+      setWards([]);
+    } finally {
+      setWardsLoading(false);
+    }
+  };
+
+  // Check for existing application
+  const checkExistingApplication = async () => {
+    try {
+      const token = localStorage.getItem("accessToken");
+      if (!token) return;
+      
+      const response = await httpWithRefresh(`${API_BASE}/api/auth/tour-guide-application`);
+      if (response.ok) {
+        const data = await response.json();
+        setExistingApplication(data);
+        
+        // If application exists and status allows editing, load the data
+        if (data.status === "allow_edit" || data.status === "rejected") {
+          try {
+            const applicationData = JSON.parse(data.applicationData);
+            const documents = data.documents ? JSON.parse(data.documents) : [];
+            
+            setFormData(prev => ({
+              ...prev,
+              ...applicationData,
+              // Convert back to proper types
+              languages: Array.isArray(applicationData.languages) ? applicationData.languages : [],
+              specializations: Array.isArray(applicationData.specializations) ? applicationData.specializations : [],
+              // Handle documents - first item is avatar, second is idCard, rest are certificates
+              avatar: documents[0] || null,
+              idCard: documents[1] || null,
+              certificates: documents.slice(2) || [],
+            }));
+            
+            // Load wards for the selected province and then set the wardCode
+            if (applicationData.provinceCode) {
+              const wardCode = applicationData.wardCode;
+              loadWards(applicationData.provinceCode).then(() => {
+                // Set the wardCode after wards are loaded
+                if (wardCode) {
+                  setFormData(prev => ({ ...prev, wardCode }));
+                }
+              });
+            }
+          } catch (e) {
+            console.error("Failed to parse existing application data:", e);
+          }
+        }
+      } else if (response.status === 404) {
+        // No existing application
+        setExistingApplication(null);
+        // Auto-fill from profile since no existing application
+        autoFillFromProfile();
+      }
+    } catch (error) {
+      console.error("Failed to check existing application:", error);
+    } finally {
+      setApplicationLoading(false);
+    }
+  };
+
+  // Auto-fill form from user profile (only when no existing application)
+  const autoFillFromProfile = () => {
+    if (!user) return;
+    
+    const fullName = `${user.firstName || ""} ${user.lastName || ""}`.trim();
+    setFormData(prev => ({
+      ...prev,
+      fullName,
+      email: user.email || "",
+      phone: user.phoneNumber || "",
+      birthDate: user.dateOfBirth || "",
+      address: user.address || "",
+      provinceCode: (user as any).provinceCode || null,
+    }));
+  };
+
+  // Auto-fill form from existing tour guide application
+  const autoFillFromApplication = (applicationData: any) => {
+    try {
+      const data = typeof applicationData === 'string' ? JSON.parse(applicationData) : applicationData;
+      
+      setFormData(prev => ({
+        ...prev,
+        fullName: data.fullName || "",
+        email: data.email || "",
+        phone: data.phone || "",
+        birthDate: data.birthDate || "",
+        address: data.address || "",
+        provinceCode: data.provinceCode || null,
+        wardCode: data.wardCode || null,
+        experience: data.experience || "",
+        languages: data.languages || [],
+        specializations: data.specializations || [],
+        avatar: data.avatar || null,
+        idCard: data.idCard || null,
+        certificates: data.certificates || null,
+      }));
+    } catch (error) {
+      console.error("Failed to parse application data:", error);
+      // Fallback to profile data if application data is invalid
+      autoFillFromProfile();
+    }
+  };
+
+  // Load initial data
+  useEffect(() => {
+    const initializeData = async () => {
+      setApplicationLoading(true);
+      await loadProvinces();
+      await checkExistingApplication();
+    };
+    
+    initializeData();
+  }, [user]);
+
+
+  // Load wards when province changes
+  useEffect(() => {
+    if (formData.provinceCode) {
+      loadWards(formData.provinceCode);
+      // Reset ward when province changes (this will be overridden if loading from existing application)
+      setFormData(prev => ({ ...prev, wardCode: null }));
+    } else {
+      setWards([]);
+    }
+  }, [formData.provinceCode]);
 
   // Redirect admin users to admin dashboard
   if (isAdmin) {
@@ -123,7 +352,7 @@ export default function TourGuideRegistration() {
 
   const handleInputChange = (
     field: keyof FormData,
-    value: string | string[] | File | File[],
+    value: string | string[] | File | File[] | number | null,
   ) => {
     setFormData((prev) => ({
       ...prev,
@@ -176,6 +405,8 @@ export default function TourGuideRegistration() {
       if (!formData.birthDate) newErrors.birthDate = "Vui lòng chọn ngày sinh";
       if (!formData.address) newErrors.address = "Vui lòng nhập địa chỉ";
       if (!formData.idNumber) newErrors.idNumber = "Vui lòng nhập CCCD/CMND";
+      if (!formData.provinceCode) newErrors.provinceCode = "Vui lòng chọn tỉnh/thành phố";
+      if (!formData.wardCode) newErrors.wardCode = "Vui lòng chọn phường/xã";
     } else if (step === 2) {
       if (!formData.experience)
         newErrors.experience = "Vui lòng chọn kinh nghiệm";
@@ -204,11 +435,208 @@ export default function TourGuideRegistration() {
     setCurrentStep(currentStep - 1);
   };
 
-  const handleSubmit = () => {
-    if (validateStep(currentStep)) {
-      alert("Đăng ký thành công! Chúng tôi sẽ liên hệ với bạn trong 24h.");
-      navigate("/tour-guides");
+  const handleSubmit = async () => {
+    if (!validateStep(currentStep)) return;
+    
+    const token = localStorage.getItem("accessToken");
+    if (!token) {
+      toast.error("Bạn cần đăng nhập để đăng ký làm hướng dẫn viên");
+      navigate("/login");
+      return;
     }
+
+    setLoading(true);
+    try {
+      // Prepare application data
+      const applicationData = {
+        fullName: formData.fullName,
+        email: formData.email,
+        phone: formData.phone,
+        birthDate: formData.birthDate,
+        address: formData.address,
+        idNumber: formData.idNumber,
+        provinceCode: formData.provinceCode,
+        wardCode: formData.wardCode,
+        experience: formData.experience,
+        languages: formData.languages,
+        specializations: formData.specializations,
+        certifications: formData.certifications,
+        introduction: formData.introduction,
+      };
+
+      // Handle documents - preserve existing URLs and upload new files
+      const documentUrls: string[] = [];
+      
+      // Handle avatar - if it's a string (existing URL), use it directly; if File, upload it
+      if (formData.avatar) {
+        if (typeof formData.avatar === 'string') {
+          documentUrls.push(formData.avatar);
+        } else {
+          const avatarFormData = new FormData();
+          avatarFormData.append("file", formData.avatar);
+          const avatarRes = await httpWithRefresh(`${API_BASE}/api/media/upload`, {
+            method: "POST",
+            body: avatarFormData,
+          });
+          if (avatarRes.ok) {
+            const avatarData = await avatarRes.json();
+            documentUrls.push(avatarData.url);
+          }
+        }
+      }
+
+      // Handle ID card - if it's a string (existing URL), use it directly; if File, upload it
+      if (formData.idCard) {
+        if (typeof formData.idCard === 'string') {
+          documentUrls.push(formData.idCard);
+        } else {
+          const idCardFormData = new FormData();
+          idCardFormData.append("file", formData.idCard);
+          const idCardRes = await httpWithRefresh(`${API_BASE}/api/media/upload`, {
+            method: "POST",
+            body: idCardFormData,
+          });
+          if (idCardRes.ok) {
+            const idCardData = await idCardRes.json();
+            documentUrls.push(idCardData.url);
+          }
+        }
+      }
+
+      // Handle certificates - preserve existing URLs and upload new files
+      for (const cert of formData.certificates) {
+        if (typeof cert === 'string') {
+          // Existing URL, use it directly
+          documentUrls.push(cert);
+        } else {
+          // New file, upload it
+          const certFormData = new FormData();
+          certFormData.append("file", cert);
+          const certRes = await httpWithRefresh(`${API_BASE}/api/media/upload`, {
+            method: "POST",
+            body: certFormData,
+          });
+          if (certRes.ok) {
+            const certData = await certRes.json();
+            documentUrls.push(certData.url);
+          }
+        }
+      }
+
+      // Submit application
+      const submitRes = await httpWithRefresh(`${API_BASE}/api/auth/tour-guide-application`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          applicationData: JSON.stringify(applicationData),
+          documents: JSON.stringify(documentUrls),
+        }),
+      });
+
+      if (!submitRes.ok) {
+        const errorText = await submitRes.text();
+        throw new Error(errorText || submitRes.statusText);
+      }
+
+      toast.success("Đăng ký thành công! Chúng tôi sẽ liên hệ với bạn trong 24h.");
+      navigate("/tour-guides");
+    } catch (error: any) {
+      console.error("Registration error:", error);
+      toast.error(error.message || "Đăng ký thất bại. Vui lòng thử lại.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Check if user can submit
+  const canSubmit = () => {
+    if (!existingApplication) return true; // New application
+    return existingApplication.status === "allow_edit" || existingApplication.status === "rejected";
+  };
+
+  // Get submit button text
+  const getSubmitButtonText = () => {
+    if (!existingApplication) return "Gửi đăng ký";
+    if (existingApplication.status === "rejected") return "Gửi lại đăng ký";
+    if (existingApplication.status === "allow_edit") return "Cập nhật đăng ký";
+    return "Gửi đăng ký";
+  };
+
+  const renderApplicationStatus = () => {
+    if (applicationLoading) {
+      return (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+          <div className="flex items-center gap-3">
+            <Spinner size="sm" className="text-blue-600" />
+            <span className="text-blue-800 font-medium">Đang kiểm tra trạng thái đơn đăng ký...</span>
+          </div>
+        </div>
+      );
+    }
+
+    if (!existingApplication) {
+      return (
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
+          <div className="flex items-center gap-3">
+            <Check className="w-5 h-5 text-green-600" />
+            <span className="text-green-800 font-medium">Chưa có đơn đăng ký nào. Bạn có thể tạo đơn đăng ký mới.</span>
+          </div>
+        </div>
+      );
+    }
+
+    const statusConfig = {
+      pending_review: {
+        color: "yellow",
+        icon: "⏳",
+        message: "Đơn đăng ký đang chờ xem xét. Bạn không thể chỉnh sửa lúc này.",
+        canEdit: false
+      },
+      approved: {
+        color: "green", 
+        icon: "✅",
+        message: "Đơn đăng ký đã được phê duyệt. Bạn đã trở thành hướng dẫn viên!",
+        canEdit: false
+      },
+      rejected: {
+        color: "red",
+        icon: "❌", 
+        message: "Đơn đăng ký bị từ chối. Bạn có thể chỉnh sửa và gửi lại.",
+        canEdit: true
+      },
+      allow_edit: {
+        color: "blue",
+        icon: "✏️",
+        message: "Bạn có thể chỉnh sửa đơn đăng ký. Hãy cập nhật thông tin và gửi lại.",
+        canEdit: true
+      }
+    };
+
+    const config = statusConfig[existingApplication.status as keyof typeof statusConfig] || statusConfig.pending_review;
+    const colorClasses = {
+      yellow: "bg-yellow-50 border-yellow-200 text-yellow-800",
+      green: "bg-green-50 border-green-200 text-green-800", 
+      red: "bg-red-50 border-red-200 text-red-800",
+      blue: "bg-blue-50 border-blue-200 text-blue-800"
+    };
+
+    return (
+      <div className={`${colorClasses[config.color]} border rounded-lg p-4 mb-6`}>
+        <div className="flex items-center gap-3">
+          <span className="text-xl">{config.icon}</span>
+          <div>
+            <span className="font-medium">{config.message}</span>
+            {existingApplication.feedback && (
+              <div className="mt-2 text-sm opacity-90">
+                <strong>Phản hồi:</strong> {existingApplication.feedback}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
   };
 
   const renderStepIndicator = () => (
@@ -241,7 +669,7 @@ export default function TourGuideRegistration() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
           <label className="block font-nunito text-lg font-medium text-black mb-2">
-            Họ và tên *
+            Họ và tên <span className="text-red-500">*</span>
           </label>
           <input
             type="text"
@@ -259,7 +687,7 @@ export default function TourGuideRegistration() {
 
         <div>
           <label className="block font-nunito text-lg font-medium text-black mb-2">
-            Email *
+            Email <span className="text-red-500">*</span>
           </label>
           <input
             type="email"
@@ -277,7 +705,7 @@ export default function TourGuideRegistration() {
 
         <div>
           <label className="block font-nunito text-lg font-medium text-black mb-2">
-            Số điện thoại *
+            Số điện thoại <span className="text-red-500">*</span>
           </label>
           <input
             type="tel"
@@ -295,16 +723,44 @@ export default function TourGuideRegistration() {
 
         <div>
           <label className="block font-nunito text-lg font-medium text-black mb-2">
-            Ngày sinh *
+            Ngày sinh <span className="text-red-500">*</span>
           </label>
-          <input
-            type="date"
-            value={formData.birthDate}
-            onChange={(e) => handleInputChange("birthDate", e.target.value)}
-            className={`w-full p-4 border rounded-[15px] font-nunito text-lg focus:outline-none focus:ring-2 focus:ring-tour-blue ${
-              errors.birthDate ? "border-red-500" : "border-gray-300"
-            }`}
-          />
+          <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                className={cn(
+                  "w-full justify-start text-left font-normal p-4 h-auto rounded-[15px] font-nunito text-lg border",
+                  !formData.birthDate && "text-muted-foreground",
+                  errors.birthDate && "border-red-500"
+                )}
+              >
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {formData.birthDate ? (
+                  format(new Date(formData.birthDate), "dd/MM/yyyy", { locale: vi })
+                ) : (
+                  <span>Chọn ngày sinh</span>
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar
+                mode="single"
+                selected={formData.birthDate ? new Date(formData.birthDate) : undefined}
+                onSelect={(date) => {
+                  if (date) {
+                    handleInputChange("birthDate", format(date, "yyyy-MM-dd"));
+                    setCalendarOpen(false);
+                  }
+                }}
+                disabled={(date) =>
+                  date > new Date() || date < new Date("1900-01-01")
+                }
+                initialFocus
+                locale={vi}
+              />
+            </PopoverContent>
+          </Popover>
           {errors.birthDate && (
             <p className="text-red-500 text-sm mt-1">{errors.birthDate}</p>
           )}
@@ -312,7 +768,7 @@ export default function TourGuideRegistration() {
 
         <div>
           <label className="block font-nunito text-lg font-medium text-black mb-2">
-            CCCD/CMND *
+            CCCD/CMND <span className="text-red-500">*</span>
           </label>
           <input
             type="text"
@@ -328,9 +784,49 @@ export default function TourGuideRegistration() {
           )}
         </div>
 
-        <div className="md:col-span-2">
+        <div>
+          <Label className="block font-nunito text-lg font-medium text-black mb-2">
+            Tỉnh/Thành phố <span className="text-red-500">*</span>
+          </Label>
+          <SearchableSelect 
+            value={formData.provinceCode?.toString() || ""} 
+            onValueChange={(value) => handleInputChange("provinceCode", value ? Number(value) : null)}
+            placeholder="Chọn tỉnh/thành phố"
+            searchPlaceholder="Tìm kiếm tỉnh/thành..."
+            options={provinces.map(p => ({ value: p.code.toString(), label: p.name }))}
+            className={`w-full p-4 border rounded-[15px] font-nunito text-lg focus:outline-none focus:ring-2 focus:ring-tour-blue !h-auto ${
+              errors.provinceCode ? "border-red-500" : "border-gray-300"
+            }`}
+          />
+          {errors.provinceCode && (
+            <p className="text-red-500 text-sm mt-1">{errors.provinceCode}</p>
+          )}
+        </div>
+
+        <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <Label className="block font-nunito text-lg font-medium text-black mb-2">
+              Phường/Xã <span className="text-red-500">*</span>
+            </Label>
+            <SearchableSelect 
+              value={formData.wardCode?.toString() || ""} 
+              onValueChange={(value) => handleInputChange("wardCode", value ? Number(value) : null)}
+              placeholder={!formData.provinceCode ? "Chọn tỉnh trước" : (wardsLoading ? "Đang tải..." : "Chọn phường/xã")}
+              searchPlaceholder="Tìm kiếm phường/xã..."
+              options={wards.map(w => ({ value: w.code.toString(), label: w.name }))}
+              disabled={!formData.provinceCode || wardsLoading}
+              className={`w-full p-4 border rounded-[15px] font-nunito text-lg focus:outline-none focus:ring-2 focus:ring-tour-blue !h-auto ${
+                errors.wardCode ? "border-red-500" : "border-gray-300"
+              }`}
+            />
+            {errors.wardCode && (
+              <p className="text-red-500 text-sm mt-1">{errors.wardCode}</p>
+            )}
+          </div>
+
+          <div>
           <label className="block font-nunito text-lg font-medium text-black mb-2">
-            Địa chỉ *
+              Địa chỉ chi tiết <span className="text-red-500">*</span>
           </label>
           <input
             type="text"
@@ -339,11 +835,12 @@ export default function TourGuideRegistration() {
             className={`w-full p-4 border rounded-[15px] font-nunito text-lg focus:outline-none focus:ring-2 focus:ring-tour-blue ${
               errors.address ? "border-red-500" : "border-gray-300"
             }`}
-            placeholder="Số nhà, đường, phường/xã, quận/huyện, tỉnh/thành phố"
+              placeholder="Số nhà, đường (địa chỉ chi tiết)"
           />
           {errors.address && (
             <p className="text-red-500 text-sm mt-1">{errors.address}</p>
           )}
+          </div>
         </div>
       </div>
     </div>
@@ -357,7 +854,7 @@ export default function TourGuideRegistration() {
 
       <div>
         <label className="block font-nunito text-lg font-medium text-black mb-4">
-          Kinh nghiệm làm hướng dẫn viên *
+          Kinh nghiệm làm hướng dẫn viên <span className="text-red-500">*</span>
         </label>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {["Mới bắt đầu", "1-2 năm", "3-5 năm", "5+ năm"].map((exp) => (
@@ -381,7 +878,7 @@ export default function TourGuideRegistration() {
 
       <div>
         <label className="block font-nunito text-lg font-medium text-black mb-4">
-          Ngôn ngữ bạn có thể sử dụng *
+          Ngôn ngữ bạn có thể sử dụng <span className="text-red-500">*</span>
         </label>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
           {availableLanguages.map((language) => (
@@ -405,7 +902,7 @@ export default function TourGuideRegistration() {
 
       <div>
         <label className="block font-nunito text-lg font-medium text-black mb-4">
-          Chuyên môn *
+          Chuyên môn <span className="text-red-500">*</span>
         </label>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
           {availableSpecializations.map((spec) => (
@@ -442,7 +939,7 @@ export default function TourGuideRegistration() {
 
       <div>
         <label className="block font-nunito text-lg font-medium text-black mb-2">
-          Giới thiệu bản thân *
+          Giới thiệu bản thân <span className="text-red-500">*</span>
         </label>
         <textarea
           value={formData.introduction}
@@ -468,7 +965,7 @@ export default function TourGuideRegistration() {
 
       <div>
         <label className="block font-nunito text-lg font-medium text-black mb-4">
-          Ảnh đại diện *
+          Ảnh đại diện <span className="text-red-500">*</span>
         </label>
         <div
           className={`border-2 border-dashed rounded-[20px] p-8 text-center transition-colors duration-200 ${
@@ -479,13 +976,15 @@ export default function TourGuideRegistration() {
         >
           {formData.avatar ? (
             <div className="space-y-4">
+              <div className="w-full aspect-[5/3]">
               <img
-                src={URL.createObjectURL(formData.avatar)}
+                src={typeof formData.avatar === 'string' ? formData.avatar : URL.createObjectURL(formData.avatar)}
                 alt="Avatar preview"
-                className="w-32 h-32 rounded-full object-cover mx-auto"
+                  className="w-full h-full rounded-[15px] object-cover border"
               />
+              </div>
               <p className="font-nunito text-lg text-gray-700">
-                {formData.avatar.name}
+                {typeof formData.avatar === 'string' ? 'Avatar đã tải lên' : formData.avatar.name}
               </p>
               <button
                 onClick={() => handleInputChange("avatar", null)}
@@ -528,7 +1027,7 @@ export default function TourGuideRegistration() {
 
       <div>
         <label className="block font-nunito text-lg font-medium text-black mb-4">
-          Ảnh CCCD/CMND (mặt trước) *
+          Ảnh CCCD/CMND (mặt trước) <span className="text-red-500">*</span>
         </label>
         <div
           className={`border-2 border-dashed rounded-[20px] p-8 text-center transition-colors duration-200 ${
@@ -539,13 +1038,15 @@ export default function TourGuideRegistration() {
         >
           {formData.idCard ? (
             <div className="space-y-4">
+              <div className="w-full aspect-[5/3]">
               <img
-                src={URL.createObjectURL(formData.idCard)}
+                src={typeof formData.idCard === 'string' ? formData.idCard : URL.createObjectURL(formData.idCard)}
                 alt="ID card preview"
-                className="max-w-xs mx-auto rounded-[15px]"
+                  className="w-full h-full rounded-[15px] object-cover border"
               />
+              </div>
               <p className="font-nunito text-lg text-gray-700">
-                {formData.idCard.name}
+                {typeof formData.idCard === 'string' ? 'Ảnh CCCD/CMND đã tải lên' : formData.idCard.name}
               </p>
               <button
                 onClick={() => handleInputChange("idCard", null)}
@@ -603,7 +1104,13 @@ export default function TourGuideRegistration() {
                 multiple
                 onChange={(e) => {
                   const files = Array.from(e.target.files || []);
-                  handleInputChange("certificates", files);
+                  // Filter to only allow images and PDFs
+                  const allowedFiles = files.filter(file => {
+                    const isImage = file.type.startsWith('image/');
+                    const isPDF = file.type === 'application/pdf';
+                    return isImage || isPDF;
+                  });
+                  handleInputChange("certificates", allowedFiles);
                 }}
                 className="hidden"
                 id="certificates-upload"
@@ -628,7 +1135,9 @@ export default function TourGuideRegistration() {
                   key={index}
                   className="flex items-center justify-between bg-gray-100 p-3 rounded-[10px]"
                 >
-                  <span className="font-nunito text-sm">{file.name}</span>
+                  <span className="font-nunito text-sm">
+                    {typeof file === 'string' ? `Tệp ${index + 1} đã tải lên` : file.name}
+                  </span>
                   <button
                     onClick={() => {
                       const newFiles = formData.certificates.filter(
@@ -678,6 +1187,9 @@ export default function TourGuideRegistration() {
           </p>
         </div>
 
+        {/* Application Status */}
+        {renderApplicationStatus()}
+
         {/* Form Container */}
         <div className="bg-white rounded-[30px] shadow-xl p-6 md:p-8 lg:p-12">
           {renderStepIndicator()}
@@ -710,13 +1222,18 @@ export default function TourGuideRegistration() {
                 <ArrowLeft className="w-5 h-5 rotate-180" />
               </button>
             ) : (
-              <button
+              <LoadingButton
                 onClick={handleSubmit}
-                className="flex items-center space-x-2 bg-green-600 hover:bg-green-700 text-white px-8 py-3 rounded-[15px] transition-colors duration-200"
+                loading={loading}
+                loadingText="Đang xử lý..."
+                disabled={loading || !canSubmit()}
+                className="flex items-center space-x-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white px-8 py-3 rounded-[15px] transition-colors duration-200"
               >
                 <Send className="w-5 h-5" />
-                <span className="font-nunito font-medium">Gửi đăng ký</span>
-              </button>
+                <span className="font-nunito font-medium">
+                  {getSubmitButtonText()}
+                </span>
+              </LoadingButton>
             )}
           </div>
         </div>

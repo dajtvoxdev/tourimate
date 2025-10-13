@@ -18,6 +18,7 @@ import AdminLayout from "./AdminLayout";
 import CreateTourForm from "./CreateTourForm";
 import { tourApi } from "../src/lib/tourApi";
 import { TourListDto, TourSearchRequest, CreateTourRequest, UpdateTourRequest, TourDto } from "../src/lib/types/tour";
+import { httpWithRefresh, httpUpload, getApiBase } from "@/src/lib/http";
 import { 
   Plus, 
   Search, 
@@ -250,13 +251,7 @@ const AdminTourManagement = () => {
     selectedFiles.forEach(f => form.append("files", f));
     try {
       setUploading(true);
-      const res = await fetch(((import.meta as any).env?.VITE_API_BASE_URL || "https://localhost:7181") + "/api/media/uploads", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-        body: form,
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data || res.statusText);
+      const data = await httpUpload<{ urls: string[] }>(`${getApiBase()}/api/media/uploads`, form);
       const urls: string[] = data.urls || [];
       setImageUrls(urls);
       toast.success("Tải ảnh lên thành công");
@@ -387,13 +382,7 @@ const AdminTourManagement = () => {
                         const token = localStorage.getItem("accessToken");
                         const form = new FormData();
                         files.forEach(f => form.append("files", f));
-                        const res = await fetch(((import.meta as any).env?.VITE_API_BASE_URL || "https://localhost:7181") + "/api/media/uploads", {
-                          method: "POST",
-                          headers: { Authorization: `Bearer ${token}` },
-                          body: form,
-                        });
-                        const data = await res.json();
-                        if (!res.ok) throw new Error(data || res.statusText);
+                        const data = await httpUpload<{ urls: string[] }>(`${getApiBase()}/api/media/uploads`, form);
                         return (data.urls || []) as string[];
                       }}
                       onSubmit={async (payload) => {

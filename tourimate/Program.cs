@@ -19,6 +19,9 @@ builder.Services.Configure<EsmsOptions>(builder.Configuration.GetSection("Esms")
 builder.Services.AddHttpClient<EsmsOtpService>();
 builder.Services.AddScoped<IOtpService, EsmsOtpService>();
 
+// Register HttpClient for file operations
+builder.Services.AddHttpClient();
+
 // Bind JwtSettings and register token service
 builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("JwtSettings"));
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
@@ -29,6 +32,9 @@ builder.Services.AddScoped<IFirebaseAuthService, FirebaseAuthService>();
 // Register Cloudinary media service
 builder.Services.Configure<CloudinaryOptions>(builder.Configuration.GetSection("Cloudinary"));
 builder.Services.AddScoped<IMediaService, CloudinaryMediaService>();
+
+// Register Email service
+builder.Services.AddScoped<IEmailService, EmailService>();
 
 // Configure Entity Framework
 builder.Services.AddDbContext<TouriMateDbContext>(options =>

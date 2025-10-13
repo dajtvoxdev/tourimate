@@ -26,7 +26,9 @@ import AdminDashboard from "./components/AdminDashboard";
 import AdminTourManagement from "./components/AdminTourManagement";
 import AdminDivisions from "./components/AdminDivisions";
 import AdminTourCategories from "./components/AdminTourCategories";
+import AdminTourGuideManagement from "./components/AdminTourGuideManagement";
 import ProtectedRoute from "./components/ProtectedRoute";
+import AdminProtectedRoute from "./components/AdminProtectedRoute";
 import NonAdminProtectedRoute from "./components/NonAdminProtectedRoute";
 
 const queryClient = new QueryClient();
@@ -58,10 +60,46 @@ const App = () => (
           <Route path="/create-tour" element={<CreateTour />} />
           <Route path="/guide/:guideId" element={<GuideDetail />} />
           <Route path="/checkout" element={<Checkout />} />
-          <Route path="/admin" element={<AdminDashboard />} />
-          <Route path="/admin/tours" element={<AdminTourManagement />} />
-          <Route path="/admin/divisions" element={<AdminDivisions />} />
-          <Route path="/admin/tour-categories" element={<AdminTourCategories />} />
+          <Route 
+            path="/admin" 
+            element={
+              <AdminProtectedRoute>
+                <AdminDashboard />
+              </AdminProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/admin/tours" 
+            element={
+              <AdminProtectedRoute>
+                <AdminTourManagement />
+              </AdminProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/admin/divisions" 
+            element={
+              <AdminProtectedRoute>
+                <AdminDivisions />
+              </AdminProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/admin/tour-categories" 
+            element={
+              <AdminProtectedRoute>
+                <AdminTourCategories />
+              </AdminProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/admin/tour-guide-applications" 
+            element={
+              <AdminProtectedRoute>
+                <AdminTourGuideManagement />
+              </AdminProtectedRoute>
+            } 
+          />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

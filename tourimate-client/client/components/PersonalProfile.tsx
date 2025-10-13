@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import Header from "./Header";
+import { httpWithRefresh, httpJson, httpUpload, getApiBase } from "@/src/lib/http";
 import ClassicEditor from '@ckeditor/ckeditor5-build-classic';
 import { CKEditor } from '@ckeditor/ckeditor5-react';
 import { Input } from "@/components/ui/input";
@@ -110,12 +111,9 @@ export default function PersonalProfile() {
   // Load provinces
   const loadProvinces = async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/divisions`);
-      if (res.ok) {
-        const data = await res.json();
-        const provinces = (data || []).filter((d: any) => (d.parentCode ?? d.ParentCode) == null);
-        setProvinces(provinces.map((d: any) => ({ code: d.code ?? d.Code, name: d.name ?? d.Name })));
-      }
+      const data = await httpJson<any[]>(`${getApiBase()}/api/divisions`, { skipAuth: true });
+      const provinces = (data || []).filter((d: any) => (d.parentCode ?? d.ParentCode) == null);
+      setProvinces(provinces.map((d: any) => ({ code: d.code ?? d.Code, name: d.name ?? d.Name })));
     } catch (e) {
       console.error("Failed to load provinces:", e);
     }
@@ -132,19 +130,7 @@ export default function PersonalProfile() {
         return;
       }
       try {
-        const res = await fetch(`${API_BASE}/api/auth/me`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (res.status === 401) {
-          localStorage.removeItem("accessToken");
-          localStorage.removeItem("refreshToken");
-          localStorage.removeItem("refreshTokenExpiresAt");
-          toast.error("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.");
-          navigate("/login");
-          return;
-        }
-        const data = await res.json();
-        if (!res.ok) throw new Error(data || res.statusText);
+        const data = await httpJson<any>(`${getApiBase()}/api/auth/me`);
         const name = `${data.firstName ?? ""} ${data.lastName ?? ""}`.trim();
         const birth = data.dateOfBirth ? String(data.dateOfBirth) : "";
         const next = {
@@ -203,10 +189,11 @@ export default function PersonalProfile() {
       navigate("/login");
       return;
     }
-    // Split name into first/last (Vietnamese format: FirstName + LastName)
+    // Split name into first/last (Vietnamese format: Family Name + Given Name)
+    // For "Võ Thành Đạt" -> firstName: "Võ Thành", lastName: "Đạt"
     const parts = (editedProfile.name || "").trim().split(/\s+/);
-    const firstName = parts[0] || "";
-    const lastName = parts.slice(1).join(" ") || "";
+    const firstName = parts.slice(0, -1).join(" ") || "";  // All except last word
+    const lastName = parts[parts.length - 1] || "";        // Last word only
     const payload = {
       email: editedProfile.email,
       firstName,
@@ -225,18 +212,10 @@ export default function PersonalProfile() {
 
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/api/auth/me`, {
+      await httpJson(`${getApiBase()}/api/auth/me`, {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
         body: JSON.stringify(payload),
       });
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || res.statusText);
-      }
       setProfile(editedProfile);
       setIsEditing(false);
       toast.success("Cập nhật hồ sơ thành công");
@@ -279,13 +258,7 @@ export default function PersonalProfile() {
     try {
       const form = new FormData();
       form.append("file", file);
-      const res = await fetch(`${API_BASE}/api/media/upload`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-        body: form,
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data || res.statusText);
+      const data = await httpUpload<{ url: string }>(`${getApiBase()}/api/media/upload`, form);
       const url: string = data.url;
       const next = { ...profile, avatar: url };
       setProfile(next);
@@ -306,18 +279,10 @@ export default function PersonalProfile() {
           website: next.website || null,
           avatar: url,
         } as any;
-        const res2 = await fetch(`${API_BASE}/api/auth/me`, {
+        await httpJson(`${getApiBase()}/api/auth/me`, {
           method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
           body: JSON.stringify(payload),
         });
-        if (!res2.ok) {
-          const text = await res2.text();
-          throw new Error(text || res2.statusText);
-        }
       } catch (err: any) {
         console.error(err);
         // keep avatar locally even if persist fails
