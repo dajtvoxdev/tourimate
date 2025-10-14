@@ -130,8 +130,14 @@ const CreateTourForm: React.FC<Props> = ({ initial, onSubmit, onCancel, onUpload
     if (!stripHtml(formData.shortDescription)) newErrors.shortDescription = "Vui lòng nhập mô tả ngắn";
     if (!formData.location?.trim()) newErrors.location = "Vui lòng nhập địa điểm chi tiết";
     if (!selectedProvince) newErrors.provinceCode = "Vui lòng chọn tỉnh/thành";
-    // Ward is now optional, so we don't validate it
+    if (!formData.wardCode) newErrors.wardCode = "Vui lòng chọn phường/xã";
     if (!formData.category?.trim()) newErrors.category = "Vui lòng chọn danh mục";
+    if (!stripHtml(formData.description)) newErrors.description = "Vui lòng nhập mô tả chi tiết";
+    if (!Array.isArray(formData.imageUrls) || (formData.imageUrls || []).length === 0) newErrors.imageUrls = "Vui lòng tải lên ít nhất 1 hình ảnh";
+    if (!Array.isArray(itineraryItems) || itineraryItems.length === 0) newErrors.itineraryItems = "Vui lòng thêm ít nhất 1 lịch trình";
+    if (!Array.isArray(includesList) || includesList.length === 0) newErrors.includes = "Vui lòng thêm ít nhất 1 mục 'Bao gồm'";
+    if (!Array.isArray(excludesList) || excludesList.length === 0) newErrors.excludes = "Vui lòng thêm ít nhất 1 mục 'Không bao gồm'";
+    if (!stripHtml(formData.terms || "")) newErrors.terms = "Vui lòng nhập điều khoản";
     // Duration, participants, and price are managed in Tour Availability
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -306,9 +312,10 @@ const CreateTourForm: React.FC<Props> = ({ initial, onSubmit, onCancel, onUpload
                   searchPlaceholder="Tìm kiếm tỉnh/thành..."
                   options={divisions.map(d => ({ value: String(d.code), label: d.name }))}
                 />
+                {errors.provinceCode && <p className="text-sm text-red-500 mt-1">{errors.provinceCode}</p>}
               </div>
               <div>
-                <Label htmlFor="ward">Phường/Xã</Label>
+                <Label htmlFor="ward">Phường/Xã <span className="text-red-500">*</span></Label>
                 <SearchableSelect 
                   value={formData.wardCode ? String(formData.wardCode) : ""}
                   onValueChange={(value) => setFormData(p => ({ ...p, wardCode: value ? parseInt(value) : undefined, divisionCode: value ? parseInt(value) : selectedProvince } as any))}
@@ -320,6 +327,7 @@ const CreateTourForm: React.FC<Props> = ({ initial, onSubmit, onCancel, onUpload
                   ]}
                   disabled={!selectedProvince || wards.length === 0}
                 />
+                {errors.wardCode && <p className="text-sm text-red-500 mt-1">{errors.wardCode}</p>}
               </div>
               <div>
                 <Label htmlFor="location">Địa điểm chi tiết <span className="text-red-500">*</span></Label>
@@ -352,7 +360,7 @@ const CreateTourForm: React.FC<Props> = ({ initial, onSubmit, onCancel, onUpload
         <TabsContent value="details" className="space-y-4">
           <div className="space-y-4">
             <div>
-              <Label>Hình ảnh</Label>
+              <Label>Hình ảnh <span className="text-red-500">*</span></Label>
               <p className="text-sm text-gray-500 mt-1">Tải lên tối đa nhiều ảnh. Bạn có thể xóa ảnh đã tải.</p>
               <div className="relative mt-2">
                 <Input type="file" accept="image/*" multiple onChange={handleFiles} disabled={uploading} aria-busy={uploading} />
@@ -379,10 +387,11 @@ const CreateTourForm: React.FC<Props> = ({ initial, onSubmit, onCancel, onUpload
                   </div>
                 ))}
               </div>
+              {errors.imageUrls && <p className="text-sm text-red-500 mt-1">{errors.imageUrls}</p>}
             </div>
             <div>
               <div className="flex items-center justify-between">
-                <Label>Lịch trình</Label>
+                <Label>Lịch trình <span className="text-red-500">*</span></Label>
                 <Button type="button" variant="outline" onClick={() => setItineraryItems(prev => [...prev, { day: (prev.at(-1)?.day ?? prev.length) + 1, title: "", description: "" }])}>Thêm ngày</Button>
               </div>
               <div className="mt-3 space-y-4">
@@ -431,6 +440,7 @@ const CreateTourForm: React.FC<Props> = ({ initial, onSubmit, onCancel, onUpload
                   </div>
                 ))}
               </div>
+              {errors.itineraryItems && <p className="text-sm text-red-500 mt-1">{errors.itineraryItems}</p>}
             </div>
           </div>
         </TabsContent>
@@ -438,7 +448,7 @@ const CreateTourForm: React.FC<Props> = ({ initial, onSubmit, onCancel, onUpload
         <TabsContent value="content" className="space-y-4">
           <div className="space-y-4">
             <div>
-              <Label htmlFor="description">Mô tả chi tiết *</Label>
+              <Label htmlFor="description">Mô tả chi tiết <span className="text-red-500">*</span></Label>
               <div className="mt-2 h-[300px] ckeditor-container">
                 <CKEditor
                     editor={ClassicEditor}
@@ -472,6 +482,7 @@ const CreateTourForm: React.FC<Props> = ({ initial, onSubmit, onCancel, onUpload
                     }}
                   />
               </div>
+              {errors.description && <p className="text-sm text-red-500 mt-1">{errors.description}</p>}
               {/* Hidden input to handle video uploads via our API and insert into editor as <video> */}
               <input ref={videoInputRef} type="file" accept="video/mp4,video/webm,video/ogg" className="hidden" onChange={async (e) => {
                 const file = e.target.files?.[0];
@@ -495,7 +506,7 @@ const CreateTourForm: React.FC<Props> = ({ initial, onSubmit, onCancel, onUpload
             </div>
             <div>
               <div className="flex items-center justify-between">
-                <Label>Bao gồm</Label>
+                <Label>Bao gồm <span className="text-red-500">*</span></Label>
                 <div className="flex gap-2">
                   <Input value={includeInput} onChange={(e) => setIncludeInput(e.target.value)} placeholder="Thêm mục bao gồm" />
                   <Button type="button" onClick={() => {
@@ -517,10 +528,11 @@ const CreateTourForm: React.FC<Props> = ({ initial, onSubmit, onCancel, onUpload
                   <span className="text-sm text-gray-500">Chưa có mục nào</span>
                 )}
               </div>
+              {errors.includes && <p className="text-sm text-red-500 mt-1">{errors.includes}</p>}
             </div>
             <div>
               <div className="flex items-center justify-between">
-                <Label>Không bao gồm</Label>
+                <Label>Không bao gồm <span className="text-red-500">*</span></Label>
                 <div className="flex gap-2">
                   <Input value={excludeInput} onChange={(e) => setExcludeInput(e.target.value)} placeholder="Thêm mục không bao gồm" />
                   <Button type="button" onClick={() => {
@@ -542,9 +554,10 @@ const CreateTourForm: React.FC<Props> = ({ initial, onSubmit, onCancel, onUpload
                   <span className="text-sm text-gray-500">Chưa có mục nào</span>
                 )}
               </div>
+              {errors.excludes && <p className="text-sm text-red-500 mt-1">{errors.excludes}</p>}
             </div>
             <div>
-              <Label htmlFor="terms">Điều khoản</Label>
+              <Label htmlFor="terms">Điều khoản <span className="text-red-500">*</span></Label>
               <div className="mt-2 h-[200px] ckeditor-container">
                 <CKEditor
                   editor={ClassicEditor}
@@ -561,6 +574,7 @@ const CreateTourForm: React.FC<Props> = ({ initial, onSubmit, onCancel, onUpload
                   }}
                 />
               </div>
+              {errors.terms && <p className="text-sm text-red-500 mt-1">{errors.terms}</p>}
             </div>
           </div>
         </TabsContent>

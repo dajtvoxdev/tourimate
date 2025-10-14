@@ -27,6 +27,22 @@ const AdminHeader: React.FC<AdminHeaderProps> = ({ onMenuToggle, isSidebarOpen }
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const { isLoggedIn, user, logout } = useAuth();
 
+  const getRoleLabel = () => {
+    if (!user) return "Khách";
+    const rolesRaw: any = (user as any).roles ?? (user as any).role ?? (user as any).userRole;
+    const roles: string[] = Array.isArray(rolesRaw)
+      ? rolesRaw
+      : rolesRaw
+      ? [rolesRaw]
+      : [];
+    const rolesLower = roles.map((r) => (typeof r === "string" ? r.toLowerCase() : ""));
+    const isAdmin = (user as any).isAdmin === true || rolesLower.some((r) => ["admin", "administrator"].includes(r));
+    const isGuide = (user as any).isGuide === true || rolesLower.some((r) => ["guide", "tourguiden", "tourguides", "tourguide", "huongdanvien", "hướng dẫn viên"].includes(r));
+    if (isAdmin) return "Quản trị viên";
+    if (isGuide) return "Hướng dẫn viên";
+    return "Người dùng";
+  };
+
   const handleLogout = async () => {
     try {
       await logout();
@@ -104,7 +120,7 @@ const AdminHeader: React.FC<AdminHeaderProps> = ({ onMenuToggle, isSidebarOpen }
                 <p className="text-sm font-medium text-gray-900">
                   {user ? `${user.firstName || ""} ${user.lastName || ""}`.trim() || "Người dùng" : "Khách"}
                 </p>
-                <p className="text-xs text-gray-500">Quản trị viên</p>
+                <p className="text-xs text-gray-500">{getRoleLabel()}</p>
               </div>
               <ChevronDown className="h-4 w-4 text-gray-500" />
             </Button>
@@ -124,6 +140,7 @@ const AdminHeader: React.FC<AdminHeaderProps> = ({ onMenuToggle, isSidebarOpen }
                         {user ? `${user.firstName || ""} ${user.lastName || ""}`.trim() || "Người dùng" : "Khách"}
                       </p>
                       <p className="text-sm text-gray-500">{user?.email || user?.phoneNumber || "Chưa cập nhật"}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">{getRoleLabel()}</p>
                     </div>
                   </div>
                 </div>
