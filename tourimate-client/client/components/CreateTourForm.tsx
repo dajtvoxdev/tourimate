@@ -132,9 +132,7 @@ const CreateTourForm: React.FC<Props> = ({ initial, onSubmit, onCancel, onUpload
     if (!selectedProvince) newErrors.provinceCode = "Vui lòng chọn tỉnh/thành";
     // Ward is now optional, so we don't validate it
     if (!formData.category?.trim()) newErrors.category = "Vui lòng chọn danh mục";
-    if (!formData.duration || formData.duration < 1) newErrors.duration = "Thời gian phải từ 1";
-    if (!formData.maxParticipants || formData.maxParticipants < 1) newErrors.maxParticipants = "Số người tối đa phải từ 1";
-    if (formData.price == null || isNaN(formData.price) || formData.price < 0) newErrors.price = "Giá không hợp lệ";
+    // Duration, participants, and price are managed in Tour Availability
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -157,7 +155,7 @@ const CreateTourForm: React.FC<Props> = ({ initial, onSubmit, onCancel, onUpload
     const loadDivisions = async () => {
       try {
         setDivisionsLoading(true);
-        const data = await httpJson<any[]>(`${getApiBase()}/api/divisions`, { skipAuth: true });
+        const data = await httpJson<any[]>(`${getApiBase()}/api/divisions/provinces`, { skipAuth: true });
         const provinces = (data || []).filter((d: any) => (d.parentCode ?? d.ParentCode) == null);
         setDivisions(provinces.map((d: any) => ({ code: d.code ?? d.Code, name: d.name ?? d.Name })));
       } catch {
@@ -196,18 +194,32 @@ const CreateTourForm: React.FC<Props> = ({ initial, onSubmit, onCancel, onUpload
   }, [divisions]);
 
   useEffect(() => {
-    const loadWards = async (provinceCode: number) => {
+    if (selectedProvince) {
+      // when province changes, reset ward and load wards by province
+      setWards([]);
+      setFormData(p => ({ ...p, wardCode: undefined, divisionCode: selectedProvince } as any));
+    } else {
+      setWards([]);
+    }
+  }, [selectedProvince]);
+
+  useEffect(() => {
+    const loadWardsByProvince = async (provinceCode: number) => {
       try {
         setWardsLoading(true);
-        const data = await httpJson<any[]>(`${getApiBase()}/api/divisions/wards?provinceCode=${provinceCode}`, { skipAuth: true });
-        setWards((data || []).map((d: any) => ({ code: d.code ?? d.Code, name: d.name ?? d.Name })));
+        const url = `${getApiBase()}/api/divisions/wards-by-province/${provinceCode}`;
+        console.debug('Loading wards by province:', url);
+        const data = await httpJson<any[]>(url, { skipAuth: true });
+        const mapped = (data || []).map((d: any) => ({ code: d.code ?? d.Code, name: d.name ?? d.Name }));
+        console.debug('Wards loaded:', mapped.length);
+        setWards(mapped);
       } catch {
         setWards([]);
       } finally {
         setWardsLoading(false);
       }
     };
-    if (selectedProvince) loadWards(selectedProvince);
+    if (selectedProvince) loadWardsByProvince(selectedProvince);
     else setWards([]);
   }, [selectedProvince]);
 
@@ -300,7 +312,7 @@ const CreateTourForm: React.FC<Props> = ({ initial, onSubmit, onCancel, onUpload
                 <SearchableSelect 
                   value={formData.wardCode ? String(formData.wardCode) : ""}
                   onValueChange={(value) => setFormData(p => ({ ...p, wardCode: value ? parseInt(value) : undefined, divisionCode: value ? parseInt(value) : selectedProvince } as any))}
-                  placeholder={selectedProvince ? (wards.length ? "Chọn phường/xã" : "Không có dữ liệu") : "Chọn tỉnh trước"}
+                  placeholder={selectedProvince ? (wardsLoading ? "Đang tải..." : (wards.length ? "Chọn phường/xã" : "Không có dữ liệu")) : "Chọn tỉnh trước"}
                   searchPlaceholder="Tìm kiếm phường/xã..."
                   options={[
                     { value: "", label: "Không chọn" },
@@ -315,9 +327,9 @@ const CreateTourForm: React.FC<Props> = ({ initial, onSubmit, onCancel, onUpload
                 {errors.location && <p className="text-sm text-red-500 mt-1">{errors.location}</p>}
               </div>
             </div>
-            {/* Row(s): Danh mục - Thời gian - Số người tối đa - Giá (3 cột) */}
+            {/* Row: Danh mục */}
             <div className="col-span-2 grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
+              <div className="md:col-span-1">
                 <Label htmlFor="category">Danh mục <span className="text-red-500">*</span></Label>
                 <Select value={formData.category} onValueChange={(value) => setFormData(p => ({ ...p, category: value }))}>
                   <SelectTrigger>
@@ -332,29 +344,6 @@ const CreateTourForm: React.FC<Props> = ({ initial, onSubmit, onCancel, onUpload
                   </SelectContent>
                 </Select>
                 {errors.category && <p className="text-sm text-red-500 mt-1">{errors.category}</p>}
-              </div>
-              <div>
-                <Label htmlFor="duration">Thời gian (ngày) <span className="text-red-500">*</span></Label>
-                <Input id="duration" type="number" min={1} value={formData.duration} onChange={(e) => setFormData(p => ({ ...p, duration: parseInt(e.target.value) || 1 }))} />
-                {errors.duration && <p className="text-sm text-red-500 mt-1">{errors.duration}</p>}
-              </div>
-              <div>
-                <Label htmlFor="maxParticipants">Số người tối đa <span className="text-red-500">*</span></Label>
-                <Input id="maxParticipants" type="number" min={1} value={formData.maxParticipants} onChange={(e) => setFormData(p => ({ ...p, maxParticipants: parseInt(e.target.value) || 1 }))} />
-                {errors.maxParticipants && <p className="text-sm text-red-500 mt-1">{errors.maxParticipants}</p>}
-              </div>
-              <div>
-                <Label htmlFor="price">Giá (VND) <span className="text-red-500">*</span></Label>
-                <Input id="price" inputMode="numeric" pattern="[0-9]*" value={new Intl.NumberFormat('vi-VN').format(formData.price || 0)} onChange={(e) => {
-                  const digits = e.target.value.replace(/[^0-9]/g, "");
-                  const amount = digits ? parseInt(digits, 10) : 0;
-                  setFormData(p => ({ ...p, price: amount }));
-                }} onBlur={(e) => {
-                  const digits = e.target.value.replace(/[^0-9]/g, "");
-                  const amount = digits ? parseInt(digits, 10) : 0;
-                  setFormData(p => ({ ...p, price: amount }));
-                }} />
-                {errors.price && <p className="text-sm text-red-500 mt-1">{errors.price}</p>}
               </div>
             </div>
           </div>

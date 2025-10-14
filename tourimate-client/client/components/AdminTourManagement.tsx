@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/src/hooks/useAuth";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -19,7 +20,7 @@ import AdminLayout from "./AdminLayout";
 import CreateTourForm from "./CreateTourForm";
 import { tourApi } from "../src/lib/tourApi";
 import { TourListDto, TourSearchRequest, CreateTourRequest, UpdateTourRequest, TourDto } from "../src/lib/types/tour";
-import { httpWithRefresh, httpUpload, getApiBase } from "@/src/lib/http";
+import { httpWithRefresh, httpUpload, getApiBase, httpJson } from "@/src/lib/http";
 import { 
   Plus, 
   Search, 
@@ -34,15 +35,18 @@ import {
   Users,
   Check,
   X,
-  RotateCcw
+  RotateCcw,
+  Clock
 } from "lucide-react";
 import { toast } from "sonner";
 
 const AdminTourManagement = () => {
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
+  const navigate = useNavigate();
   const isTourGuide = user?.role === 'TourGuide';
   const isAdmin = user?.role === 'Admin';
+  const [categories, setCategories] = useState<Array<{ id: string; name: string; code: string }>>([]);
   const [tours, setTours] = useState<TourListDto[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
@@ -89,6 +93,20 @@ const AdminTourManagement = () => {
   useEffect(() => {
     loadTours();
   }, [searchParams]);
+
+  // Load categories
+  useEffect(() => {
+    const loadCategories = async () => {
+      try {
+        const data = await httpJson<any[]>(`${getApiBase()}/api/tourcategories`, { skipAuth: true });
+        setCategories(data);
+      } catch (error) {
+        console.error("Failed to load categories:", error);
+      }
+    };
+    
+    loadCategories();
+  }, []);
 
   const loadTours = async () => {
     try {
@@ -348,16 +366,17 @@ const AdminTourManagement = () => {
               
               <div>
                 <Label htmlFor="category">Danh mục</Label>
-                <Select onValueChange={(value) => handleFilterChange('category', value)}>
+                <Select value={searchParams.category || "all"} onValueChange={(value) => handleFilterChange('category', value === "all" ? "" : value)}>
                   <SelectTrigger>
                     <SelectValue placeholder="Chọn danh mục" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Tất cả</SelectItem>
-                    <SelectItem value="adventure">Phiêu lưu</SelectItem>
-                    <SelectItem value="cultural">Văn hóa</SelectItem>
-                    <SelectItem value="nature">Thiên nhiên</SelectItem>
-                    <SelectItem value="food">Ẩm thực</SelectItem>
+                    {categories.map((category) => (
+                      <SelectItem key={category.id} value={category.code}>
+                        {category.name}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -480,8 +499,18 @@ const AdminTourManagement = () => {
                           <Button size="sm" variant="outline" onClick={() => openViewDialog(tour)}>
                             <Eye className="h-4 w-4" />
                           </Button>
-                  <Button size="sm" variant="outline" onClick={() => openEditDialog(tour)}>
+                          <Button size="sm" variant="outline" onClick={() => openEditDialog(tour)}>
                             <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            onClick={() => {
+                              navigate(`/admin/tours/${tour.id}/availability`);
+                            }}
+                            title="Lịch trình"
+                          >
+                            <Clock className="h-4 w-4" />
                           </Button>
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
@@ -665,6 +694,7 @@ const AdminTourManagement = () => {
             <TourDetailDialog tour={selectedTour} onClose={() => setIsViewDialogOpen(false)} />
           )}
         </Dialog>
+
       </div>
     </AdminLayout>
   );

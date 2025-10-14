@@ -76,8 +76,7 @@ public sealed class TourController : ControllerBase
             ShortDescription = tour.ShortDescription,
             Location = tour.Location,
             Duration = tour.Duration,
-            MaxParticipants = tour.MaxParticipants,
-            Price = tour.Price,
+            Price = tour.BasePrice,
             Currency = tour.Currency,
             Category = tour.Category,
             Images = tour.Images,
@@ -113,7 +112,7 @@ public sealed class TourController : ControllerBase
             ShortDescription = tour.ShortDescription,
             Location = tour.Location,
             Duration = tour.Duration,
-            Price = tour.Price,
+            Price = tour.BasePrice,
             Currency = tour.Currency,
             Category = tour.Category,
             Images = tour.Images,
@@ -146,7 +145,7 @@ public sealed class TourController : ControllerBase
                 .Include(t => t.TourGuide)
                 .AsQueryable();
 
-            // Apply filters
+            // Apply filters (basic)
             if (!string.IsNullOrWhiteSpace(request.SearchTerm))
             {
                 var searchTerm = request.SearchTerm.ToLower();
@@ -170,12 +169,12 @@ public sealed class TourController : ControllerBase
 
             if (request.MinPrice.HasValue)
             {
-                query = query.Where(t => t.Price >= request.MinPrice.Value);
+                query = query.Where(t => t.BasePrice >= request.MinPrice.Value);
             }
 
             if (request.MaxPrice.HasValue)
             {
-                query = query.Where(t => t.Price <= request.MaxPrice.Value);
+                query = query.Where(t => t.BasePrice <= request.MaxPrice.Value);
             }
 
             if (request.MinDuration.HasValue)
@@ -213,17 +212,40 @@ public sealed class TourController : ControllerBase
                 query = query.Where(t => t.DivisionCode == request.DivisionCode.Value);
             }
 
+            // Destination province on tour
+            if (request.DestinationProvinceCode.HasValue)
+            {
+                query = query.Where(t => t.ProvinceCode == request.DestinationProvinceCode.Value);
+            }
+
             // Apply sorting
             query = request.SortBy.ToLower() switch
             {
                 "title" => request.SortDirection.ToLower() == "asc" ? query.OrderBy(t => t.Title) : query.OrderByDescending(t => t.Title),
-                "price" => request.SortDirection.ToLower() == "asc" ? query.OrderBy(t => t.Price) : query.OrderByDescending(t => t.Price),
+                "price" => request.SortDirection.ToLower() == "asc" ? query.OrderBy(t => t.BasePrice) : query.OrderByDescending(t => t.BasePrice),
                 "duration" => request.SortDirection.ToLower() == "asc" ? query.OrderBy(t => t.Duration) : query.OrderByDescending(t => t.Duration),
                 "rating" => request.SortDirection.ToLower() == "asc" ? query.OrderBy(t => t.AverageRating) : query.OrderByDescending(t => t.AverageRating),
                 "bookings" => request.SortDirection.ToLower() == "asc" ? query.OrderBy(t => t.TotalBookings) : query.OrderByDescending(t => t.TotalBookings),
                 "createdat" or "created_at" => request.SortDirection.ToLower() == "asc" ? query.OrderBy(t => t.CreatedAt) : query.OrderByDescending(t => t.CreatedAt),
                 _ => query.OrderByDescending(t => t.CreatedAt)
             };
+
+            // Pre-filter by availability if requested
+            if (request.DepartureDivisionCode.HasValue || request.StartDate.HasValue || request.MinAvailPrice.HasValue || request.MaxAvailPrice.HasValue)
+            {
+                var availQuery = _db.TourAvailabilities.AsQueryable();
+                if (request.DepartureDivisionCode.HasValue)
+                    availQuery = availQuery.Where(a => a.DepartureDivisionCode == request.DepartureDivisionCode.Value);
+                if (request.StartDate.HasValue)
+                    availQuery = availQuery.Where(a => a.Date >= request.StartDate.Value);
+                if (request.MinAvailPrice.HasValue)
+                    availQuery = availQuery.Where(a => a.AdultPrice >= request.MinAvailPrice.Value);
+                if (request.MaxAvailPrice.HasValue)
+                    availQuery = availQuery.Where(a => a.AdultPrice <= request.MaxAvailPrice.Value);
+
+                var tourIdsWithAvail = await availQuery.Select(a => a.TourId).Distinct().ToListAsync();
+                query = query.Where(t => tourIdsWithAvail.Contains(t.Id));
+            }
 
             // Get total count
             var totalCount = await query.CountAsync();
@@ -236,9 +258,57 @@ public sealed class TourController : ControllerBase
 
             var totalPages = (int)Math.Ceiling((double)totalCount / request.PageSize);
 
+            // Enrich with most recent availability and division names
+            var tourIds = tours.Select(t => t.Id).ToList();
+            var recentAvailabilities = await _db.TourAvailabilities
+                .Where(a => tourIds.Contains(a.TourId) && a.IsAvailable)
+                .GroupBy(a => a.TourId)
+                .Select(g => g.OrderByDescending(x => x.Date).First())
+                .ToListAsync();
+
+            var divisionCodes = new HashSet<int>();
+            foreach (var a in recentAvailabilities)
+            {
+                if (a.DepartureDivisionCode != 0) divisionCodes.Add(a.DepartureDivisionCode);
+            }
+            var locationDivisionCodes = tours
+                .SelectMany(t => new[] { t.ProvinceCode ?? 0, t.WardCode ?? 0 })
+                .Where(c => c != 0);
+            foreach (var code in locationDivisionCodes) divisionCodes.Add(code);
+
+            var divisions = await _db.Divisions
+                .Where(d => divisionCodes.Contains(d.Code))
+                .ToDictionaryAsync(d => d.Code, d => d);
+
+            var list = tours.Select(t =>
+            {
+                var dto = MapToListDto(t);
+                var recent = recentAvailabilities.FirstOrDefault(a => a.TourId == t.Id);
+                if (recent != null)
+                {
+                    dto.RecentAdultPrice = recent.AdultPrice;
+                    dto.RecentDepartureDivisionCode = recent.DepartureDivisionCode;
+                    dto.RecentTripTime = recent.TripTime;
+                    dto.RecentDate = recent.Date;
+                    if (recent.DepartureDivisionCode != 0 && divisions.TryGetValue(recent.DepartureDivisionCode, out var dep))
+                    {
+                        dto.RecentDepartureDivisionName = dep.FullName ?? dep.Name;
+                    }
+                }
+                if (t.ProvinceCode.HasValue && divisions.TryGetValue(t.ProvinceCode.Value, out var prov))
+                {
+                    dto.ProvinceName = prov.FullName ?? prov.Name;
+                }
+                if (t.WardCode.HasValue && divisions.TryGetValue(t.WardCode.Value, out var ward))
+                {
+                    dto.WardName = ward.FullName ?? ward.Name;
+                }
+                return dto;
+            }).ToList();
+
             var response = new TourSearchResponse
             {
-                Tours = tours.Select(MapToListDto).ToList(),
+                Tours = list,
                 TotalCount = totalCount,
                 Page = request.Page,
                 PageSize = request.PageSize,
@@ -317,8 +387,7 @@ public sealed class TourController : ControllerBase
                 ShortDescription = request.ShortDescription,
                 Location = request.Location,
                 Duration = request.Duration,
-                MaxParticipants = request.MaxParticipants,
-                Price = request.Price,
+                BasePrice = request.Price,
                 Currency = string.IsNullOrWhiteSpace(request.Currency) ? "VND" : request.Currency,
                 Category = request.Category,
                 
@@ -387,10 +456,8 @@ public sealed class TourController : ControllerBase
                 tour.Location = request.Location;
             if (request.Duration.HasValue)
                 tour.Duration = request.Duration.Value;
-            if (request.MaxParticipants.HasValue)
-                tour.MaxParticipants = request.MaxParticipants.Value;
             if (request.Price.HasValue)
-                tour.Price = request.Price.Value;
+                tour.BasePrice = request.Price.Value;
             if (!string.IsNullOrWhiteSpace(request.Currency))
                 tour.Currency = request.Currency;
             if (!string.IsNullOrWhiteSpace(request.Category))
@@ -549,7 +616,7 @@ public sealed class TourController : ControllerBase
             var rejectedTours = await _db.Tours.CountAsync(t => t.Status == TourStatus.Rejected);
             var featuredTours = await _db.Tours.CountAsync(t => t.IsFeatured);
 
-            var averagePrice = await _db.Tours.Where(t => t.IsActive).AverageAsync(t => (double)t.Price);
+            var averagePrice = await _db.Tours.Where(t => t.IsActive).AverageAsync(t => (double)t.BasePrice);
             var totalRevenue = await _db.Bookings
                 .Where(b => b.Status == BookingStatus.Completed)
                 .SumAsync(b => b.TotalAmount);

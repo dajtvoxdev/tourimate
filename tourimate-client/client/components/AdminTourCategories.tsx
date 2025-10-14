@@ -11,16 +11,35 @@ import { Switch } from '@/components/ui/switch';
 import AdminLayout from './AdminLayout';
 import { Plus, Edit, Trash2, Search, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
+import { httpJson, getApiBase } from '@/src/lib/http';
 
 interface TourCategory {
   id: string;
   name: string;
   code: string;
   description?: string;
+  icon?: string;
   sortOrder: number;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+interface CreateCategoryRequest {
+  name: string;
+  code: string;
+  description?: string;
+  icon?: string;
+  sortOrder: number;
+}
+
+interface UpdateCategoryRequest {
+  name?: string;
+  code?: string;
+  description?: string;
+  icon?: string;
+  sortOrder?: number;
+  isActive?: boolean;
 }
 
 export default function AdminTourCategories() {
@@ -34,6 +53,7 @@ export default function AdminTourCategories() {
     name: '',
     code: '',
     description: '',
+    icon: '',
     sortOrder: 0,
     isActive: true
   });
@@ -43,11 +63,7 @@ export default function AdminTourCategories() {
   const loadCategories = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${API_BASE}/api/tourcategories`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch categories');
-      }
-      const data = await response.json();
+      const data = await httpJson<TourCategory[]>(`${getApiBase()}/api/tourcategories`);
       setCategories(data);
     } catch (error) {
       console.error('Error loading categories:', error);
@@ -68,11 +84,23 @@ export default function AdminTourCategories() {
   );
 
   const handleCreate = async () => {
+    if (!formData.name?.trim()) {
+      toast.error('Vui lòng nhập Tên danh mục');
+      return;
+    }
     try {
-      // For now, just show a message since we're using hardcoded categories
-      toast.success('Chức năng tạo danh mục sẽ được triển khai khi có database');
+      const response = await httpJson<TourCategory>(`${getApiBase()}/api/tourcategories`, {
+        method: "POST",
+        body: JSON.stringify(formData),
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+
+      setCategories(prev => [...prev, response]);
       setIsCreateDialogOpen(false);
       resetForm();
+      toast.success('Tạo danh mục thành công');
     } catch (error) {
       console.error('Error creating category:', error);
       toast.error('Không thể tạo danh mục');
@@ -80,12 +108,34 @@ export default function AdminTourCategories() {
   };
 
   const handleEdit = async () => {
+    if (!selectedCategory) return;
+    if (!formData.name?.trim()) {
+      toast.error('Vui lòng nhập Tên danh mục');
+      return;
+    }
+    
     try {
-      // For now, just show a message since we're using hardcoded categories
-      toast.success('Chức năng chỉnh sửa danh mục sẽ được triển khai khi có database');
+      const updateData: UpdateCategoryRequest = {
+        name: formData.name,
+        code: formData.code,
+        description: formData.description,
+        icon: formData.icon,
+        sortOrder: formData.sortOrder,
+      };
+
+      const response = await httpJson<TourCategory>(`${getApiBase()}/api/tourcategories/${selectedCategory.id}`, {
+        method: "PUT",
+        body: JSON.stringify(updateData),
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+
+      setCategories(prev => prev.map(cat => cat.id === selectedCategory.id ? response : cat));
       setIsEditDialogOpen(false);
       setSelectedCategory(null);
       resetForm();
+      toast.success('Cập nhật danh mục thành công');
     } catch (error) {
       console.error('Error updating category:', error);
       toast.error('Không thể cập nhật danh mục');
@@ -96,8 +146,12 @@ export default function AdminTourCategories() {
     if (!confirm('Bạn có chắc chắn muốn xóa danh mục này?')) return;
     
     try {
-      // For now, just show a message since we're using hardcoded categories
-      toast.success('Chức năng xóa danh mục sẽ được triển khai khi có database');
+      await httpJson(`${getApiBase()}/api/tourcategories/${id}`, {
+        method: "DELETE",
+      });
+
+      setCategories(prev => prev.filter(cat => cat.id !== id));
+      toast.success('Xóa danh mục thành công');
     } catch (error) {
       console.error('Error deleting category:', error);
       toast.error('Không thể xóa danh mục');
@@ -109,6 +163,7 @@ export default function AdminTourCategories() {
       name: '',
       code: '',
       description: '',
+      icon: '',
       sortOrder: 0,
       isActive: true
     });
@@ -120,6 +175,7 @@ export default function AdminTourCategories() {
       name: category.name,
       code: category.code,
       description: category.description || '',
+      icon: category.icon || '',
       sortOrder: category.sortOrder,
       isActive: category.isActive
     });

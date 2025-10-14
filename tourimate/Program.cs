@@ -110,10 +110,14 @@ using (var scope = app.Services.CreateScope())
     {
         await context.Database.MigrateAsync();
         Console.WriteLine("Database migration completed successfully.");
+        
+        // Seed the database
+        await DatabaseSeeder.SeedAsync(context);
+        Console.WriteLine("Database seeding completed successfully.");
     }
     catch (Exception ex)
     {
-        Console.WriteLine($"Database migration failed: {ex.Message}");
+        Console.WriteLine($"Database migration/seeding failed: {ex.Message}");
     }
 }
 
