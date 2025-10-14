@@ -27,12 +27,10 @@ public class Tour : BaseEntity, IAuditableEntity
     [Required]
     public int Duration { get; set; } // days
 
-    [Required]
-    public int MaxParticipants { get; set; }
-
+    // Base pricing (can be overridden in TourAvailability)
     [Required]
     [Column(TypeName = "decimal(18,2)")]
-    public decimal Price { get; set; }
+    public decimal BasePrice { get; set; }
 
     [Required]
     [MaxLength(3)]

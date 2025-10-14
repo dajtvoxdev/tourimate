@@ -7,7 +7,8 @@ import {
   User, 
   LogOut, 
   Settings,
-  ChevronDown 
+  ChevronDown, 
+  Home
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -48,6 +49,16 @@ const AdminHeader: React.FC<AdminHeaderProps> = ({ onMenuToggle, isSidebarOpen }
             className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
           >
             <Menu className="h-5 w-5 text-gray-600" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => navigate("/")}
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors hidden sm:inline-flex"
+            title="Về trang chủ"
+          >
+            <Home className="h-5 w-5 text-gray-600" />
+            <span className="ml-2 text-sm text-gray-700">Trang chủ</span>
           </Button>
           
           <div className="relative hidden md:block">
