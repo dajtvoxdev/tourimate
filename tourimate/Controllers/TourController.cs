@@ -8,6 +8,7 @@ using Entities.Enums;
 using System.Security.Claims;
 using System.IdentityModel.Tokens.Jwt;
 using System.Text.Json;
+using TouriMate.Services;
 
 namespace TouriMate.Controllers;
 
@@ -16,10 +17,12 @@ namespace TouriMate.Controllers;
 public sealed class TourController : ControllerBase
 {
     private readonly TouriMateDbContext _db;
+    private readonly IEmailService _emailService;
 
-    public TourController(TouriMateDbContext db)
+    public TourController(TouriMateDbContext db, IEmailService emailService)
     {
         _db = db;
+        _emailService = emailService;
     }
 
     private Guid? GetCurrentUserId()
@@ -145,6 +148,17 @@ public sealed class TourController : ControllerBase
             var query = _db.Tours
                 .Include(t => t.TourGuide)
                 .AsQueryable();
+
+            // If a tour guide accesses with ?mine=1, or a non-admin tour guide in general, scope to own tours
+            var mineParam = HttpContext.Request.Query["mine"].FirstOrDefault();
+            var isMineRequested = !string.IsNullOrEmpty(mineParam) && (mineParam == "1" || mineParam.ToLower() == "true");
+            var currentUserId = GetCurrentUserId();
+            var userIsAdmin = await IsAdmin();
+            var userIsGuide = await IsTourGuide();
+            if ((isMineRequested && currentUserId.HasValue) || (userIsGuide && !userIsAdmin))
+            {
+                query = query.Where(t => t.TourGuideId == currentUserId);
+            }
 
             // Apply filters
             if (!string.IsNullOrWhiteSpace(request.SearchTerm))
@@ -309,6 +323,8 @@ public sealed class TourController : ControllerBase
                 return NotFound("Không tìm thấy thông tin hướng dẫn viên");
             }
 
+            var creatorIsAdmin = await IsAdmin();
+
             var tour = new Tour
             {
                 Id = Guid.NewGuid(),
@@ -329,7 +345,7 @@ public sealed class TourController : ControllerBase
                 Terms = request.Terms,
                 IsActive = true,
                 IsFeatured = request.IsFeatured,
-                Status = TourStatus.PendingApproval,
+                Status = creatorIsAdmin ? TourStatus.Approved : TourStatus.PendingApproval,
                 TourGuideId = userId.Value,
                 CreatedBy = userId.Value,
                 DivisionCode = request.DivisionCode,
@@ -339,6 +355,22 @@ public sealed class TourController : ControllerBase
 
             _db.Tours.Add(tour);
             await _db.SaveChangesAsync();
+
+            // Notify admin only if tour needs approval
+            if (!creatorIsAdmin)
+            {
+                try
+                {
+                    var guide = tourGuide;
+                    var html = $@"<h3>Tour mới chờ phê duyệt</h3>
+<p>Tiêu đề: <strong>{tour.Title}</strong></p>
+<p>Hướng dẫn viên: {guide!.FirstName} {guide.LastName} ({guide.Email})</p>
+<p>Thời gian tạo: {DateTime.UtcNow:yyyy-MM-dd HH:mm} UTC</p>
+<p>Vui lòng vào trang quản trị để xem và phê duyệt.</p>";
+                    await _emailService.SendAdminNotificationAsync("Tour mới chờ phê duyệt", html);
+                }
+                catch { }
+            }
 
             // Reload with navigation properties
             var createdTour = await _db.Tours
@@ -604,6 +636,24 @@ public sealed class TourController : ControllerBase
             tour.UpdatedBy = GetCurrentUserId();
 
             await _db.SaveChangesAsync();
+
+            // Notify guide when approved/rejected (best-effort)
+            try
+            {
+                if (status == TourStatus.Approved || status == TourStatus.Rejected)
+                {
+                    var guide = await _db.Users.FirstOrDefaultAsync(u => u.Id == tour.TourGuideId);
+                    if (guide != null)
+                    {
+                        var subj = status == TourStatus.Approved ? "Tour đã được phê duyệt" : "Tour bị từ chối";
+                        var html = $@"<h3>{subj}</h3>
+<p>Tour: <strong>{tour.Title}</strong></p>
+<p>Trạng thái: {status}</p>";
+                        await _emailService.SendAdminNotificationAsync(subj, html);
+                    }
+                }
+            }
+            catch { }
 
             return Ok(MapToDto(tour));
         }

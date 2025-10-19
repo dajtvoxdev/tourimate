@@ -403,6 +403,17 @@ public sealed class AuthController : ControllerBase
             _db.TourGuideApplications.Add(application);
             await _db.SaveChangesAsync();
 
+            // Notify admin via email about new application (best-effort)
+            try
+            {
+                var html = $@"<h3>Đơn đăng ký hướng dẫn viên mới</h3>
+<p>Người dùng: <strong>{user!.FirstName} {user.LastName}</strong> ({user.Email})</p>
+<p>Thời gian: {DateTime.UtcNow:yyyy-MM-dd HH:mm} UTC</p>
+<p>Vui lòng vào trang quản trị để xem và phê duyệt.</p>";
+                await _emailService.SendAdminNotificationAsync("Đơn đăng ký hướng dẫn viên mới", html);
+            }
+            catch { }
+
             return Ok(new { message = "Đơn đăng ký đã được gửi thành công", applicationId = application.Id });
         }
         catch
@@ -689,6 +700,202 @@ public sealed class AuthController : ControllerBase
         {
             return StatusCode(500, "Lỗi phía ứng dụng, vui lòng thử lại sau");
         }
+    }
+
+    [HttpGet("users")]
+    [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin")]
+    public async Task<IActionResult> GetUsers([FromQuery] int page = 1, [FromQuery] int pageSize = 20, [FromQuery] string? search = null, [FromQuery] string? role = null)
+    {
+        try
+        {
+            var query = _db.Users.AsQueryable();
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                query = query.Where(u =>
+                    u.Email.Contains(search) ||
+                    u.FirstName.Contains(search) ||
+                    u.LastName.Contains(search) ||
+                    u.PhoneNumber!.Contains(search));
+            }
+            if (!string.IsNullOrWhiteSpace(role))
+            {
+                if (Enum.TryParse<Entities.Enums.UserRole>(role, true, out var r))
+                {
+                    query = query.Where(u => u.Role == r);
+                }
+            }
+            var totalCount = await query.CountAsync();
+            var items = await query.OrderByDescending(u => u.CreatedAt)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .Select(u => new AdminUserListItemDto
+                {
+                    Id = u.Id,
+                    Email = u.Email,
+                    PhoneNumber = u.PhoneNumber,
+                    FirstName = u.FirstName,
+                    LastName = u.LastName,
+                    Role = u.Role.ToString(),
+                    IsPhoneVerified = u.IsPhoneVerified,
+                    IsActive = u.IsActive,
+                    Avatar = u.Avatar,
+                    CreatedAt = u.CreatedAt,
+                    LastLoginAt = u.LastLoginAt
+                })
+                .ToListAsync();
+
+            return Ok(new { items, totalCount, page, pageSize, totalPages = (int)Math.Ceiling((double)totalCount / pageSize) });
+        }
+        catch
+        {
+            return StatusCode(500, "Lỗi phía ứng dụng, vui lòng thử lại sau");
+        }
+    }
+
+    [HttpGet("guides")]
+    [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin")]
+    public async Task<IActionResult> GetGuides([FromQuery] int page = 1, [FromQuery] int pageSize = 20, [FromQuery] string? search = null)
+    {
+        try
+        {
+            var query = _db.Users.Where(u => u.Role == Entities.Enums.UserRole.TourGuide);
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                query = query.Where(u =>
+                    u.Email.Contains(search) ||
+                    u.FirstName.Contains(search) ||
+                    u.LastName.Contains(search) ||
+                    u.PhoneNumber!.Contains(search));
+            }
+            var totalCount = await query.CountAsync();
+            var items = await query.OrderByDescending(u => u.CreatedAt)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .Select(u => new AdminUserListItemDto
+                {
+                    Id = u.Id,
+                    Email = u.Email,
+                    PhoneNumber = u.PhoneNumber,
+                    FirstName = u.FirstName,
+                    LastName = u.LastName,
+                    Role = u.Role.ToString(),
+                    IsPhoneVerified = u.IsPhoneVerified,
+                    IsActive = u.IsActive,
+                    Avatar = u.Avatar,
+                    CreatedAt = u.CreatedAt,
+                    LastLoginAt = u.LastLoginAt
+                })
+                .ToListAsync();
+
+            return Ok(new { items, totalCount, page, pageSize, totalPages = (int)Math.Ceiling((double)totalCount / pageSize) });
+        }
+        catch
+        {
+            return StatusCode(500, "Lỗi phía ứng dụng, vui lòng thử lại sau");
+        }
+    }
+
+    [HttpGet("users/{id}")]
+    [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin")]
+    public async Task<IActionResult> GetUser(Guid id)
+    {
+        var user = await _db.Users.Include(u => u.Profile).FirstOrDefaultAsync(u => u.Id == id);
+        if (user == null) return NotFound();
+        var dto = new AdminUserDetailDto
+        {
+            Id = user.Id,
+            Email = user.Email,
+            PhoneNumber = user.PhoneNumber,
+            FirstName = user.FirstName,
+            LastName = user.LastName,
+            Role = user.Role.ToString(),
+            IsPhoneVerified = user.IsPhoneVerified,
+            IsActive = user.IsActive,
+            Avatar = user.Avatar,
+            CreatedAt = user.CreatedAt,
+            LastLoginAt = user.LastLoginAt,
+            Address = user.Profile?.Address,
+            Country = user.Profile?.Country ?? "Vietnam",
+            DateOfBirth = user.Profile?.DateOfBirth,
+            Bio = user.Profile?.Bio,
+            Gender = user.Profile?.Gender,
+            Website = user.Profile?.Website,
+            SocialMedia = user.Profile?.SocialMedia,
+            NotificationSettings = user.Profile?.NotificationSettings,
+            ProvinceCode = user.Profile?.ProvinceCode,
+            WardCode = user.Profile?.WardCode
+        };
+        return Ok(dto);
+    }
+
+    [HttpPost("users")]
+    [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin")]
+    public async Task<IActionResult> CreateUser([FromBody] CreateUserRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Password)) return BadRequest("Email/Password required");
+        if (await _db.Users.AnyAsync(u => u.Email == request.Email)) return BadRequest("Email đã tồn tại");
+        if (!Enum.TryParse<Entities.Enums.UserRole>(request.Role, true, out var role)) role = Entities.Enums.UserRole.Customer;
+        var user = new Entities.Models.User
+        {
+            Email = request.Email,
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
+            FirstName = request.FirstName,
+            LastName = request.LastName,
+            PhoneNumber = request.PhoneNumber,
+            Role = role,
+            IsActive = request.IsActive
+        };
+        _db.Users.Add(user);
+        await _db.SaveChangesAsync();
+        return Ok(new { id = user.Id });
+    }
+
+    [HttpPut("users/{id}")]
+    [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin")]
+    public async Task<IActionResult> UpdateUser(Guid id, [FromBody] UpdateUserRequest request)
+    {
+        var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == id);
+        if (user == null) return NotFound();
+        // Admin cannot edit another admin if caller isn't same admin
+        if (user.Role == Entities.Enums.UserRole.Admin)
+        {
+            return BadRequest("Không thể chỉnh sửa tài khoản quản trị");
+        }
+        if (!string.IsNullOrWhiteSpace(request.FirstName)) user.FirstName = request.FirstName!;
+        if (!string.IsNullOrWhiteSpace(request.LastName)) user.LastName = request.LastName!;
+        if (!string.IsNullOrWhiteSpace(request.PhoneNumber)) user.PhoneNumber = request.PhoneNumber!;
+        if (!string.IsNullOrWhiteSpace(request.Avatar)) user.Avatar = request.Avatar!;
+        if (request.IsActive.HasValue) user.IsActive = request.IsActive.Value;
+        if (!string.IsNullOrWhiteSpace(request.Role) && Enum.TryParse<Entities.Enums.UserRole>(request.Role, true, out var role))
+        {
+            if (role == Entities.Enums.UserRole.Admin) return BadRequest("Không thể nâng cấp lên quản trị tại đây");
+            user.Role = role;
+        }
+        await _db.SaveChangesAsync();
+        return NoContent();
+    }
+
+    [HttpPost("users/{id}/active")]
+    [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin")]
+    public async Task<IActionResult> ChangeUserActive(Guid id, [FromBody] ChangeUserActiveRequest request)
+    {
+        var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == id);
+        if (user == null) return NotFound();
+        if (user.Role == Entities.Enums.UserRole.Admin) return BadRequest("Không thể thay đổi trạng thái quản trị");
+        user.IsActive = request.IsActive;
+        await _db.SaveChangesAsync();
+        return NoContent();
+    }
+
+    [HttpPost("guides/{id}/revoke")]
+    [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin")]
+    public async Task<IActionResult> RevokeGuide(Guid id)
+    {
+        var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == id && u.Role == Entities.Enums.UserRole.TourGuide);
+        if (user == null) return NotFound();
+        user.Role = Entities.Enums.UserRole.Customer;
+        await _db.SaveChangesAsync();
+        return NoContent();
     }
 }
 

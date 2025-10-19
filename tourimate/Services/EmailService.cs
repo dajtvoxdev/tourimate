@@ -7,6 +7,7 @@ namespace TouriMate.Services
     public interface IEmailService
     {
         Task<bool> SendTourGuideApplicationStatusEmailAsync(string toEmail, string toName, string status, string feedback = null);
+        Task<bool> SendAdminNotificationAsync(string subject, string htmlContent);
     }
 
     public class EmailService : IEmailService
@@ -76,6 +77,44 @@ namespace TouriMate.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex, $"Failed to send email to {toEmail}");
+                return false;
+            }
+        }
+
+        public async Task<bool> SendAdminNotificationAsync(string subject, string htmlContent)
+        {
+            try
+            {
+                var sendGridConfig = _configuration.GetSection("ExternalServices:SendGrid");
+                var apiKey = sendGridConfig["ApiKey"];
+                var fromEmail = sendGridConfig["FromEmail"];
+                var fromName = sendGridConfig["FromName"];
+                var adminEmail = _configuration["Admin:Email"] ?? sendGridConfig["AdminEmail"]; // fallback
+
+                if (string.IsNullOrEmpty(apiKey) || string.IsNullOrEmpty(fromEmail) || string.IsNullOrEmpty(adminEmail))
+                {
+                    _logger.LogWarning("Missing email configs for admin notifications");
+                    return false;
+                }
+
+                var message = new MailMessage
+                {
+                    From = new MailAddress(fromEmail!, fromName),
+                    Subject = subject,
+                    Body = htmlContent,
+                    IsBodyHtml = true
+                };
+                message.To.Add(adminEmail);
+
+                using var smtpClient = new SmtpClient("smtp.sendgrid.net", 587);
+                smtpClient.Credentials = new NetworkCredential("apikey", apiKey);
+                smtpClient.EnableSsl = true;
+                await smtpClient.SendMailAsync(message);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to send admin notification");
                 return false;
             }
         }
