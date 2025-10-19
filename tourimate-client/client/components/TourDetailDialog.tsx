@@ -20,7 +20,6 @@ export const TourDetailDialog: React.FC<Props> = ({ tour, tourId, onClose }) => 
   const [detail, setDetail] = useState<TourDto | null>(null);
   const [loading, setLoading] = useState(false);
   const [provinceName, setProvinceName] = useState<string | undefined>(undefined);
-  const [wardName, setWardName] = useState<string | undefined>(undefined);
   const id = tourId || tour?.id;
   const baseApiUrl = ((import.meta as any).env?.VITE_API_BASE_URL || "https://localhost:7181");
   const { user } = useAuth();
@@ -56,24 +55,17 @@ export const TourDetailDialog: React.FC<Props> = ({ tour, tourId, onClose }) => 
     const loadNames = async () => {
       try {
         const pCode = (detail as any)?.provinceCode as number | undefined;
-        const wCode = (detail as any)?.wardCode as number | undefined;
-        if (!pCode && !wCode) return;
-        // Load provinces
-        if (pCode) {
-          const res = await fetch(`${baseApiUrl}/api/divisions`);
+        if (!pCode) return;
+        // Load provinces only - departure point doesn't need wards
+        try {
+          const res = await fetch(`${baseApiUrl}/api/divisions/provinces`);
           if (res.ok) {
-            const all = await res.json();
-            const provinces = (all || []).filter((d: any) => (d.parentCode ?? d.ParentCode) == null);
+            const provinces = await res.json();
             const p = provinces.find((d: any) => (d.code ?? d.Code) === pCode);
             if (p) setProvinceName(p.name ?? p.Name);
           }
-          // Load wards for that province
-          const rw = await fetch(`${baseApiUrl}/api/divisions/wards?provinceCode=${pCode}`);
-          if (rw.ok) {
-            const wards = await rw.json();
-            const w = (wards || []).find((x: any) => (x.code ?? x.Code) === wCode);
-            if (w) setWardName(w.name ?? w.Name);
-          }
+        } catch (error) {
+          console.error("Error loading provinces:", error);
         }
       } catch {}
     };
@@ -139,10 +131,6 @@ export const TourDetailDialog: React.FC<Props> = ({ tour, tourId, onClose }) => 
             <div>
               <Label className="text-sm font-medium text-gray-500">Tỉnh/Thành phố</Label>
               <p className="text-lg">{provinceName || '-'}</p>
-            </div>
-            <div>
-              <Label className="text-sm font-medium text-gray-500">Phường/Xã</Label>
-              <p className="text-lg">{wardName || '-'}</p>
             </div>
           </div>
 

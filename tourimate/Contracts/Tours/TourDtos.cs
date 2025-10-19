@@ -62,6 +62,17 @@ public class TourListDto
     public int TotalBookings { get; set; }
     public int ViewCount { get; set; }
     public DateTime CreatedAt { get; set; }
+
+    // Enriched fields from most recent availability
+    public decimal? RecentAdultPrice { get; set; }
+    public int? RecentDepartureDivisionCode { get; set; }
+    public string? RecentDepartureDivisionName { get; set; }
+    public string? RecentTripTime { get; set; }
+    public DateTime? RecentDate { get; set; }
+
+    // Resolved names for location
+    public string? ProvinceName { get; set; }
+    public string? WardName { get; set; }
 }
 
 public class TourSearchRequest
@@ -85,6 +96,13 @@ public class TourSearchRequest
     public string SortDirection { get; set; } = "desc";
     public int Page { get; set; } = 1;
     public int PageSize { get; set; } = 10;
+
+    // New filters based on availability & destination
+    public int? DestinationProvinceCode { get; set; }
+    public int? DepartureDivisionCode { get; set; }
+    public DateTime? StartDate { get; set; }
+    public decimal? MinAvailPrice { get; set; }
+    public decimal? MaxAvailPrice { get; set; }
 }
 
 public class TourSearchResponse

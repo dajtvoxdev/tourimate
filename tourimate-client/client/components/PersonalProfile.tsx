@@ -111,7 +111,7 @@ export default function PersonalProfile() {
   // Load provinces
   const loadProvinces = async () => {
     try {
-      const data = await httpJson<any[]>(`${getApiBase()}/api/divisions`, { skipAuth: true });
+      const data = await httpJson<any[]>(`${getApiBase()}/api/divisions/provinces`, { skipAuth: true });
       const provinces = (data || []).filter((d: any) => (d.parentCode ?? d.ParentCode) == null);
       setProvinces(provinces.map((d: any) => ({ code: d.code ?? d.Code, name: d.name ?? d.Name })));
     } catch (e) {

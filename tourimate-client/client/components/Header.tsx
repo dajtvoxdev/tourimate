@@ -57,6 +57,7 @@ export default function Header({ hideRegister = false, hideLogin = false }: Head
           {/* Center: Nav (desktop) */}
           <nav className="hidden md:flex items-center gap-3 lg:gap-4">
             <NavButton to="/" label="Trang chủ" />
+            <NavButton to="/tours" label="Tours" />
             <NavButton to="/about" label="Về chúng tôi" />
             <NavButton to="/tour-guides" label="Hướng dẫn viên" />
             {isLoggedIn && isTourGuide && (
@@ -135,6 +136,7 @@ export default function Header({ hideRegister = false, hideLogin = false }: Head
           <div className="md:hidden pb-4 animate-in fade-in slide-in-from-top-2">
             <div className="flex flex-col gap-2">
               <NavButton to="/" label="Trang chủ" />
+              <NavButton to="/tours" label="Tours" />
               <NavButton to="/about" label="Về chúng tôi" />
               <NavButton to="/tour-guides" label="Hướng dẫn viên" />
               {isLoggedIn && isTourGuide && (

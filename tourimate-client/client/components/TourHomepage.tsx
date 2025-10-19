@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ChevronLeft, ChevronRight, MapPin, Calendar, Bus } from "lucide-react";
 import Header from "./Header";
+import FeaturedTours from "./FeaturedTours";
 
 interface TourCard {
   id: number;
@@ -195,11 +196,21 @@ export default function TourHomepage() {
                     </div>
                   </div>
 
-                  <button className="bg-tour-teal hover:bg-tour-blue transition-colors duration-200 rounded-[20px] px-8 py-4 mt-6">
-                    <span className="font-nunito text-2xl md:text-3xl font-bold text-black">
-                      Chi tiết
-                    </span>
-                  </button>
+                  <div className="flex gap-4 mt-6">
+                    <button className="bg-tour-teal hover:bg-tour-blue transition-colors duration-200 rounded-[20px] px-8 py-4">
+                      <span className="font-nunito text-2xl md:text-3xl font-bold text-black">
+                        Chi tiết
+                      </span>
+                    </button>
+                    <button 
+                      onClick={() => navigate('/tours')}
+                      className="bg-tour-blue hover:bg-tour-teal transition-colors duration-200 rounded-[20px] px-8 py-4"
+                    >
+                      <span className="font-nunito text-2xl md:text-3xl font-bold text-black">
+                        Xem tất cả tour
+                      </span>
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -320,67 +331,8 @@ export default function TourHomepage() {
         </div>
       </section>
 
-      {/* Tours Grid */}
-      <section className="py-12 md:py-20 bg-white">
-        <div className="container mx-auto px-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8">
-            {tours.map((tour, index) => (
-              <div key={tour.id} className="group">
-                <div className="relative overflow-hidden rounded-[30px]">
-                  <img
-                    src={tour.image}
-                    alt={tour.title}
-                    className="w-full h-48 md:h-56 lg:h-64 object-cover transition-transform duration-300 group-hover:scale-105"
-                  />
-                </div>
-
-                <div className="mt-4 space-y-2">
-                  <h3 className="font-nunito text-lg md:text-xl lg:text-2xl font-bold text-black">
-                    {tour.title}
-                  </h3>
-                  <p className="font-nunito text-lg md:text-xl lg:text-2xl font-normal text-black">
-                    {tour.duration}
-                  </p>
-
-                  <div className="flex space-x-3 pt-2">
-                    <button
-                      onClick={() => navigate(`/tour/${tour.id}`)}
-                      className="bg-tour-blue hover:bg-tour-teal transition-colors duration-200 rounded-[10px] px-4 py-2"
-                    >
-                      <span className="font-nunito text-lg md:text-xl lg:text-2xl font-bold text-black">
-                        Đặt ngay
-                      </span>
-                    </button>
-                    <button
-                      onClick={() => navigate(`/tour/${tour.id}`)}
-                      className="bg-gray-300 hover:bg-gray-400 transition-colors duration-200 rounded-[10px] px-4 py-2"
-                    >
-                      <span className="font-nunito text-lg md:text-xl lg:text-2xl font-bold text-black">
-                        Chi tiết
-                      </span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Load More Section */}
-          <div className="text-center mt-12">
-            <div className="flex justify-center items-center space-x-4">
-              <div className="flex space-x-2">
-                <div className="w-4 h-4 bg-gray-300 rounded-full"></div>
-                <div className="w-4 h-4 bg-gray-300 rounded-full"></div>
-                <div className="w-4 h-4 bg-gray-300 rounded-full"></div>
-                <div className="w-4 h-4 bg-gray-300 rounded-full"></div>
-              </div>
-              <button className="bg-white rounded-full p-2 shadow-lg hover:shadow-xl transition-shadow duration-200">
-                <ChevronRight className="w-6 h-6 text-black" />
-              </button>
-            </div>
-          </div>
-        </div>
-      </section>
+      {/* Featured Tours Section */}
+      <FeaturedTours limit={6} showTitle={false} />
 
       {/* Footer */}
       <footer className="bg-gray-300 py-12 md:py-20">

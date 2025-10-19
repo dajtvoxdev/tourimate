@@ -19,6 +19,7 @@ public class TouriMateDbContext : DbContext
 
     // Tour Management
     public DbSet<Division> Divisions { get; set; }
+    public DbSet<TourCategory> TourCategories { get; set; }
     public DbSet<Tour> Tours { get; set; }
     public DbSet<TourAvailability> TourAvailabilities { get; set; }
     public DbSet<Booking> Bookings { get; set; }
@@ -158,10 +159,23 @@ public class TouriMateDbContext : DbContext
             .OnDelete(DeleteBehavior.SetNull);
 
 
-        // TourAvailability unique constraint
+        // TourAvailability unique constraint and relationships
         modelBuilder.Entity<TourAvailability>()
             .HasIndex(ta => new { ta.TourId, ta.Date })
             .IsUnique();
+
+        modelBuilder.Entity<TourAvailability>()
+            .HasOne(ta => ta.Tour)
+            .WithMany(t => t.Availabilities)
+            .HasForeignKey(ta => ta.TourId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<TourAvailability>()
+            .HasOne(ta => ta.DepartureDivision)
+            .WithMany()
+            .HasForeignKey(ta => ta.DepartureDivisionCode)
+            .HasPrincipalKey(d => d.Code)
+            .OnDelete(DeleteBehavior.NoAction);
 
         // Division hierarchy (ward -> province)
         modelBuilder.Entity<Division>()
@@ -370,7 +384,7 @@ public class TouriMateDbContext : DbContext
             .HasIndex(t => new { t.Location, t.IsActive });
 
         modelBuilder.Entity<Tour>()
-            .HasIndex(t => new { t.Price, t.IsActive });
+            .HasIndex(t => new { t.BasePrice, t.IsActive });
 
         modelBuilder.Entity<Tour>()
             .HasIndex(t => new { t.DivisionCode, t.IsActive });

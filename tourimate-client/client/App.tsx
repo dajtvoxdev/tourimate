@@ -15,7 +15,9 @@ import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import TourHomepage from "./components/TourHomepage";
 import TourGuides from "./components/TourGuides";
-import TourDetail from "./components/TourDetail";
+import TourDetailComponent from "./components/TourDetail";
+import Tours from "./pages/Tours";
+import TourDetail from "./pages/TourDetail";
 import AboutUs from "./components/AboutUs";
 import PersonalProfile from "./components/PersonalProfile";
 import TourGuideRegistration from "./components/TourGuideRegistration";
@@ -32,6 +34,8 @@ import AdminGuides from "./components/AdminGuides";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AdminProtectedRoute from "./components/AdminProtectedRoute";
 import NonAdminProtectedRoute from "./components/NonAdminProtectedRoute";
+import TourAvailabilityPage from "./pages/TourAvailabilityPage";
+import TourCategoriesPage from "./pages/TourCategoriesPage";
 
 const queryClient = new QueryClient();
 
@@ -47,8 +51,9 @@ const App = () => (
           <Route path="/login" element={<Login />} />
           <Route path="/forgot" element={<ForgotPassword />} />
           <Route path="/home" element={<TourHomepage />} />
+          <Route path="/tours" element={<Tours />} />
           <Route path="/tour-guides" element={<TourGuides />} />
-          <Route path="/tour/:tourId" element={<TourDetail />} />
+          <Route path="/tour/:id" element={<TourDetail />} />
           <Route path="/about" element={<AboutUs />} />
           <Route path="/profile" element={<PersonalProfile />} />
           <Route
@@ -118,6 +123,22 @@ const App = () => (
               </AdminProtectedRoute>
             } 
           />
+        <Route
+          path="/admin/tours/:tourId/availability"
+          element={
+            <AdminProtectedRoute>
+              <TourAvailabilityPage />
+            </AdminProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/tour-categories"
+          element={
+            <AdminProtectedRoute>
+              <TourCategoriesPage />
+            </AdminProtectedRoute>
+          }
+        />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

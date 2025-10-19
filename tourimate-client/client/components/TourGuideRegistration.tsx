@@ -138,7 +138,7 @@ export default function TourGuideRegistration() {
   // Load provinces
   const loadProvinces = async () => {
     try {
-      const res = await httpWithRefresh(`${API_BASE}/api/divisions`);
+      const res = await httpWithRefresh(`${API_BASE}/api/divisions/provinces`);
       if (res.ok) {
         const data = await res.json();
         const provinces = (data || []).filter((d: any) => (d.parentCode ?? d.ParentCode) == null);
@@ -153,7 +153,7 @@ export default function TourGuideRegistration() {
   const loadWards = async (provinceCode: number) => {
     try {
       setWardsLoading(true);
-      const res = await httpWithRefresh(`${API_BASE}/api/divisions/wards?provinceCode=${provinceCode}`);
+      const res = await httpWithRefresh(`${API_BASE}/api/divisions/wards-by-province/${provinceCode}`);
       if (res.ok) {
         const data = await res.json();
         setWards((data || []).map((d: any) => ({ code: d.code ?? d.Code, name: d.name ?? d.Name })));
