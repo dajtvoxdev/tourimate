@@ -44,6 +44,9 @@ public class TouriMateDbContext : DbContext
     public DbSet<SystemSetting> SystemSettings { get; set; }
     public DbSet<AuditLog> AuditLogs { get; set; }
     public DbSet<Entities.Models.File> Files { get; set; }
+    
+    // Payment Integration
+    public DbSet<SePayTransaction> SePayTransactions { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
