@@ -38,7 +38,7 @@ public class TouriMateDbContext : DbContext
 
     // System Management
     public DbSet<Promotion> Promotions { get; set; }
-    // public DbSet<Report> Reports { get; set; } // Temporarily disabled due to cascade conflicts
+    public DbSet<Report> Reports { get; set; }
     public DbSet<Transaction> Transactions { get; set; }
     public DbSet<Revenue> Revenues { get; set; }
     public DbSet<SystemSetting> SystemSettings { get; set; }
@@ -47,6 +47,7 @@ public class TouriMateDbContext : DbContext
     
     // Payment Integration
     public DbSet<SePayTransaction> SePayTransactions { get; set; }
+    public DbSet<Refund> Refunds { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -201,6 +202,12 @@ public class TouriMateDbContext : DbContext
             .WithMany(u => u.Bookings)
             .HasForeignKey(b => b.CustomerId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<Booking>()
+            .HasOne(b => b.TourAvailability)
+            .WithMany()
+            .HasForeignKey(b => b.TourAvailabilityId)
+            .OnDelete(DeleteBehavior.NoAction);
     }
 
     private void ConfigureProducts(ModelBuilder modelBuilder)
@@ -319,6 +326,20 @@ public class TouriMateDbContext : DbContext
             .WithMany()
             .HasForeignKey(rhv => rhv.UserId)
             .OnDelete(DeleteBehavior.NoAction);
+
+        // Report relationships
+        modelBuilder.Entity<Report>()
+            .HasOne(r => r.Review)
+            .WithMany(r => r.Reports)
+            .HasForeignKey(r => r.EntityId)
+            .OnDelete(DeleteBehavior.NoAction)
+            .HasConstraintName("FK_Reports_Reviews_EntityId");
+
+        modelBuilder.Entity<Report>()
+            .HasOne(r => r.ReportedByUser)
+            .WithMany()
+            .HasForeignKey(r => r.ReportedBy)
+            .OnDelete(DeleteBehavior.NoAction);
     }
 
     private void ConfigureFinancials(ModelBuilder modelBuilder)
@@ -359,18 +380,18 @@ public class TouriMateDbContext : DbContext
         // Note: Promotion has polymorphic relationships with Tour and Product
         // These will be handled manually in the application layer
 
-        // Report relationships - Temporarily disabled
-        // modelBuilder.Entity<Report>()
-        //     .HasOne(r => r.ReportedByUser)
-        //     .WithMany()
-        //     .HasForeignKey(r => r.ReportedBy)
-        //     .OnDelete(DeleteBehavior.NoAction);
+        // Report relationships
+        modelBuilder.Entity<Report>()
+            .HasOne(r => r.ReportedByUser)
+            .WithMany()
+            .HasForeignKey(r => r.ReportedBy)
+            .OnDelete(DeleteBehavior.NoAction);
 
-        // modelBuilder.Entity<Report>()
-        //     .HasOne(r => r.ReviewedByUser)
-        //     .WithMany()
-        //     .HasForeignKey(r => r.ReviewedBy)
-        //     .OnDelete(DeleteBehavior.NoAction);
+        modelBuilder.Entity<Report>()
+            .HasOne(r => r.ReviewedByUser)
+            .WithMany()
+            .HasForeignKey(r => r.ReviewedBy)
+            .OnDelete(DeleteBehavior.NoAction);
 
         // AuditLog relationship
         modelBuilder.Entity<AuditLog>()

@@ -39,6 +39,9 @@ builder.Services.AddScoped<IEmailService, EmailService>();
 // Register SePay service
 builder.Services.AddScoped<ISePayService, SePayService>();
 
+// Register Refund service
+builder.Services.AddScoped<IRefundService, RefundService>();
+
 // Configure Entity Framework
 builder.Services.AddDbContext<TouriMateDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"),

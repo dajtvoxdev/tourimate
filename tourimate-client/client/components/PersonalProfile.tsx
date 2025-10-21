@@ -19,6 +19,8 @@ import {
   Settings,
   Bell,
   Check,
+  CreditCard,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import Header from "./Header";
@@ -33,6 +35,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { CancellationDialog } from "./CancellationDialog";
 import { format } from "date-fns";
 import { vi } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -40,13 +44,30 @@ import { cn } from "@/lib/utils";
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://localhost:7181";
 
 interface BookedTour {
-  id: number;
-  title: string;
-  image: string;
-  date: string;
-  status: "upcoming" | "completed" | "cancelled";
-  price: string;
-  rating?: number;
+  id: string;
+  bookingNumber: string;
+  status: "PendingPayment" | "Confirmed" | "Cancelled" | "Completed";
+  totalAmount: number;
+  adultCount: number;
+  childCount: number;
+  contactInfo: string; // JSON string
+  specialRequests?: string;
+  createdAt: string;
+  tour: {
+    id: string;
+    title: string;
+    images?: string; // JSON string
+    location: string;
+  };
+  tourAvailability: {
+    id: string;
+    date: string;
+    adultPrice: number;
+    childPrice: number;
+    departurePoint?: string;
+    vehicle?: string;
+    tripTime?: string;
+  };
 }
 
 interface FavoriteTour {
@@ -176,6 +197,111 @@ export default function PersonalProfile() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Fetch user bookings
+  const fetchBookings = async () => {
+    setBookingsLoading(true);
+    try {
+      const data = await httpJson<BookedTour[]>(`${getApiBase()}/api/bookings/user`);
+      setBookedTours(data);
+    } catch (error: any) {
+      console.error("Error fetching bookings:", error);
+      toast.error("Không thể tải danh sách tour đã đặt");
+    } finally {
+      setBookingsLoading(false);
+    }
+  };
+
+  // Load bookings when tours tab is active
+  useEffect(() => {
+    if (activeTab === "tours") {
+      fetchBookings();
+    }
+  }, [activeTab]);
+
+  // Open cancel booking dialog
+  const openCancelDialog = (bookingId: string) => {
+    setSelectedBookingId(bookingId);
+    setShowCancellationDialog(true);
+  };
+
+  // Handle successful cancellation
+  const handleCancellationSuccess = () => {
+    fetchBookings(); // Refresh the list
+    setShowCancellationDialog(false);
+    setSelectedBookingId(null);
+  };
+
+  // Continue payment function
+  const handleContinuePayment = (booking: BookedTour) => {
+    // Navigate to booking page with tour ID and availability ID
+    navigate(`/tour/${booking.tour.id}/book?availability=${booking.tourAvailability.id}&booking=${booking.bookingNumber}`);
+  };
+
+  // Helper functions
+  const formatPrice = (price: number) => {
+    return new Intl.NumberFormat('vi-VN', {
+      style: 'currency',
+      currency: 'VND'
+    }).format(price);
+  };
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('vi-VN');
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "PendingPayment":
+        return "bg-yellow-100 text-yellow-800";
+      case "Confirmed":
+        return "bg-green-100 text-green-800";
+      case "Cancelled":
+        return "bg-red-100 text-red-800";
+      case "Completed":
+        return "bg-blue-100 text-blue-800";
+      default:
+        return "bg-gray-100 text-gray-800";
+    }
+  };
+
+  const getStatusText = (status: string) => {
+    switch (status) {
+      case "PendingPayment":
+        return "Chờ thanh toán";
+      case "Confirmed":
+        return "Đã xác nhận";
+      case "Cancelled":
+        return "Đã hủy";
+      case "Completed":
+        return "Hoàn thành";
+      default:
+        return status;
+    }
+  };
+
+  const getTourImage = (images?: string) => {
+    if (!images) return "/placeholder.svg";
+    try {
+      const imageArray = JSON.parse(images);
+      return imageArray && imageArray.length > 0 ? imageArray[0] : "/placeholder.svg";
+    } catch {
+      return "/placeholder.svg";
+    }
+  };
+
+  const getContactInfo = (contactInfo: string) => {
+    try {
+      const info = JSON.parse(contactInfo);
+      return {
+        name: info.Name || info.name || "",
+        email: info.Email || info.email || "",
+        phone: info.Phone || info.phone || ""
+      };
+    } catch {
+      return { name: "", email: "", phone: "" };
+    }
+  };
+
   const handleLogout = () => {
     navigate("/");
   };
@@ -301,38 +427,11 @@ export default function PersonalProfile() {
     }
   };
 
-  // Mock data for booked tours
-  const bookedTours: BookedTour[] = [
-    {
-      id: 1,
-      title: "Tour guide tại Phú Quốc",
-      image:
-        "https://cdn.builder.io/api/v1/image/assets/TEMP/7c497dcdbb3d5217867134b17d46c87fa56fe8cf?width=736",
-      date: "25/12/2024",
-      status: "upcoming",
-      price: "3.500.000 VND",
-    },
-    {
-      id: 2,
-      title: "Tour guide tại Nha Trang",
-      image:
-        "https://cdn.builder.io/api/v1/image/assets/TEMP/10b1097fd1534995ce1aa5277ebd0f9aa1c19f7d?width=1082",
-      date: "10/11/2024",
-      status: "completed",
-      price: "2.800.000 VND",
-      rating: 5,
-    },
-    {
-      id: 3,
-      title: "Tour guide tại Đà Lạt",
-      image:
-        "https://cdn.builder.io/api/v1/image/assets/TEMP/a6a6b19a1b5bd896d9f2536f27b5b57ab8c9128e?width=1082",
-      date: "15/10/2024",
-      status: "completed",
-      price: "2.200.000 VND",
-      rating: 4,
-    },
-  ];
+  // Bookings state
+  const [bookedTours, setBookedTours] = useState<BookedTour[]>([]);
+  const [bookingsLoading, setBookingsLoading] = useState(false);
+  const [showCancellationDialog, setShowCancellationDialog] = useState(false);
+  const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
 
   // Mock data for favorite tours
   const favoriteTours: FavoriteTour[] = [
@@ -374,31 +473,6 @@ export default function PersonalProfile() {
     },
   ];
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "upcoming":
-        return "bg-blue-100 text-blue-800";
-      case "completed":
-        return "bg-green-100 text-green-800";
-      case "cancelled":
-        return "bg-red-100 text-red-800";
-      default:
-        return "bg-gray-100 text-gray-800";
-    }
-  };
-
-  const getStatusText = (status: string) => {
-    switch (status) {
-      case "upcoming":
-        return "Sắp tới";
-      case "completed":
-        return "Đã hoàn thành";
-      case "cancelled":
-        return "Đã hủy";
-      default:
-        return status;
-    }
-  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -439,16 +513,6 @@ export default function PersonalProfile() {
                     <span className="font-nunito font-medium">
                       Thông tin cá nhân
                     </span>
-                  </button>
-                  <button
-                    onClick={() => setActiveTab("mytours")}
-                    className={`w-full text-left px-4 py-3 rounded-lg transition-colors duration-200 ${
-                      activeTab === "mytours"
-                        ? "bg-tour-light-blue text-tour-blue"
-                        : "hover:bg-gray-100"
-                    }`}
-                  >
-                    <span className="font-nunito font-medium">Quản lý tour</span>
                   </button>
                   <button
                     onClick={() => setActiveTab("tours")}
@@ -994,71 +1058,154 @@ export default function PersonalProfile() {
                 <h3 className="font-itim text-2xl md:text-3xl text-black mb-8">
                   Tour đã đặt
                 </h3>
-                <div className="space-y-6">
-                  {bookedTours.map((tour) => (
-                    <div
-                      key={tour.id}
-                      className="border border-gray-200 rounded-[15px] p-6 hover:shadow-lg transition-shadow duration-300"
+                
+                {bookingsLoading ? (
+                  <div className="flex justify-center items-center py-12">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-tour-blue"></div>
+                    <span className="ml-3 text-gray-600">Đang tải...</span>
+                  </div>
+                ) : bookedTours.length === 0 ? (
+                  <div className="text-center py-12">
+                    <h4 className="font-nunito text-lg font-medium text-gray-600 mb-2">
+                      Chưa có tour nào được đặt
+                    </h4>
+                    <p className="text-gray-500 mb-6">
+                      Hãy khám phá và đặt tour đầu tiên của bạn!
+                    </p>
+                    <button
+                      onClick={() => navigate("/tours")}
+                      className="bg-tour-blue hover:bg-tour-dark-blue text-white px-6 py-3 rounded-lg transition-colors duration-200 font-nunito font-medium"
                     >
-                      <div className="flex flex-col md:flex-row md:items-center space-y-4 md:space-y-0 md:space-x-6">
-                        <img
-                          src={tour.image}
-                          alt={tour.title}
-                          className="w-full md:w-32 h-32 object-cover rounded-[10px]"
-                        />
-                        <div className="flex-1">
-                          <div className="flex items-start justify-between mb-3">
-                            <h4 className="font-nunito text-xl font-bold text-black">
-                              {tour.title}
-                            </h4>
-                            <span
-                              className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(tour.status)}`}
+                      Khám phá tour
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    {bookedTours.map((booking) => (
+                      <div
+                        key={booking.id}
+                        className="border border-gray-200 rounded-[15px] p-6 hover:shadow-lg transition-shadow duration-300"
+                      >
+                        <div className="flex flex-col md:flex-row md:items-start space-y-4 md:space-y-0 md:space-x-6">
+                          <img
+                            src={getTourImage(booking.tour.images)}
+                            alt={booking.tour.title}
+                            className="w-full md:w-32 h-32 object-cover rounded-[10px]"
+                          />
+                          <div className="flex-1">
+                            <div className="flex items-start justify-between mb-3">
+                              <h4 className="font-nunito text-xl font-bold text-black">
+                                {booking.tour.title}
+                              </h4>
+                              <span
+                                className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(booking.status)}`}
+                              >
+                                {getStatusText(booking.status)}
+                              </span>
+                            </div>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                              <div className="space-y-2">
+                                <div className="flex items-center space-x-2 text-gray-600">
+                                  <CalendarIcon className="w-4 h-4" />
+                                  <span className="font-nunito text-sm">
+                                    Ngày khởi hành: {formatDate(booking.tourAvailability.date)}
+                                  </span>
+                                </div>
+                                <div className="flex items-center space-x-2 text-gray-600">
+                                  <MapPin className="w-4 h-4" />
+                                  <span className="font-nunito text-sm">
+                                    Điểm khởi hành: {booking.tourAvailability.departurePoint || "Chưa cập nhật"}
+                                  </span>
+                                </div>
+                                {booking.tourAvailability.vehicle && (
+                                  <div className="flex items-center space-x-2 text-gray-600">
+                                    <Globe className="w-4 h-4" />
+                                    <span className="font-nunito text-sm">
+                                      Phương tiện: {booking.tourAvailability.vehicle}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                              
+                              <div className="space-y-2">
+                                <div className="flex items-center space-x-2 text-gray-600">
+                                  <User className="w-4 h-4" />
+                                  <span className="font-nunito text-sm">
+                                    Số người: {booking.adultCount} người lớn, {booking.childCount} trẻ em
+                                  </span>
+                                </div>
+                                <div className="flex items-center space-x-2 text-gray-600">
+                                  <span className="font-nunito text-sm font-medium text-tour-blue">
+                                    Tổng tiền: {formatPrice(booking.totalAmount)}
+                                  </span>
+                                </div>
+                                <div className="flex items-center space-x-2 text-gray-600">
+                                  <span className="font-nunito text-sm">
+                                    Mã đặt tour: {booking.bookingNumber}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Contact Information */}
+                            {booking.contactInfo && (() => {
+                              const contact = getContactInfo(booking.contactInfo);
+                              return contact.name || contact.email || contact.phone ? (
+                                <div className="bg-blue-50 p-3 rounded-lg mb-4">
+                                  <h5 className="font-medium text-blue-900 mb-2">Thông tin liên hệ</h5>
+                                  <div className="space-y-1 text-sm text-blue-800">
+                                    {contact.name && <p><span className="font-medium">Tên:</span> {contact.name}</p>}
+                                    {contact.email && <p><span className="font-medium">Email:</span> {contact.email}</p>}
+                                    {contact.phone && <p><span className="font-medium">SĐT:</span> {contact.phone}</p>}
+                                  </div>
+                                </div>
+                              ) : null;
+                            })()}
+
+                            {booking.specialRequests && (
+                              <div className="bg-gray-50 p-3 rounded-lg mb-4">
+                                <p className="text-sm text-gray-600">
+                                  <span className="font-medium">Yêu cầu đặc biệt:</span> {booking.specialRequests}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                          
+                          <div className="flex flex-col space-y-2 min-w-[140px]">
+                            <button
+                              onClick={() => navigate(`/tour/${booking.tour.id}`)}
+                              className="flex items-center justify-center space-x-2 bg-gray-100 hover:bg-gray-200 text-black px-4 py-2 rounded-lg transition-colors duration-200"
                             >
-                              {getStatusText(tour.status)}
-                            </span>
+                              <Eye className="w-4 h-4" />
+                              <span className="font-nunito">Xem tour</span>
+                            </button>
+                            
+                            {booking.status === "PendingPayment" && (
+                              <button
+                                onClick={() => handleContinuePayment(booking)}
+                                className="flex items-center justify-center space-x-2 bg-tour-blue hover:bg-tour-dark-blue text-white px-4 py-2 rounded-lg transition-colors duration-200"
+                              >
+                                <CreditCard className="w-4 h-4" />
+                                <span className="font-nunito">Thanh toán</span>
+                              </button>
+                            )}
+                            
+                            {(booking.status === "PendingPayment" || booking.status === "Confirmed") && (
+                              <button
+                                onClick={() => openCancelDialog(booking.id)}
+                                className="flex items-center justify-center space-x-2 bg-red-100 hover:bg-red-200 text-red-800 px-4 py-2 rounded-lg transition-colors duration-200"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                                <span className="font-nunito">Hủy tour</span>
+                              </button>
+                            )}
                           </div>
-                          <div className="flex items-center space-x-4 text-gray-600 mb-3">
-                            <div className="flex items-center space-x-1">
-                              <Calendar className="w-4 h-4" />
-                              <span className="font-nunito text-sm">
-                                {tour.date}
-                              </span>
-                            </div>
-                            <span className="font-nunito text-sm font-medium text-tour-blue">
-                              {tour.price}
-                            </span>
-                          </div>
-                          {tour.status === "completed" && tour.rating && (
-                            <div className="flex items-center space-x-1">
-                              {[...Array(5)].map((_, i) => (
-                                <Star
-                                  key={i}
-                                  className={`w-4 h-4 ${
-                                    i < tour.rating
-                                      ? "text-yellow-500 fill-current"
-                                      : "text-gray-300"
-                                  }`}
-                                />
-                              ))}
-                              <span className="font-nunito text-sm text-gray-600 ml-2">
-                                Đã đánh giá
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                        <div className="flex space-x-3">
-                          <button
-                            onClick={() => navigate(`/tour/${tour.id}`)}
-                            className="flex items-center space-x-2 bg-gray-100 hover:bg-gray-200 text-black px-4 py-2 rounded-lg transition-colors duration-200"
-                          >
-                            <Eye className="w-4 h-4" />
-                            <span className="font-nunito">Xem</span>
-                          </button>
                         </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
@@ -1105,72 +1252,6 @@ export default function PersonalProfile() {
               </div>
             )}
 
-            {/* My Tours Tab for Guide */}
-            {activeTab === "mytours" && (
-              <div className="bg-white rounded-[20px] p-6 md:p-8 shadow-lg">
-                <h3 className="font-itim text-2xl md:text-3xl text-black mb-8">
-                  Quản lý tour của tôi
-                </h3>
-                <div className="space-y-6">
-                  {myTours.map((tour) => (
-                    <div
-                      key={tour.id}
-                      className="border border-gray-200 rounded-[15px] p-6 hover:shadow-lg transition-shadow duration-300"
-                    >
-                      <div className="flex flex-col md:flex-row md:items-center space-y-4 md:space-y-0 md:space-x-6">
-                        <img
-                          src={tour.image}
-                          alt={tour.title}
-                          className="w-full md:w-32 h-32 object-cover rounded-[10px]"
-                        />
-                        <div className="flex-1">
-                          <div className="flex items-start justify-between mb-3">
-                            <h4 className="font-nunito text-xl font-bold text-black">
-                              {tour.title}
-                            </h4>
-                            <span className="px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
-                              Đang mở
-                            </span>
-                          </div>
-                          <div className="flex items-center space-x-4 text-gray-600 mb-3">
-                            <div className="flex items-center space-x-1">
-                              <Calendar className="w-4 h-4" />
-                              <span className="font-nunito text-sm">
-                                {tour.date}
-                              </span>
-                            </div>
-                            <span className="font-nunito text-sm font-medium text-tour-blue">
-                              {tour.price}
-                            </span>
-                          </div>
-                        </div>
-                        <div className="flex flex-col space-y-2 min-w-[120px]">
-                          <button
-                            onClick={() => navigate(`/tour/${tour.id}`)}
-                            className="flex items-center space-x-2 bg-gray-100 hover:bg-gray-200 text-black px-4 py-2 rounded-lg transition-colors duration-200"
-                          >
-                            <Eye className="w-4 h-4" />
-                            <span className="font-nunito">Xem</span>
-                          </button>
-                          <button
-                            className="flex items-center space-x-2 bg-yellow-100 hover:bg-yellow-200 text-yellow-800 px-4 py-2 rounded-lg transition-colors duration-200"
-                          >
-                            <Edit className="w-4 h-4" />
-                            <span className="font-nunito">Sửa</span>
-                          </button>
-                          <button
-                            className="flex items-center space-x-2 bg-red-100 hover:bg-red-200 text-red-800 px-4 py-2 rounded-lg transition-colors duration-200"
-                          >
-                            <X className="w-4 h-4" />
-                            <span className="font-nunito">Xóa</span>
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
 
             {/* Notification Settings Tab */}
             {activeTab === "notifications" && (
@@ -1363,6 +1444,16 @@ export default function PersonalProfile() {
           </div>
         </div>
       </footer>
+
+      {/* Cancellation Dialog */}
+      {selectedBookingId && (
+        <CancellationDialog
+          open={showCancellationDialog}
+          onOpenChange={setShowCancellationDialog}
+          bookingId={selectedBookingId}
+          onCancelSuccess={handleCancellationSuccess}
+        />
+      )}
     </div>
   );
 }

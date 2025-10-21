@@ -55,6 +55,9 @@ public class SePayWebhookResponse
     [JsonPropertyName("orderId")]
     public string? OrderId { get; set; }
 
+    [JsonPropertyName("bookingId")]
+    public string? BookingId { get; set; }
+
     [JsonPropertyName("processedAt")]
     public DateTime? ProcessedAt { get; set; }
 }

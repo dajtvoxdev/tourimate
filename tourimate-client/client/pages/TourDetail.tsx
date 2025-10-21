@@ -29,6 +29,7 @@ import { useToast } from "../hooks/use-toast";
 import { TourDto } from "../types/tour";
 import { TourApiService, TourCategoryDto } from "../lib/tourApi";
 import { TourAvailabilityApiService, TourAvailabilityDto } from "../src/lib/tourAvailabilityApi";
+import { ReviewsSection } from "../components/ReviewsSection";
 
 export default function TourDetail() {
   const { id } = useParams<{ id: string }>();
@@ -42,6 +43,8 @@ export default function TourDetail() {
   const [availabilities, setAvailabilities] = useState<TourAvailabilityDto[]>([]);
   const [recentAvailability, setRecentAvailability] = useState<TourAvailabilityDto | null>(null);
   const [categories, setCategories] = useState<TourCategoryDto[]>([]);
+  const [currentRating, setCurrentRating] = useState(0);
+  const [currentReviewCount, setCurrentReviewCount] = useState(0);
 
   useEffect(() => {
     if (id) {
@@ -64,6 +67,8 @@ export default function TourDetail() {
       setLoading(true);
       const data = await TourApiService.getTourById(tourId);
       setTour(data);
+      setCurrentRating(data.averageRating);
+      setCurrentReviewCount(data.totalReviews);
       // Load tour availabilities and pick most recent upcoming
       const avails = await TourAvailabilityApiService.getTourAvailabilitiesByTour(tourId);
       setAvailabilities(avails || []);
@@ -137,6 +142,19 @@ export default function TourDetail() {
       title: isBookmark ? "Đã bỏ lưu" : "Đã lưu",
       description: isBookmark ? "Tour đã được bỏ khỏi danh sách yêu thích" : "Tour đã được thêm vào danh sách yêu thích",
     });
+  };
+
+  const handleRatingUpdate = (newRating: number, newReviewCount: number) => {
+    setCurrentRating(newRating);
+    setCurrentReviewCount(newReviewCount);
+    // Update the tour object as well
+    if (tour) {
+      setTour({
+        ...tour,
+        averageRating: newRating,
+        totalReviews: newReviewCount
+      });
+    }
   };
 
   const nextImage = () => {
@@ -351,7 +369,7 @@ export default function TourDetail() {
                     <Star className="w-5 h-5 text-yellow-500 fill-current" />
                     <div>
                       <p className="text-sm text-gray-500">Đánh giá</p>
-                      <p className="font-medium">{tour.averageRating.toFixed(1)} ({tour.totalReviews})</p>
+                      <p className="font-medium">{currentRating.toFixed(1)} ({currentReviewCount})</p>
                     </div>
                   </div>
                 </div>
@@ -360,10 +378,11 @@ export default function TourDetail() {
 
                 {/* Tour Details Tabs */}
                 <Tabs defaultValue="description" className="w-full">
-                  <TabsList className="grid w-full grid-cols-3">
+                  <TabsList className="grid w-full grid-cols-4">
                     <TabsTrigger value="description">Mô tả</TabsTrigger>
                     <TabsTrigger value="itinerary">Lịch trình</TabsTrigger>
                     <TabsTrigger value="details">Chi tiết</TabsTrigger>
+                    <TabsTrigger value="reviews">Đánh giá ({currentReviewCount})</TabsTrigger>
                   </TabsList>
                   
                   <TabsContent value="description" className="mt-6">
@@ -454,6 +473,15 @@ export default function TourDetail() {
                       </div>
                     )}
                   </TabsContent>
+                  
+                  <TabsContent value="reviews" className="mt-6">
+                    <ReviewsSection
+                      tourId={tour.id}
+                      averageRating={currentRating}
+                      totalReviews={currentReviewCount}
+                      onRatingUpdate={handleRatingUpdate}
+                    />
+                  </TabsContent>
                 </Tabs>
               </CardContent>
             </Card>
@@ -479,11 +507,11 @@ export default function TourDetail() {
                 <div className="space-y-3">
                   <div className="flex justify-between text-sm">
                     <span>Đánh giá trung bình</span>
-                    <span className="font-medium">{tour.averageRating.toFixed(1)}/5</span>
+                    <span className="font-medium">{currentRating.toFixed(1)}/5</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span>Số đánh giá</span>
-                    <span className="font-medium">{tour.totalReviews}</span>
+                    <span className="font-medium">{currentReviewCount}</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span>Số lượt đặt</span>

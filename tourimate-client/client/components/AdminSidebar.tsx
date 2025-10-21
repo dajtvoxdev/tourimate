@@ -1,6 +1,7 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { httpJson, getApiBase } from "@/src/lib/http";
 import {
   LayoutDashboard,
   Users,
@@ -48,6 +49,26 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout } = useAuth();
+  const [bookingCount, setBookingCount] = useState<number>(0);
+
+  // Fetch booking count
+  const fetchBookingCount = async () => {
+    try {
+      const response = await httpJson<{ totalCount: number }>(
+        `${getApiBase()}/api/bookings/admin?page=1&pageSize=1`
+      );
+      setBookingCount(response.totalCount || 0);
+    } catch (error) {
+      console.error("Error fetching booking count:", error);
+      setBookingCount(0);
+    }
+  };
+
+  useEffect(() => {
+    if (user?.role === "Admin") {
+      fetchBookingCount();
+    }
+  }, [user?.role]);
   const [pendingGuideApps, setPendingGuideApps] = React.useState<number>(0);
   const API_BASE = (import.meta as any).env?.VITE_API_BASE_URL || "https://localhost:7181";
 
@@ -83,7 +104,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) => {
       icon: MapPin,
       children: [
         { id: "my-tours", label: "Tour của tôi", icon: MapPin, path: "/admin/tours?mine=1" },
-        { id: "my-tour-reviews", label: "Đánh giá Tour", icon: Star, path: "/admin/tour-reviews?mine=1" }
+        { id: "my-tour-reviews", label: "Đánh giá Tour", icon: Star, path: "/admin/reviews?mine=1" }
       ]
     } : {
       id: "tours",
@@ -92,9 +113,18 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) => {
       children: [
         { id: "all-tours", label: "Tất cả Tour", icon: MapPin, path: "/admin/tours" },
         { id: "tour-categories", label: "Danh mục Tour", icon: Package, path: "/admin/tour-categories" },
-        { id: "tour-reviews", label: "Đánh giá Tour", icon: Star, path: "/admin/tour-reviews" }
+        { id: "tour-reviews", label: "Đánh giá Tour", icon: Star, path: "/admin/reviews" }
       ]
     },
+    !isTourGuideOnly ? {
+      id: "transactions",
+      label: "Quản lý Giao dịch",
+      icon: CreditCard,
+      children: [
+        { id: "all-transactions", label: "Tất cả giao dịch", icon: CreditCard, path: "/admin/transactions" },
+        { id: "bookings", label: "Đặt tour", icon: Calendar, path: "/admin/bookings" }
+      ]
+    } : null,
     !isTourGuideOnly ? {
       id: "users",
       label: "Quản lý Người dùng",
@@ -124,9 +154,9 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) => {
       id: "bookings",
       label: "Đặt Tour",
       icon: Calendar,
-      badge: "12",
+      badge: bookingCount > 0 ? bookingCount.toString() : undefined,
       children: [
-        { id: "all-bookings", label: "Tất cả Đặt Tour", icon: Calendar, path: "/admin/bookings" },
+        { id: "all-bookings", label: "Tất cả Tour đã đặt", icon: Calendar, path: "/admin/bookings" },
         { id: "pending-bookings", label: "Chờ xử lý", icon: Clock, path: "/admin/bookings/pending" },
         { id: "confirmed-bookings", label: "Đã xác nhận", icon: CheckCircle, path: "/admin/bookings/confirmed" }
       ]

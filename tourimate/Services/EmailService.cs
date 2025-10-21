@@ -8,6 +8,7 @@ namespace TouriMate.Services
     {
         Task<bool> SendTourGuideApplicationStatusEmailAsync(string toEmail, string toName, string status, string feedback = null);
         Task<bool> SendAdminNotificationAsync(string subject, string htmlContent);
+        Task<bool> SendBookingConfirmationEmailAsync(string toEmail, string toName, string bookingNumber, string tourTitle, DateTime tourDate, decimal amount, string currency = "VND");
     }
 
     public class EmailService : IEmailService
@@ -19,6 +20,67 @@ namespace TouriMate.Services
         {
             _configuration = configuration;
             _logger = logger;
+        }
+
+        public async Task<bool> SendBookingConfirmationEmailAsync(string toEmail, string toName, string bookingNumber, string tourTitle, DateTime tourDate, decimal amount, string currency = "VND")
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(toEmail))
+                {
+                    _logger.LogWarning("Missing recipient email for booking confirmation {BookingNumber}", bookingNumber);
+                    return false;
+                }
+
+                var fromEmail = _configuration["Email:FromEmail"];
+                var fromName = _configuration["Email:FromName"] ?? "TouriMate";
+                var sendGridApiKey = _configuration["SendGrid:ApiKey"];
+
+                if (string.IsNullOrWhiteSpace(fromEmail) || string.IsNullOrWhiteSpace(sendGridApiKey))
+                {
+                    _logger.LogWarning("Missing email configs for booking confirmation");
+                    return false;
+                }
+
+                var subject = $"Xác nhận đặt tour thành công - {bookingNumber}";
+                var formattedAmount = string.Format(new System.Globalization.CultureInfo("vi-VN"), "{0:C0}", amount) + (currency == "VND" ? string.Empty : $" {currency}");
+                var formattedDate = tourDate.ToString("dd/MM/yyyy");
+
+                var htmlContent = $@"
+<div style='font-family:Arial,sans-serif;font-size:14px;color:#333'>
+  <h2>Xin chào {System.Net.WebUtility.HtmlEncode(toName)},</h2>
+  <p>Bạn đã <strong>đặt tour thành công</strong> tại TouriMate.</p>
+  <p><strong>Mã đặt tour:</strong> {System.Net.WebUtility.HtmlEncode(bookingNumber)}<br/>
+     <strong>Tên tour:</strong> {System.Net.WebUtility.HtmlEncode(tourTitle)}<br/>
+     <strong>Ngày khởi hành:</strong> {formattedDate}<br/>
+     <strong>Số tiền:</strong> {formattedAmount}
+  </p>
+  <p>Vui lòng giữ lại email này để đối chiếu khi cần. Chúc bạn có một chuyến đi vui vẻ!</p>
+  <p>Trân trọng,<br/>TouriMate</p>
+ </div>";
+
+                var message = new MailMessage
+                {
+                    From = new MailAddress(fromEmail!, fromName),
+                    Subject = subject,
+                    Body = htmlContent,
+                    IsBodyHtml = true
+                };
+                message.To.Add(toEmail);
+
+                using var smtpClient = new SmtpClient("smtp.sendgrid.net", 587);
+                smtpClient.Credentials = new System.Net.NetworkCredential("apikey", sendGridApiKey);
+                smtpClient.EnableSsl = true;
+                await smtpClient.SendMailAsync(message);
+
+                _logger.LogInformation("Booking confirmation email sent to {Email} for {Booking}", toEmail, bookingNumber);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to send booking confirmation email for {Booking}", bookingNumber);
+                return false;
+            }
         }
 
         public async Task<bool> SendTourGuideApplicationStatusEmailAsync(string toEmail, string toName, string status, string? feedback = null)

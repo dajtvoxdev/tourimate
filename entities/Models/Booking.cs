@@ -16,6 +16,9 @@ public class Booking : BaseEntity, IAuditableEntity
     public Guid TourId { get; set; }
 
     [Required]
+    public Guid TourAvailabilityId { get; set; }
+
+    [Required]
     public Guid CustomerId { get; set; }
 
     [Required]
@@ -25,7 +28,13 @@ public class Booking : BaseEntity, IAuditableEntity
     public string? TimeSlot { get; set; }
 
     [Required]
-    public int Participants { get; set; }
+    public int AdultCount { get; set; }
+
+    [Required]
+    public int ChildCount { get; set; }
+
+    [NotMapped]
+    public int Participants => AdultCount + ChildCount;
 
     [Column(TypeName = "nvarchar(max)")]
     public string? ParticipantDetails { get; set; } // JSON
@@ -66,6 +75,19 @@ public class Booking : BaseEntity, IAuditableEntity
 
     public DateTime? RefundedAt { get; set; }
 
+    // Refund bank information
+    [MaxLength(100)]
+    public string? RefundBankName { get; set; }
+
+    [MaxLength(50)]
+    public string? RefundBankAccount { get; set; }
+
+    [MaxLength(100)]
+    public string? RefundBankCode { get; set; }
+
+    [MaxLength(100)]
+    public string? RefundAccountName { get; set; }
+
     // IAuditableEntity properties
     public Guid? CreatedBy { get; set; }
     public Guid? UpdatedBy { get; set; }
@@ -74,11 +96,15 @@ public class Booking : BaseEntity, IAuditableEntity
     [ForeignKey("TourId")]
     public virtual Tour Tour { get; set; } = null!;
 
+    [ForeignKey("TourAvailabilityId")]
+    public virtual TourAvailability TourAvailability { get; set; } = null!;
+
     [ForeignKey("CustomerId")]
     public virtual User Customer { get; set; } = null!;
 
     public virtual ICollection<Review> Reviews { get; set; } = new List<Review>();
     public virtual ICollection<Transaction> Transactions { get; set; } = new List<Transaction>();
+    public virtual ICollection<Refund> Refunds { get; set; } = new List<Refund>();
 
     // Computed properties
     [NotMapped]

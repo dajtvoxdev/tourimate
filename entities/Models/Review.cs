@@ -61,7 +61,7 @@ public class Review : BaseEntity, IAuditableEntity
 
     public virtual ICollection<ReviewReply> Replies { get; set; } = new List<ReviewReply>();
     public virtual ICollection<ReviewHelpfulVote> HelpfulVotesList { get; set; } = new List<ReviewHelpfulVote>();
-    // public virtual ICollection<Report> Reports { get; set; } = new List<Report>(); // Temporarily disabled
+    public virtual ICollection<Report> Reports { get; set; } = new List<Report>();
 
     // Computed properties
     [NotMapped]

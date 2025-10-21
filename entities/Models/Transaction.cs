@@ -59,13 +59,10 @@ public class Transaction : BaseEntity, IAuditableEntity
     [ForeignKey("UserId")]
     public virtual User User { get; set; } = null!;
 
-    [ForeignKey("EntityId")]
+    // Entity navigation properties - No foreign key constraints to avoid conflicts
+    // EntityId can reference either Booking, Order, or Promotion based on EntityType
     public virtual Booking? Booking { get; set; }
-
-    [ForeignKey("EntityId")]
     public virtual Order? Order { get; set; }
-
-    [ForeignKey("EntityId")]
     public virtual Promotion? Promotion { get; set; }
 
     public virtual ICollection<Revenue> Revenues { get; set; } = new List<Revenue>();

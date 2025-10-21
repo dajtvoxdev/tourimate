@@ -69,11 +69,9 @@ public class SePayTransaction : BaseEntity, IAuditableEntity
     public Guid? CreatedBy { get; set; }
     public Guid? UpdatedBy { get; set; }
 
-    // Navigation properties
-    [ForeignKey("EntityId")]
+    // Navigation properties - No foreign key constraints to avoid conflicts
+    // EntityId can reference either Order or Booking based on EntityType
     public virtual Order? Order { get; set; }
-
-    [ForeignKey("EntityId")]
     public virtual Booking? Booking { get; set; }
 
     // Computed properties

@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using TouriMate.Services;
 using TouriMate.Contracts.Payment;
 using System.Text.Json;
+using Microsoft.Extensions.Configuration;
 
 namespace TouriMate.Controllers;
 
@@ -11,11 +12,13 @@ public class PaymentController : ControllerBase
 {
     private readonly ISePayService _sePayService;
     private readonly ILogger<PaymentController> _logger;
+    private readonly IConfiguration _configuration;
 
-    public PaymentController(ISePayService sePayService, ILogger<PaymentController> logger)
+    public PaymentController(ISePayService sePayService, ILogger<PaymentController> logger, IConfiguration configuration)
     {
         _sePayService = sePayService;
         _logger = logger;
+        _configuration = configuration;
     }
 
     /// <summary>
@@ -28,11 +31,9 @@ public class PaymentController : ControllerBase
     {
         try
         {
-            _logger.LogInformation("Received SePay webhook for transaction ID: {TransactionId}", request.Id);
 
             // Log the incoming webhook for debugging
             var webhookJson = JsonSerializer.Serialize(request, new JsonSerializerOptions { WriteIndented = true });
-            _logger.LogDebug("SePay webhook data: {WebhookData}", webhookJson);
 
             // Process the webhook
             var result = await _sePayService.ProcessWebhookAsync(request);
@@ -114,6 +115,97 @@ public class PaymentController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error checking payment status for order {OrderId}", orderId);
+            return StatusCode(500, "Internal server error");
+        }
+    }
+
+    /// <summary>
+    /// Get admin banking information
+    /// </summary>
+    /// <returns>Admin banking details</returns>
+    [HttpGet("admin-banking")]
+    public IActionResult GetAdminBanking()
+    {
+        try
+        {
+            var account = _configuration["AdminBanking:Account"];
+            var bankName = _configuration["AdminBanking:Name"];
+            var qrCodeUrl = _configuration["AdminBanking:QRCodeUrl"];
+
+            if (string.IsNullOrEmpty(account) || string.IsNullOrEmpty(bankName))
+            {
+                return BadRequest("Admin banking configuration is missing");
+            }
+
+            return Ok(new
+            {
+                account,
+                bankName,
+                qrCodeUrl
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting admin banking information");
+            return StatusCode(500, "Internal server error");
+        }
+    }
+
+    /// <summary>
+    /// Get QR code image for payment with dynamic amount and description
+    /// </summary>
+    /// <param name="amount">Payment amount</param>
+    /// <param name="des">Payment description</param>
+    /// <returns>QR code image</returns>
+    [HttpGet("qr-code")]
+    public async Task<IActionResult> GetQRCode([FromQuery] decimal? amount = null, [FromQuery] string? des = null)
+    {
+        try
+        {
+            var account = _configuration["AdminBanking:Account"];
+            var bank = _configuration["AdminBanking:Name"];
+            var baseUrl = _configuration["AdminBanking:QRCodeUrl"];
+
+            if (string.IsNullOrEmpty(account) || string.IsNullOrEmpty(bank) || string.IsNullOrEmpty(baseUrl))
+            {
+                return BadRequest("Admin banking configuration is missing");
+            }
+
+            // Build the QR code URL with parameters
+            var qrUrl = $"{baseUrl}";
+            
+            // Add amount parameter if provided
+            if (amount.HasValue && amount.Value > 0)
+            {
+                qrUrl = qrUrl.Replace("amount=", $"amount={amount.Value}");
+            }
+            
+            // Add description parameter if provided
+            if (!string.IsNullOrEmpty(des))
+            {
+                qrUrl = qrUrl.Replace("des=", $"des={Uri.EscapeDataString(des)}");
+            }
+
+            // Fetch the QR code image from SePay
+            using var httpClient = new HttpClient();
+            var response = await httpClient.GetAsync(qrUrl);
+            
+            if (response.IsSuccessStatusCode)
+            {
+                var imageBytes = await response.Content.ReadAsByteArrayAsync();
+                var contentType = response.Content.Headers.ContentType?.MediaType ?? "image/png";
+                
+                return File(imageBytes, contentType);
+            }
+            else
+            {
+                _logger.LogError("Failed to fetch QR code from SePay. Status: {StatusCode}", response.StatusCode);
+                return StatusCode(500, "Failed to generate QR code");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error generating QR code for amount: {Amount}, description: {Description}", amount, des);
             return StatusCode(500, "Internal server error");
         }
     }

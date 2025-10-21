@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using TouriMate.Data;
 
@@ -11,9 +12,11 @@ using TouriMate.Data;
 namespace tourimate.Migrations
 {
     [DbContext(typeof(TouriMateDbContext))]
-    partial class TouriMateDbContextModelSnapshot : ModelSnapshot
+    [Migration("20251021081731_AddReportReviewRelationship")]
+    partial class AddReportReviewRelationship
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

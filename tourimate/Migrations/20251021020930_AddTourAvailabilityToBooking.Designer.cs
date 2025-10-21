@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using TouriMate.Data;
 
@@ -11,9 +12,11 @@ using TouriMate.Data;
 namespace tourimate.Migrations
 {
     [DbContext(typeof(TouriMateDbContext))]
-    partial class TouriMateDbContextModelSnapshot : ModelSnapshot
+    [Migration("20251021020930_AddTourAvailabilityToBooking")]
+    partial class AddTourAvailabilityToBooking
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -138,24 +141,8 @@ namespace tourimate.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("RefundAccountName")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
                     b.Property<decimal?>("RefundAmount")
                         .HasColumnType("decimal(18,2)");
-
-                    b.Property<string>("RefundBankAccount")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<string>("RefundBankCode")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<string>("RefundBankName")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
 
                     b.Property<DateTime?>("RefundedAt")
                         .HasColumnType("datetime2");
@@ -721,35 +708,35 @@ namespace tourimate.Migrations
                         new
                         {
                             Id = new Guid("11111111-1111-1111-1111-111111111111"),
-                            CreatedAt = new DateTime(2025, 10, 21, 8, 17, 29, 637, DateTimeKind.Utc).AddTicks(9835),
+                            CreatedAt = new DateTime(2025, 10, 21, 2, 9, 29, 230, DateTimeKind.Utc).AddTicks(9704),
                             Description = "Traditional Vietnamese food and drinks",
                             IsActive = true,
                             IsDeleted = false,
                             Name = "Food & Beverages",
                             SortOrder = 1,
-                            UpdatedAt = new DateTime(2025, 10, 21, 8, 17, 29, 637, DateTimeKind.Utc).AddTicks(9836)
+                            UpdatedAt = new DateTime(2025, 10, 21, 2, 9, 29, 230, DateTimeKind.Utc).AddTicks(9704)
                         },
                         new
                         {
                             Id = new Guid("22222222-2222-2222-2222-222222222222"),
-                            CreatedAt = new DateTime(2025, 10, 21, 8, 17, 29, 637, DateTimeKind.Utc).AddTicks(9844),
+                            CreatedAt = new DateTime(2025, 10, 21, 2, 9, 29, 230, DateTimeKind.Utc).AddTicks(9710),
                             Description = "Handmade crafts and artisan products",
                             IsActive = true,
                             IsDeleted = false,
                             Name = "Handicrafts",
                             SortOrder = 2,
-                            UpdatedAt = new DateTime(2025, 10, 21, 8, 17, 29, 637, DateTimeKind.Utc).AddTicks(9844)
+                            UpdatedAt = new DateTime(2025, 10, 21, 2, 9, 29, 230, DateTimeKind.Utc).AddTicks(9711)
                         },
                         new
                         {
                             Id = new Guid("33333333-3333-3333-3333-333333333333"),
-                            CreatedAt = new DateTime(2025, 10, 21, 8, 17, 29, 637, DateTimeKind.Utc).AddTicks(9847),
+                            CreatedAt = new DateTime(2025, 10, 21, 2, 9, 29, 230, DateTimeKind.Utc).AddTicks(9714),
                             Description = "Traditional clothing and fabrics",
                             IsActive = true,
                             IsDeleted = false,
                             Name = "Textiles",
                             SortOrder = 3,
-                            UpdatedAt = new DateTime(2025, 10, 21, 8, 17, 29, 637, DateTimeKind.Utc).AddTicks(9847)
+                            UpdatedAt = new DateTime(2025, 10, 21, 2, 9, 29, 230, DateTimeKind.Utc).AddTicks(9715)
                         });
                 });
 
@@ -892,168 +879,6 @@ namespace tourimate.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("RefreshTokens");
-                });
-
-            modelBuilder.Entity("Entities.Models.Refund", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("BookingId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Currency")
-                        .IsRequired()
-                        .HasMaxLength(3)
-                        .HasColumnType("nvarchar(3)");
-
-                    b.Property<int>("DaysBeforeTour")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("bit");
-
-                    b.Property<decimal>("OriginalAmount")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<string>("RefundAccountName")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<decimal>("RefundAmount")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<string>("RefundBankAccount")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<string>("RefundBankCode")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<string>("RefundBankName")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<DateTime?>("RefundCompletedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("RefundNotes")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<decimal>("RefundPercentage")
-                        .HasColumnType("decimal(5,2)");
-
-                    b.Property<DateTime?>("RefundProcessedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("RefundReason")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<string>("RefundReference")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<string>("RefundStatus")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("BookingId");
-
-                    b.ToTable("Refunds");
-                });
-
-            modelBuilder.Entity("Entities.Models.Report", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("Description")
-                        .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
-
-                    b.Property<Guid>("EntityId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("EntityType")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
-                    b.Property<string>("Evidence")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("Reason")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<Guid>("ReportedBy")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Resolution")
-                        .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
-
-                    b.Property<DateTime?>("ReviewedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid?>("ReviewedBy")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("EntityId");
-
-                    b.HasIndex("ReportedBy");
-
-                    b.HasIndex("ReviewedBy");
-
-                    b.ToTable("Reports");
                 });
 
             modelBuilder.Entity("Entities.Models.Revenue", b =>
@@ -1319,9 +1144,6 @@ namespace tourimate.Migrations
                     b.Property<decimal>("Accumulated")
                         .HasColumnType("decimal(18,2)");
 
-                    b.Property<Guid?>("BookingId")
-                        .HasColumnType("uniqueidentifier");
-
                     b.Property<string>("Code")
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
@@ -1356,9 +1178,6 @@ namespace tourimate.Migrations
 
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
-
-                    b.Property<Guid?>("OrderId")
-                        .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime?>("ProcessedAt")
                         .HasColumnType("datetime2");
@@ -1402,9 +1221,7 @@ namespace tourimate.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("BookingId");
-
-                    b.HasIndex("OrderId");
+                    b.HasIndex("EntityId");
 
                     b.ToTable("SePayTransactions");
                 });
@@ -1493,38 +1310,38 @@ namespace tourimate.Migrations
                     b.HasData(
                         new
                         {
-                            Id = new Guid("eb9651f0-e90b-4a6d-8639-0041216942e9"),
+                            Id = new Guid("076675ab-ed80-49db-bec7-12e9dab6f07c"),
                             Category = "Finance",
-                            CreatedAt = new DateTime(2025, 10, 21, 8, 17, 29, 638, DateTimeKind.Utc).AddTicks(223),
+                            CreatedAt = new DateTime(2025, 10, 21, 2, 9, 29, 231, DateTimeKind.Utc).AddTicks(3),
                             Description = "Commission rate for tour bookings",
                             IsDeleted = false,
                             IsPublic = true,
                             Key = "CommissionRate_Tours",
-                            UpdatedAt = new DateTime(2025, 10, 21, 8, 17, 29, 638, DateTimeKind.Utc).AddTicks(224),
+                            UpdatedAt = new DateTime(2025, 10, 21, 2, 9, 29, 231, DateTimeKind.Utc).AddTicks(4),
                             Value = "0.15"
                         },
                         new
                         {
-                            Id = new Guid("40982ff6-94b3-4365-b245-48ee32234201"),
+                            Id = new Guid("54fbe6e6-d65d-4ce8-b8cc-186565a3956c"),
                             Category = "Finance",
-                            CreatedAt = new DateTime(2025, 10, 21, 8, 17, 29, 638, DateTimeKind.Utc).AddTicks(227),
+                            CreatedAt = new DateTime(2025, 10, 21, 2, 9, 29, 231, DateTimeKind.Utc).AddTicks(18),
                             Description = "Commission rate for product sales",
                             IsDeleted = false,
                             IsPublic = true,
                             Key = "CommissionRate_Products",
-                            UpdatedAt = new DateTime(2025, 10, 21, 8, 17, 29, 638, DateTimeKind.Utc).AddTicks(228),
+                            UpdatedAt = new DateTime(2025, 10, 21, 2, 9, 29, 231, DateTimeKind.Utc).AddTicks(18),
                             Value = "0.15"
                         },
                         new
                         {
-                            Id = new Guid("a3c2d40c-70c1-4833-8f37-fa0a4411c491"),
+                            Id = new Guid("e96cbe65-5058-4e56-ba15-d36f3c7e0eca"),
                             Category = "Security",
-                            CreatedAt = new DateTime(2025, 10, 21, 8, 17, 29, 638, DateTimeKind.Utc).AddTicks(248),
+                            CreatedAt = new DateTime(2025, 10, 21, 2, 9, 29, 231, DateTimeKind.Utc).AddTicks(22),
                             Description = "OTP expiry time in minutes",
                             IsDeleted = false,
                             IsPublic = false,
                             Key = "OTP_ExpiryMinutes",
-                            UpdatedAt = new DateTime(2025, 10, 21, 8, 17, 29, 638, DateTimeKind.Utc).AddTicks(248),
+                            UpdatedAt = new DateTime(2025, 10, 21, 2, 9, 29, 231, DateTimeKind.Utc).AddTicks(22),
                             Value = "5"
                         });
                 });
@@ -1842,9 +1659,6 @@ namespace tourimate.Migrations
                     b.Property<decimal>("Amount")
                         .HasColumnType("decimal(18,2)");
 
-                    b.Property<Guid?>("BookingId")
-                        .HasColumnType("uniqueidentifier");
-
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -1880,9 +1694,6 @@ namespace tourimate.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
-                    b.Property<Guid?>("OrderId")
-                        .HasColumnType("uniqueidentifier");
-
                     b.Property<string>("PaymentGateway")
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
@@ -1890,9 +1701,6 @@ namespace tourimate.Migrations
                     b.Property<string>("PaymentMethod")
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
-
-                    b.Property<Guid?>("PromotionId")
-                        .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -1920,11 +1728,7 @@ namespace tourimate.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("BookingId");
-
-                    b.HasIndex("OrderId");
-
-                    b.HasIndex("PromotionId");
+                    b.HasIndex("EntityId");
 
                     b.HasIndex("TransactionId")
                         .IsUnique();
@@ -2219,44 +2023,6 @@ namespace tourimate.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("Entities.Models.Refund", b =>
-                {
-                    b.HasOne("Entities.Models.Booking", "Booking")
-                        .WithMany("Refunds")
-                        .HasForeignKey("BookingId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Booking");
-                });
-
-            modelBuilder.Entity("Entities.Models.Report", b =>
-                {
-                    b.HasOne("Entities.Models.Review", "Review")
-                        .WithMany("Reports")
-                        .HasForeignKey("EntityId")
-                        .OnDelete(DeleteBehavior.NoAction)
-                        .IsRequired()
-                        .HasConstraintName("FK_Reports_Reviews_EntityId");
-
-                    b.HasOne("Entities.Models.User", "ReportedByUser")
-                        .WithMany()
-                        .HasForeignKey("ReportedBy")
-                        .OnDelete(DeleteBehavior.NoAction)
-                        .IsRequired();
-
-                    b.HasOne("Entities.Models.User", "ReviewedByUser")
-                        .WithMany()
-                        .HasForeignKey("ReviewedBy")
-                        .OnDelete(DeleteBehavior.NoAction);
-
-                    b.Navigation("ReportedByUser");
-
-                    b.Navigation("Review");
-
-                    b.Navigation("ReviewedByUser");
-                });
-
             modelBuilder.Entity("Entities.Models.Revenue", b =>
                 {
                     b.HasOne("Entities.Models.Product", "Product")
@@ -2371,11 +2137,11 @@ namespace tourimate.Migrations
                 {
                     b.HasOne("Entities.Models.Booking", "Booking")
                         .WithMany()
-                        .HasForeignKey("BookingId");
+                        .HasForeignKey("EntityId");
 
                     b.HasOne("Entities.Models.Order", "Order")
                         .WithMany()
-                        .HasForeignKey("OrderId");
+                        .HasForeignKey("EntityId");
 
                     b.Navigation("Booking");
 
@@ -2475,15 +2241,15 @@ namespace tourimate.Migrations
                 {
                     b.HasOne("Entities.Models.Booking", "Booking")
                         .WithMany("Transactions")
-                        .HasForeignKey("BookingId");
+                        .HasForeignKey("EntityId");
 
                     b.HasOne("Entities.Models.Order", "Order")
                         .WithMany("Transactions")
-                        .HasForeignKey("OrderId");
+                        .HasForeignKey("EntityId");
 
                     b.HasOne("Entities.Models.Promotion", "Promotion")
                         .WithMany("Transactions")
-                        .HasForeignKey("PromotionId");
+                        .HasForeignKey("EntityId");
 
                     b.HasOne("Entities.Models.User", "User")
                         .WithMany()
@@ -2513,8 +2279,6 @@ namespace tourimate.Migrations
 
             modelBuilder.Entity("Entities.Models.Booking", b =>
                 {
-                    b.Navigation("Refunds");
-
                     b.Navigation("Reviews");
 
                     b.Navigation("Transactions");
@@ -2562,8 +2326,6 @@ namespace tourimate.Migrations
                     b.Navigation("HelpfulVotesList");
 
                     b.Navigation("Replies");
-
-                    b.Navigation("Reports");
                 });
 
             modelBuilder.Entity("Entities.Models.Tour", b =>

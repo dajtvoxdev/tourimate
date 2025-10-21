@@ -24,18 +24,24 @@ import TourGuideRegistration from "./components/TourGuideRegistration";
 import CreateTour from "./pages/CreateTour";
 import GuideDetail from "./pages/GuideDetail";
 import Checkout from "./pages/Checkout";
-import AdminDashboard from "./components/AdminDashboard";
 import AdminTourManagement from "./components/AdminTourManagement";
 import AdminDivisions from "./components/AdminDivisions";
 import AdminTourCategories from "./components/AdminTourCategories";
 import AdminTourGuideManagement from "./components/AdminTourGuideManagement";
 import AdminUsers from "./components/AdminUsers";
 import AdminGuides from "./components/AdminGuides";
+import AdminReviews from "./pages/AdminReviews";
+import AdminDashboard from "./pages/AdminDashboard";
+import AdminTransactions from "./pages/AdminTransactions";
+import AdminBookings from "./pages/AdminBookings";
+import AdminRevenue from "./pages/AdminRevenue";
+import AdminRefunds from "./pages/AdminRefunds";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AdminProtectedRoute from "./components/AdminProtectedRoute";
 import NonAdminProtectedRoute from "./components/NonAdminProtectedRoute";
 import TourAvailabilityPage from "./pages/TourAvailabilityPage";
 import TourCategoriesPage from "./pages/TourCategoriesPage";
+import TourBooking from "./pages/TourBooking";
 
 const queryClient = new QueryClient();
 
@@ -54,6 +60,7 @@ const App = () => (
           <Route path="/tours" element={<Tours />} />
           <Route path="/tour-guides" element={<TourGuides />} />
           <Route path="/tour/:id" element={<TourDetail />} />
+          <Route path="/tour/:id/book" element={<TourBooking />} />
           <Route path="/about" element={<AboutUs />} />
           <Route path="/profile" element={<PersonalProfile />} />
           <Route
@@ -120,6 +127,46 @@ const App = () => (
             element={
               <AdminProtectedRoute>
                 <AdminGuides />
+              </AdminProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/admin/reviews" 
+            element={
+              <AdminProtectedRoute>
+                <AdminReviews />
+              </AdminProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/admin/transactions" 
+            element={
+              <AdminProtectedRoute>
+                <AdminTransactions />
+              </AdminProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/admin/bookings" 
+            element={
+              <AdminProtectedRoute>
+                <AdminBookings />
+              </AdminProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/admin/revenue" 
+            element={
+              <AdminProtectedRoute>
+                <AdminRevenue />
+              </AdminProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/admin/refunds" 
+            element={
+              <AdminProtectedRoute>
+                <AdminRefunds />
               </AdminProtectedRoute>
             } 
           />
