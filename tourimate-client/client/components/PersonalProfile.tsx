@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   User,
@@ -25,8 +25,7 @@ import {
 import { toast } from "sonner";
 import Header from "./Header";
 import { httpWithRefresh, httpJson, httpUpload, getApiBase } from "@/src/lib/http";
-import ClassicEditor from '@ckeditor/ckeditor5-build-classic';
-import { CKEditor } from '@ckeditor/ckeditor5-react';
+import CustomCKEditor from "@/components/ui/CKEditor";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -42,6 +41,7 @@ import { vi } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://localhost:7181";
+
 
 interface BookedTour {
   id: string;
@@ -810,20 +810,16 @@ export default function PersonalProfile() {
                     </h4>
                     {isEditing ? (
                       <div className="ckeditor-container" style={{ height: '200px' }}>
-                        <CKEditor
-                          editor={ClassicEditor}
+                        <CustomCKEditor
                           data={editedProfile.bio}
-                          onChange={(event, editor) => {
-                            const data = editor.getData();
+                          onChange={(data) => {
                             setEditedProfile({
                               ...editedProfile,
                               bio: data,
                             });
                           }}
-                          config={{
-                            toolbar: ['heading', '|', 'bold', 'italic', 'link', 'bulletedList', 'numberedList', '|', 'outdent', 'indent', '|', 'blockQuote', 'insertTable', 'undo', 'redo'],
-                            language: 'vi'
-                          }}
+                          baseApiUrl={getApiBase()}
+                          authToken={localStorage.getItem("access_token") || undefined}
                         />
                       </div>
                     ) : (

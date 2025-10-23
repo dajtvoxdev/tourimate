@@ -21,7 +21,6 @@ import TourDetail from "./pages/TourDetail";
 import AboutUs from "./components/AboutUs";
 import PersonalProfile from "./components/PersonalProfile";
 import TourGuideRegistration from "./components/TourGuideRegistration";
-import CreateTour from "./pages/CreateTour";
 import GuideDetail from "./pages/GuideDetail";
 import Checkout from "./pages/Checkout";
 import AdminTourManagement from "./components/AdminTourManagement";
@@ -71,7 +70,6 @@ const App = () => (
               </ProtectedRoute>
             }
           />
-          <Route path="/create-tour" element={<CreateTour />} />
           <Route path="/guide/:guideId" element={<GuideDetail />} />
           <Route path="/checkout" element={<Checkout />} />
           <Route 

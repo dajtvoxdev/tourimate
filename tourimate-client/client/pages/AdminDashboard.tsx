@@ -16,7 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent } from "@/components/ui/chart";
-import { Bar, BarChart, Line, LineChart, Pie, Cell, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from "recharts";
+import { Bar, BarChart, Line, LineChart, Pie, Cell, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip, Legend } from "recharts";
 import { httpJson, getApiBase } from "@/src/lib/http";
 import { toast } from "sonner";
 import { useAuth } from "@/src/hooks/useAuth";
@@ -73,7 +73,21 @@ export default function AdminDashboard() {
       ]);
       
       setMetrics(metricsResponse);
-      setRevenueChart(chartResponse);
+      // Ensure 12 months are shown for current year with zero-filled months
+      const currentYear = new Date().getFullYear();
+      const baseMonths = Array.from({ length: 12 }, (_, i) => ({
+        year: currentYear,
+        month: i + 1,
+        revenue: 0,
+        monthName: `Tháng ${i + 1}`
+      }));
+
+      const merged = baseMonths.map(m => {
+        const found = chartResponse.find(c => c.year === m.year && c.month === m.month);
+        return found ? { ...m, revenue: found.revenue, monthName: `Tháng ${m.month}` } : m;
+      });
+
+      setRevenueChart(merged);
     } catch (error) {
       console.error("Error fetching dashboard data:", error);
       toast.error("Không thể tải dữ liệu dashboard");
@@ -113,6 +127,8 @@ export default function AdminDashboard() {
     switch (status.toLowerCase()) {
       case 'pendingpayment':
         return 'Chờ thanh toán';
+      case 'confirmed':
+        return 'Xác nhận';
       case 'completed':
         return 'Hoàn thành';
       case 'cancelled':
@@ -254,29 +270,16 @@ export default function AdminDashboard() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {(() => {
-                  const maxRevenue = Math.max(...(revenueChart?.map(d => d.revenue) || [0]));
-                  return revenueChart?.slice(-6).map((data, index) => (
-                    <div key={index} className="flex items-center justify-between">
-                      <span className="text-sm text-gray-600">{data.monthName}</span>
-                      <div className="flex items-center gap-2">
-                        <div className="w-32 bg-gray-200 rounded-full h-2">
-                          <div 
-                            className="bg-blue-600 h-2 rounded-full" 
-                            style={{ 
-                              width: `${Math.min(100, (data.revenue / maxRevenue) * 100)}%` 
-                            }}
-                          ></div>
-                        </div>
-                        <span className="text-sm font-medium w-20 text-right">
-                          {formatCurrency(data.revenue)}
-                        </span>
-                      </div>
-                    </div>
-                  ));
-                })()}
-              </div>
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart data={revenueChart || []}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="monthName" />
+                  <YAxis />
+                  <Tooltip formatter={(value) => formatCurrency(Number(value))} />
+                  <Legend />
+                  <Line type="monotone" dataKey="revenue" stroke="#8884d8" name="Doanh thu" />
+                </LineChart>
+              </ResponsiveContainer>
             </CardContent>
           </Card>
 

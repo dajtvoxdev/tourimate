@@ -2,6 +2,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using TouriMate.Data;
 using Entities.Models;
+using Entities.Enums;
+using TouriMate.Contracts.Guides;
 
 namespace TouriMate.Controllers;
 
@@ -14,6 +16,34 @@ public sealed class GuidesController : ControllerBase
     public GuidesController(TouriMateDbContext db)
     {
         _db = db;
+    }
+
+    [HttpGet]
+    public async Task<ActionResult<List<GuideListDto>>> GetGuides()
+    {
+        try
+        {
+            var guides = await _db.Users
+                .Where(u => (u.Role == UserRole.TourGuide || u.Role == UserRole.Admin) && u.IsActive)
+                .Select(u => new GuideListDto
+                {
+                    Id = u.Id,
+                    FirstName = u.FirstName,
+                    LastName = u.LastName,
+                    Email = u.Email,
+                    PhoneNumber = u.PhoneNumber,
+                    IsActive = u.IsActive
+                })
+                .OrderBy(g => g.FirstName)
+                .ThenBy(g => g.LastName)
+                .ToListAsync();
+
+            return Ok(guides);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, $"Lỗi phía ứng dụng: {ex.Message}");
+        }
     }
 
     [HttpGet("{id}")]

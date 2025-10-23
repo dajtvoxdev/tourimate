@@ -29,6 +29,8 @@ public class TourDto
     public Guid TourGuideId { get; set; }
     public string TourGuideName { get; set; } = string.Empty;
     public string TourGuideEmail { get; set; } = string.Empty;
+    public string? TourGuidePhone { get; set; }
+    public string? TourGuideAvatar { get; set; }
     public decimal AverageRating { get; set; }
     public int TotalReviews { get; set; }
     public int TotalBookings { get; set; }

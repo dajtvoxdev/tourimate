@@ -732,11 +732,54 @@ public class ReviewController : ControllerBase
 
             await _context.SaveChangesAsync();
 
+            // Update tour rating after status change
+            await UpdateTourRating(review.EntityId);
+
             return Ok(new { message = "Cập nhật trạng thái thành công" });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error updating review status for review {ReviewId}", reviewId);
+            return StatusCode(500, "Internal server error");
+        }
+    }
+
+    /// <summary>
+    /// Recalculate all tour ratings (Admin only)
+    /// </summary>
+    [HttpPost("admin/recalculate-ratings")]
+    [Authorize(Roles = "Admin")]
+    public async Task<ActionResult> RecalculateAllTourRatings()
+    {
+        try
+        {
+            var tours = await _context.Tours.ToListAsync();
+            var updatedCount = 0;
+
+            foreach (var tour in tours)
+            {
+                var approvedReviews = await _context.Reviews
+                    .Where(r => r.EntityId == tour.Id && r.EntityType == "Tour" && r.Status == ReviewStatus.Approved)
+                    .ToListAsync();
+
+                tour.TotalReviews = approvedReviews.Count;
+                tour.AverageRating = approvedReviews.Count > 0 
+                    ? (decimal)approvedReviews.Average(r => r.Rating) 
+                    : 0;
+                tour.UpdatedAt = DateTime.UtcNow;
+                updatedCount++;
+            }
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new { 
+                message = "Recalculated ratings successfully", 
+                updatedTours = updatedCount 
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error recalculating all tour ratings");
             return StatusCode(500, "Internal server error");
         }
     }

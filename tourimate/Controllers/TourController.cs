@@ -97,6 +97,8 @@ public sealed class TourController : ControllerBase
             TourGuideId = tour.TourGuideId,
             TourGuideName = $"{tour.TourGuide.FirstName} {tour.TourGuide.LastName}".Trim(),
             TourGuideEmail = tour.TourGuide.Email,
+            TourGuidePhone = tour.TourGuide.PhoneNumber,
+            TourGuideAvatar = tour.TourGuide.Avatar,
             AverageRating = tour.AverageRating,
             TotalReviews = tour.TotalReviews,
             TotalBookings = tour.TotalBookings,

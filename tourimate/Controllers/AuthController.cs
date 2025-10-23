@@ -181,21 +181,47 @@ public sealed class AuthController : ControllerBase
     {
         try
         {
-            var token = await _db.RefreshTokens.Include(r => r.User).FirstOrDefaultAsync(r => r.Token == request.RefreshToken);
-            if (token == null || token.IsRevoked || token.ExpiresAt <= DateTime.UtcNow)
-                return Unauthorized("Refresh token không hợp lệ hoặc đã hết hạn");
+            var refreshToken = await _db.RefreshTokens
+                .Include(rt => rt.User)
+                .FirstOrDefaultAsync(rt => rt.Token == request.RefreshToken && !rt.IsRevoked);
 
-            var user = token.User;
-            var (access, exp) = _tokenService.GenerateAccessTokenWithExpiry(user.Id, user.Email, user.Role.ToString());
+            if (refreshToken == null || refreshToken.ExpiresAt < DateTime.UtcNow)
+            {
+                return Unauthorized("Invalid or expired refresh token");
+            }
+
+            // Generate new access token
+            var (newToken, exp) = _tokenService.GenerateAccessTokenWithExpiry(
+                refreshToken.UserId, 
+                refreshToken.User.Email, 
+                refreshToken.User.Role.ToString()
+            );
+
+            // Optionally rotate refresh token for security
+            var newRefreshToken = new RefreshToken
+            {
+                UserId = refreshToken.UserId,
+                Token = Convert.ToBase64String(Guid.NewGuid().ToByteArray()) + Convert.ToBase64String(Guid.NewGuid().ToByteArray()),
+                ExpiresAt = DateTime.UtcNow.AddDays(14)
+            };
+
+            // Revoke old refresh token
+            refreshToken.IsRevoked = true;
+            refreshToken.RevokedAt = DateTime.UtcNow;
+
+            // Add new refresh token
+            _db.RefreshTokens.Add(newRefreshToken);
+            await _db.SaveChangesAsync();
+
             return Ok(new AuthResponse
             {
-                AccessToken = access,
+                AccessToken = newToken,
                 ExpiresIn = (int)(exp - DateTime.UtcNow).TotalSeconds,
-                RefreshToken = token.Token,
-                RefreshTokenExpiresAt = token.ExpiresAt
+                RefreshToken = newRefreshToken.Token,
+                RefreshTokenExpiresAt = newRefreshToken.ExpiresAt
             });
         }
-        catch
+        catch (Exception ex)
         {
             return StatusCode(500, "Lỗi phía ứng dụng, vui lòng thử lại sau");
         }
@@ -897,6 +923,7 @@ public sealed class AuthController : ControllerBase
         await _db.SaveChangesAsync();
         return NoContent();
     }
+
 }
 
 

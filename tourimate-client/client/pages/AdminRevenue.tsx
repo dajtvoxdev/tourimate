@@ -142,7 +142,7 @@ export default function AdminRevenue() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [tourFilter, setTourFilter] = useState("");
-  const [paymentStatusFilter, setPaymentStatusFilter] = useState("");
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState("all");
 
   // Summary from response
   const [summary, setSummary] = useState({
@@ -174,7 +174,7 @@ export default function AdminRevenue() {
       if (dateFrom) params.append("dateFrom", dateFrom);
       if (dateTo) params.append("dateTo", dateTo);
       if (tourFilter) params.append("tourId", tourFilter);
-      if (paymentStatusFilter) params.append("paymentStatus", paymentStatusFilter);
+      if (paymentStatusFilter && paymentStatusFilter !== "all") params.append("paymentStatus", paymentStatusFilter);
 
       const response = await httpJson<RevenueResponse>(
         `${getApiBase()}/api/revenue?${params.toString()}`
@@ -280,7 +280,7 @@ export default function AdminRevenue() {
       case 1: // PendingPayment
         return <Badge className="bg-yellow-100 text-yellow-800">Chờ thanh toán</Badge>;
       case 2: // Confirmed
-        return <Badge className="bg-blue-100 text-blue-800">Đã xác nhận</Badge>;
+        return <Badge className="bg-blue-100 text-blue-800">Xác nhận</Badge>;
       case 3: // Cancelled
         return <Badge className="bg-red-100 text-red-800">Đã hủy</Badge>;
       case 4: // Completed
@@ -307,6 +307,24 @@ export default function AdminRevenue() {
       hour: "2-digit",
       minute: "2-digit",
     });
+  };
+
+  const getVietnameseMonthName = (month: number) => {
+    const months = [
+      "Tháng 1", "Tháng 2", "Tháng 3", "Tháng 4", "Tháng 5", "Tháng 6",
+      "Tháng 7", "Tháng 8", "Tháng 9", "Tháng 10", "Tháng 11", "Tháng 12"
+    ];
+    return months[month - 1] || `Tháng ${month}`;
+  };
+
+  // Transform revenue data to include Vietnamese month names
+  const getTransformedRevenueData = () => {
+    if (!statistics?.revenueByMonth) return [];
+    
+    return statistics.revenueByMonth.map(item => ({
+      ...item,
+      monthName: getVietnameseMonthName(item.month)
+    }));
   };
 
   const handleViewDetails = (revenue: Revenue) => {
@@ -390,7 +408,7 @@ export default function AdminRevenue() {
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={statistics.revenueByMonth}>
+                  <LineChart data={getTransformedRevenueData()}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="monthName" />
                     <YAxis />
@@ -462,7 +480,7 @@ export default function AdminRevenue() {
                   <SelectValue placeholder="Trạng thái thanh toán" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Tất cả</SelectItem>
+                  <SelectItem value="all">Tất cả</SelectItem>
                   <SelectItem value="Paid">Đã thanh toán</SelectItem>
                   <SelectItem value="Pending">Chờ thanh toán</SelectItem>
                   <SelectItem value="Failed">Thất bại</SelectItem>
@@ -476,7 +494,7 @@ export default function AdminRevenue() {
                   setSearchTerm("");
                   setDateFrom("");
                   setDateTo("");
-                  setPaymentStatusFilter("");
+                  setPaymentStatusFilter("all");
                   setTourFilter("");
                   setPage(1);
                 }}

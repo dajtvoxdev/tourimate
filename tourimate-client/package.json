@@ -21,13 +21,14 @@
     "typecheck": "tsc"
   },
   "dependencies": {
-    "@ckeditor/ckeditor5-build-classic": "^41.4.2",
-    "@ckeditor/ckeditor5-react": "^6.3.0",
+    "@ckeditor/ckeditor5-react": "^11.0.0",
     "@react-pdf-viewer/core": "^3.12.0",
     "@react-pdf-viewer/default-layout": "^3.12.0",
-    "@visao/ckeditor5-video": "^28.0.1",
+    "ckeditor5": "^47.1.0",
     "express": "^4.18.2",
     "firebase": "^12.3.0",
+    "install": "^0.13.0",
+    "npm": "^11.6.2",
     "react-input-emoji": "^5.9.0",
     "react-pdf": "^10.2.0",
     "zod": "^3.23.8"

@@ -3,7 +3,7 @@
  * Handles both JSON requests and file uploads
  */
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://localhost:7181";
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:5125";
 
 export interface HttpOptions extends RequestInit {
   skipAuth?: boolean; // Skip adding Authorization header

@@ -26,6 +26,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card"
 import { Separator } from "../components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { useToast } from "../hooks/use-toast";
+import { useAuth } from "../src/hooks/useAuth";
 import { TourDto } from "../types/tour";
 import { TourApiService, TourCategoryDto } from "../lib/tourApi";
 import { TourAvailabilityApiService, TourAvailabilityDto } from "../src/lib/tourAvailabilityApi";
@@ -35,6 +36,7 @@ export default function TourDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user } = useAuth();
   
   const [tour, setTour] = useState<TourDto | null>(null);
   const [loading, setLoading] = useState(true);
@@ -49,6 +51,8 @@ export default function TourDetail() {
   useEffect(() => {
     if (id) {
       fetchTourDetail(id);
+      // Also refresh tour data to get latest rating/review count
+      setTimeout(() => refreshTourData(), 100);
     }
   }, [id]);
 
@@ -87,6 +91,19 @@ export default function TourDetail() {
       navigate('/tours');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const refreshTourData = async () => {
+    if (id) {
+      try {
+        const data = await TourApiService.getTourById(id);
+        setTour(data);
+        setCurrentRating(data.averageRating);
+        setCurrentReviewCount(data.totalReviews);
+      } catch (error) {
+        console.error('Error refreshing tour data:', error);
+      }
     }
   };
 
@@ -144,7 +161,7 @@ export default function TourDetail() {
     });
   };
 
-  const handleRatingUpdate = (newRating: number, newReviewCount: number) => {
+  const handleRatingUpdate = async (newRating: number, newReviewCount: number) => {
     setCurrentRating(newRating);
     setCurrentReviewCount(newReviewCount);
     // Update the tour object as well
@@ -155,6 +172,9 @@ export default function TourDetail() {
         totalReviews: newReviewCount
       });
     }
+    
+    // Refresh tour data from API to ensure consistency
+    await refreshTourData();
   };
 
   const nextImage = () => {
@@ -362,7 +382,7 @@ export default function TourDetail() {
                     <Users className="w-5 h-5 text-gray-500" />
                     <div>
                       <p className="text-sm text-gray-500">Số người</p>
-                      <p className="font-medium">Tối đa {tour.maxParticipants}</p>
+                      <p className="font-medium">Tối đa {recentAvailability?.maxParticipants || tour.maxParticipants}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -523,17 +543,26 @@ export default function TourDetail() {
                   </div>
                 </div>
 
-                <Button 
-                  onClick={handleBookTour}
-                  className="w-full"
-                  size="lg"
-                >
-                  Đặt tour ngay
-                </Button>
+                {user && tour && user.id === tour.tourGuideId ? (
+                  <div className="w-full p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                    <div className="flex items-center space-x-2 text-amber-800">
+                      <div className="w-2 h-2 bg-amber-500 rounded-full"></div>
+                      <span className="text-sm font-medium">
+                        Đây là tour do bạn tạo ra. Bạn không thể đặt tour của chính mình.
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <Button 
+                    onClick={handleBookTour}
+                    className="w-full"
+                    size="lg"
+                  >
+                    Đặt tour ngay
+                  </Button>
+                )}
 
-                <p className="text-xs text-gray-500 text-center">
-                  Đặt tour và thanh toán sau. Hủy miễn phí 24h trước ngày khởi hành.
-                </p>
+                
               </CardContent>
             </Card>
 
@@ -566,9 +595,15 @@ export default function TourDetail() {
                         <div className="font-semibold text-blue-600">
                           {formatPrice(a.adultPrice, 'VND')}
                         </div>
-                        <Button size="sm" className="mt-2" onClick={() => navigate(`/tour/${tour.id}/book`)}>
-                          Chọn
-                        </Button>
+                        {user && tour && user.id === tour.tourGuideId ? (
+                          <div className="mt-2 text-xs text-amber-600 text-center">
+                            Tour của bạn
+                          </div>
+                        ) : (
+                          <Button size="sm" className="mt-2" onClick={() => navigate(`/tour/${tour.id}/book`)}>
+                            Chọn
+                          </Button>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -586,9 +621,17 @@ export default function TourDetail() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center">
-                    <User className="w-6 h-6 text-gray-500" />
-                  </div>
+                  {tour.tourGuideAvatar ? (
+                    <img
+                      src={tour.tourGuideAvatar}
+                      alt={tour.tourGuideName}
+                      className="w-12 h-12 rounded-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center">
+                      <User className="w-6 h-6 text-gray-500" />
+                    </div>
+                  )}
                   <div>
                     <p className="font-semibold">{tour.tourGuideName}</p>
                     <p className="text-sm text-gray-500">Hướng dẫn viên</p>
@@ -602,6 +645,12 @@ export default function TourDetail() {
                     <Mail className="w-4 h-4 text-gray-500" />
                     <span className="text-gray-600">{tour.tourGuideEmail}</span>
                   </div>
+                  {tour.tourGuidePhone && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <Phone className="w-4 h-4 text-gray-500" />
+                      <span className="text-gray-600">{tour.tourGuidePhone}</span>
+                    </div>
+                  )}
                 </div>
 
                 <Button 

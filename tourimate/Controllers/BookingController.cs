@@ -35,6 +35,13 @@ public class BookingController : ControllerBase
     {
         try
         {
+            // Get current user ID (you may need to adjust this based on your auth implementation)
+            var userId = GetCurrentUserId();
+            if (userId == null)
+            {
+                return Unauthorized("User not authenticated");
+            }
+
             // Validate tour availability
             var tourAvailability = await _context.TourAvailabilities
                 .Include(ta => ta.Tour)
@@ -45,6 +52,12 @@ public class BookingController : ControllerBase
                 return BadRequest("Tour availability not found");
             }
 
+            // Validate that the user is not trying to book their own tour
+            if (tourAvailability.Tour.TourGuideId == userId.Value)
+            {
+                return BadRequest("You cannot book a tour that you created");
+            }
+
             if (!tourAvailability.IsAvailable)
             {
                 return BadRequest("Tour availability is not available");
@@ -53,13 +66,6 @@ public class BookingController : ControllerBase
             if (tourAvailability.BookedParticipants + request.AdultCount + request.ChildCount > tourAvailability.MaxParticipants)
             {
                 return BadRequest("Not enough available spots");
-            }
-
-            // Get current user ID (you may need to adjust this based on your auth implementation)
-            var userId = GetCurrentUserId();
-            if (userId == null)
-            {
-                return Unauthorized("User not authenticated");
             }
 
             // Generate booking number
@@ -280,6 +286,12 @@ public class BookingController : ControllerBase
             if (tourAvailability == null)
             {
                 return BadRequest("Không tìm thấy lịch trình");
+            }
+
+            // Validate that the user is not trying to book their own tour
+            if (tourAvailability.Tour.TourGuideId == userId.Value)
+            {
+                return BadRequest("You cannot book a tour that you created");
             }
 
             if (!tourAvailability.IsAvailable)

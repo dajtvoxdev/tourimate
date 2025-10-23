@@ -26,6 +26,8 @@ export interface TourDto {
   tourGuideId: string;
   tourGuideName: string;
   tourGuideEmail: string;
+  tourGuidePhone?: string;
+  tourGuideAvatar?: string;
   averageRating: number;
   totalReviews: number;
   totalBookings: number;

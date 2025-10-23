@@ -165,3 +165,36 @@
     background: rgba(103, 80, 164, 0.08);
   }
 }
+
+/* CKEditor Fixes */
+.ckeditor-wrapper .ck-editor__editable {
+  background-color: white !important;
+  color: black !important;
+  min-height: 200px;
+}
+
+.ckeditor-wrapper .ck-editor__editable:focus {
+  background-color: white !important;
+  color: black !important;
+}
+
+.ckeditor-wrapper .ck-editor__editable p {
+  color: black !important;
+}
+
+.ckeditor-wrapper .ck-editor__editable h1,
+.ckeditor-wrapper .ck-editor__editable h2,
+.ckeditor-wrapper .ck-editor__editable h3,
+.ckeditor-wrapper .ck-editor__editable h4,
+.ckeditor-wrapper .ck-editor__editable h5,
+.ckeditor-wrapper .ck-editor__editable h6 {
+  color: black !important;
+}
+
+.ckeditor-wrapper .ck-editor__editable blockquote {
+  color: black !important;
+}
+
+.ckeditor-wrapper .ck-editor__editable a {
+  color: #0066cc !important;
+}

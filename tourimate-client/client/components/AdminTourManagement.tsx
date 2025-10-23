@@ -459,8 +459,8 @@ const AdminTourManagement = () => {
                   <TableHead>Hướng dẫn viên</TableHead>
                   <TableHead>Địa điểm</TableHead>
                   <TableHead>Giá</TableHead>
-                  <TableHead>Đặt tour</TableHead>
-                  <TableHead>Đánh giá</TableHead>
+                  <TableHead>Đặt tour & Lịch trình</TableHead>
+                  <TableHead>Đánh giá & Số lượng</TableHead>
                   <TableHead>Trạng thái</TableHead>
                   <TableHead>Hành động</TableHead>
                 </TableRow>
@@ -484,14 +484,48 @@ const AdminTourManagement = () => {
                     <TableRow key={tour.id}>
                       <TableCell className="font-medium">{tour.title}</TableCell>
                       <TableCell>{tour.tourGuideName}</TableCell>
-                      <TableCell>{tour.location}</TableCell>
-                      <TableCell>{tour.price.toLocaleString('vi-VN')} {tour.currency}</TableCell>
-                      <TableCell>{tour.totalBookings}</TableCell>
-                      <TableCell className="flex items-center">
-                        <span className="text-yellow-500 mr-1">★</span>
-                        {tour.averageRating.toFixed(1)}
+                      <TableCell>
+                        {tour.provinceName || tour.wardName || tour.location}
+                        {tour.provinceName && tour.wardName && (
+                          <span className="text-gray-500 text-sm ml-1">
+                            ({tour.wardName})
+                          </span>
+                        )}
                       </TableCell>
                       <TableCell>
+                        {tour.recentAdultPrice ? (
+                          <div>
+                            <div className="font-medium">
+                              {tour.recentAdultPrice.toLocaleString('vi-VN')} {tour.currency}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              Từ {tour.price.toLocaleString('vi-VN')} {tour.currency}
+                            </div>
+                          </div>
+                        ) : (
+                          <span>{tour.price.toLocaleString('vi-VN')} {tour.currency}</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <div>
+                          <div className="font-medium">{tour.totalBookings} đặt tour</div>
+                          {tour.recentDate && (
+                            <div className="text-xs text-gray-500">
+                              Khởi hành: {new Date(tour.recentDate).toLocaleDateString('vi-VN')}
+                            </div>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center">
+                          <span className="text-yellow-500 mr-1">★</span>
+                          <span className="font-medium">{tour.averageRating.toFixed(1)}</span>
+                          <span className="text-gray-500 text-sm ml-1">
+                            ({tour.totalReviews} đánh giá)
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap">
                         {getStatusBadge(tour.status)}
                       </TableCell>
                       <TableCell>

@@ -13,8 +13,7 @@ public class Revenue : BaseEntity
     [Required]
     public Guid UserId { get; set; } // Tour guide or vendor
 
-    [Required]
-    public Guid EntityId { get; set; } // Tour or Product ID
+    public Guid? EntityId { get; set; } // Tour or Product ID (nullable)
 
     [Required]
     [MaxLength(20)]
@@ -56,11 +55,7 @@ public class Revenue : BaseEntity
     [ForeignKey("UserId")]
     public virtual User User { get; set; } = null!;
 
-    [ForeignKey("EntityId")]
-    public virtual Tour? Tour { get; set; }
-
-    [ForeignKey("EntityId")]
-    public virtual Product? Product { get; set; }
+    // Navigation properties removed - no foreign key constraints to Tour/Product
 
     // Computed properties
     [NotMapped]

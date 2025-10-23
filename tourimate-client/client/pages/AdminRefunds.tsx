@@ -192,7 +192,7 @@ export default function AdminRefunds() {
 
       if (dateFrom) params.append("dateFrom", dateFrom);
       if (dateTo) params.append("dateTo", dateTo);
-      if (statusFilter) params.append("status", statusFilter);
+      if (statusFilter && statusFilter !== "all") params.append("status", statusFilter);
       if (searchTerm.trim()) params.append("search", searchTerm.trim());
 
       const response = await httpJson<RefundResponse>(
@@ -502,7 +502,7 @@ export default function AdminRefunds() {
                   <SelectValue placeholder="Trạng thái" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Tất cả</SelectItem>
+                  <SelectItem value="all">Tất cả</SelectItem>
                   <SelectItem value="Pending">Chờ xử lý</SelectItem>
                   <SelectItem value="Processing">Đang xử lý</SelectItem>
                   <SelectItem value="Completed">Hoàn thành</SelectItem>
@@ -517,7 +517,7 @@ export default function AdminRefunds() {
                   setSearchTerm("");
                   setDateFrom("");
                   setDateTo("");
-                  setStatusFilter("");
+                  setStatusFilter("all");
                   setPage(1);
                 }}
               >

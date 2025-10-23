@@ -195,26 +195,28 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) => {
         { id: "reports", label: "Báo cáo", icon: FileText, path: "/admin/reports" },
         { id: "performance", label: "Hiệu suất", icon: TrendingUp, path: "/admin/performance" }
       ]
-    },
-    {
-      id: "communications",
-      label: "Giao tiếp",
-      icon: MessageSquare,
-      badge: "5",
-      children: [
-        { id: "messages", label: "Tin nhắn", icon: MessageSquare, path: "/admin/messages" },
-        { id: "notifications", label: "Thông báo", icon: Bell, path: "/admin/notifications" },
-        { id: "support", label: "Hỗ trợ", icon: HelpCircle, path: "/admin/support" }
-      ]
-    },
+    }
+    ,
+    // {
+    //   id: "communications",
+    //   label: "Giao tiếp",
+    //   icon: MessageSquare,
+    //   badge: "5",
+    //   children: [
+    //     { id: "messages", label: "Tin nhắn", icon: MessageSquare, path: "/admin/messages" },
+    //     { id: "notifications", label: "Thông báo", icon: Bell, path: "/admin/notifications" },
+    //     { id: "support", label: "Hỗ trợ", icon: HelpCircle, path: "/admin/support" }
+    //   ]
+    // }
+    ,
     !isTourGuideOnly ? {
       id: "settings",
       label: "Cài đặt",
       icon: Settings,
       children: [
-        { id: "general", label: "Tổng quan", icon: Settings, path: "/admin/settings" },
-        { id: "system", label: "Hệ thống", icon: Cog, path: "/admin/settings/system" },
-        { id: "security", label: "Bảo mật", icon: Shield, path: "/admin/settings/security" },
+        // { id: "general", label: "Tổng quan", icon: Settings, path: "/admin/settings" },
+        // { id: "system", label: "Hệ thống", icon: Cog, path: "/admin/settings/system" },
+        // { id: "security", label: "Bảo mật", icon: Shield, path: "/admin/settings/security" },
         { id: "divisions", label: "Đơn vị hành chính", icon: MapPin, path: "/admin/divisions" }
       ]
     } : undefined as any

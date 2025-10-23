@@ -2,9 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { CKEditor } from "@ckeditor/ckeditor5-react";
-import ClassicEditor from "@ckeditor/ckeditor5-build-classic";
-import CkUploadAdapter from "../src/components/CkUploadAdapter";
+import CustomCKEditor from "@/components/ui/CKEditor";
 import { useRef } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SearchableSelect } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
@@ -14,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { httpWithRefresh, httpJson, httpUpload, getApiBase } from "@/src/lib/http";
 import { useAuth } from "@/src/hooks/useAuth";
+import { toast } from "sonner";
 
 type CreateTourPayload = {
   title: string;
@@ -35,6 +34,7 @@ type CreateTourPayload = {
   divisionCode?: number;
   provinceCode?: number;
   wardCode?: number;
+  tourGuideId?: string;
 };
 
 interface Props {
@@ -117,6 +117,11 @@ const CreateTourForm: React.FC<Props> = ({ initial, onSubmit, onCancel, onUpload
   const baseApiUrl = ((import.meta as any).env?.VITE_API_BASE_URL || "https://localhost:7181");
   const authToken = (typeof window !== "undefined" ? localStorage.getItem("access_token") || undefined : undefined);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [activeTab, setActiveTab] = useState("basic");
+  const [tourGuides, setTourGuides] = useState<Array<{id: string, firstName: string, lastName: string, email: string}>>([]);
+  const [loadingGuides, setLoadingGuides] = useState(false);
+
+  // Editor configuration is now handled by CustomCKEditor component
 
   const stripHtml = (html: string) => {
     const tmp = document.createElement('div');
@@ -128,9 +133,8 @@ const CreateTourForm: React.FC<Props> = ({ initial, onSubmit, onCancel, onUpload
     const newErrors: Record<string, string> = {};
     if (!formData.title?.trim()) newErrors.title = "Vui lòng nhập tên tour";
     if (!stripHtml(formData.shortDescription)) newErrors.shortDescription = "Vui lòng nhập mô tả ngắn";
-    if (!formData.location?.trim()) newErrors.location = "Vui lòng nhập địa điểm chi tiết";
     if (!selectedProvince) newErrors.provinceCode = "Vui lòng chọn tỉnh/thành";
-    if (!formData.wardCode) newErrors.wardCode = "Vui lòng chọn phường/xã";
+    // Phường/xã và địa điểm chi tiết không bắt buộc
     if (!formData.category?.trim()) newErrors.category = "Vui lòng chọn danh mục";
     if (!stripHtml(formData.description)) newErrors.description = "Vui lòng nhập mô tả chi tiết";
     if (!Array.isArray(formData.imageUrls) || (formData.imageUrls || []).length === 0) newErrors.imageUrls = "Vui lòng tải lên ít nhất 1 hình ảnh";
@@ -138,6 +142,8 @@ const CreateTourForm: React.FC<Props> = ({ initial, onSubmit, onCancel, onUpload
     if (!Array.isArray(includesList) || includesList.length === 0) newErrors.includes = "Vui lòng thêm ít nhất 1 mục 'Bao gồm'";
     if (!Array.isArray(excludesList) || excludesList.length === 0) newErrors.excludes = "Vui lòng thêm ít nhất 1 mục 'Không bao gồm'";
     if (!stripHtml(formData.terms || "")) newErrors.terms = "Vui lòng nhập điều khoản";
+    // Tour guide validation for admin only
+    if (!isTourGuide && !formData.tourGuideId?.trim()) newErrors.tourGuideId = "Vui lòng chọn hướng dẫn viên";
     // Duration, participants, and price are managed in Tour Availability
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -151,7 +157,13 @@ const CreateTourForm: React.FC<Props> = ({ initial, onSubmit, onCancel, onUpload
     setUploading(true);
     try {
       const urls = await onUploadImages(files);
-      setFormData(prev => ({ ...prev, imageUrls: urls }));
+      // Append new images to existing ones instead of replacing
+      setFormData(prev => ({ ...prev, imageUrls: [...(prev.imageUrls || []), ...urls] }));
+      toast.success(`Tải ${urls.length} ảnh lên thành công`);
+      // Clear file input
+      e.target.value = '';
+    } catch (error) {
+      toast.error("Có lỗi xảy ra khi tải ảnh lên");
     } finally {
       setUploading(false);
     }
@@ -209,6 +221,25 @@ const CreateTourForm: React.FC<Props> = ({ initial, onSubmit, onCancel, onUpload
     }
   }, [selectedProvince]);
 
+  // Load tour guides for admin
+  useEffect(() => {
+    if (!isTourGuide) {
+      const loadTourGuides = async () => {
+        try {
+          setLoadingGuides(true);
+          const data = await httpJson<Array<{id: string, firstName: string, lastName: string, email: string}>>(`${getApiBase()}/api/guides`, { skipAuth: false });
+          setTourGuides(data || []);
+        } catch (error) {
+          console.error('Error loading tour guides:', error);
+          setTourGuides([]);
+        } finally {
+          setLoadingGuides(false);
+        }
+      };
+      loadTourGuides();
+    }
+  }, [isTourGuide]);
+
   useEffect(() => {
     const loadWardsByProvince = async (provinceCode: number) => {
       try {
@@ -262,7 +293,7 @@ const CreateTourForm: React.FC<Props> = ({ initial, onSubmit, onCancel, onUpload
         </div>
       ) : null}
       {!(divisionsLoading || (((initial as any)?.provinceCode) && wardsLoading)) && (
-      <Tabs defaultValue="basic" className="w-full flex-1 overflow-y-auto px-6 pb-24">
+      <Tabs defaultValue="basic" value={activeTab} onValueChange={setActiveTab} className="w-full flex-1 overflow-y-auto px-6 pb-24">
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="basic">Thông tin cơ bản</TabsTrigger>
           <TabsTrigger value="details">Chi tiết</TabsTrigger>
@@ -279,20 +310,14 @@ const CreateTourForm: React.FC<Props> = ({ initial, onSubmit, onCancel, onUpload
             </div>
             <div className="col-span-2">
               <Label htmlFor="shortDescription">Mô tả ngắn <span className="text-red-500">*</span></Label>
-              <div className="mt-2 h-[180px] ckeditor-container">
-                <CKEditor
-                  editor={ClassicEditor}
+              <div className="mt-2 h-[250px] ckeditor-container">
+                <CustomCKEditor
                   data={formData.shortDescription}
-                  config={{
-                    language: 'vi',
-                    toolbar: [
-                      'heading','|','bold','italic','underline','link','bulletedList','numberedList','blockQuote','undo','redo','|','sourceEditing'
-                    ],
-                  }}
-                  onChange={(_, editor: any) => {
-                    const data = editor.getData();
+                  onChange={(data) => {
                     setFormData(p => ({ ...p, shortDescription: data }));
                   }}
+                  baseApiUrl={baseApiUrl}
+                  authToken={authToken}
                 />
               </div>
               {errors.shortDescription && <p className="text-sm text-red-500 mt-1">{errors.shortDescription}</p>}
@@ -315,7 +340,7 @@ const CreateTourForm: React.FC<Props> = ({ initial, onSubmit, onCancel, onUpload
                 {errors.provinceCode && <p className="text-sm text-red-500 mt-1">{errors.provinceCode}</p>}
               </div>
               <div>
-                <Label htmlFor="ward">Phường/Xã <span className="text-red-500">*</span></Label>
+                <Label htmlFor="ward">Phường/Xã</Label>
                 <SearchableSelect 
                   value={formData.wardCode ? String(formData.wardCode) : ""}
                   onValueChange={(value) => setFormData(p => ({ ...p, wardCode: value ? parseInt(value) : undefined, divisionCode: value ? parseInt(value) : selectedProvince } as any))}
@@ -330,7 +355,7 @@ const CreateTourForm: React.FC<Props> = ({ initial, onSubmit, onCancel, onUpload
                 {errors.wardCode && <p className="text-sm text-red-500 mt-1">{errors.wardCode}</p>}
               </div>
               <div>
-                <Label htmlFor="location">Địa điểm chi tiết <span className="text-red-500">*</span></Label>
+                <Label htmlFor="location">Địa điểm chi tiết</Label>
                 <Input id="location" value={formData.location} onChange={(e) => setFormData(p => ({ ...p, location: e.target.value }))} placeholder="Ví dụ: 123 Phố Huế, Hai Bà Trưng" />
                 {errors.location && <p className="text-sm text-red-500 mt-1">{errors.location}</p>}
               </div>
@@ -390,9 +415,15 @@ const CreateTourForm: React.FC<Props> = ({ initial, onSubmit, onCancel, onUpload
               {errors.imageUrls && <p className="text-sm text-red-500 mt-1">{errors.imageUrls}</p>}
             </div>
             <div>
-              <div className="flex items-center justify-between">
+              <div className={`flex items-center justify-between ${activeTab === "details" && itineraryItems.length > 0 ? 'sticky top-0 bg-white z-40 py-2 border-b border-gray-200' : ''}`}>
                 <Label>Lịch trình <span className="text-red-500">*</span></Label>
-                <Button type="button" variant="outline" onClick={() => setItineraryItems(prev => [...prev, { day: (prev.at(-1)?.day ?? prev.length) + 1, title: "", description: "" }])}>Thêm ngày</Button>
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={() => setItineraryItems(prev => [...prev, { day: (prev.at(-1)?.day ?? prev.length) + 1, title: "", description: "" }])}
+                >
+                  Thêm ngày
+                </Button>
               </div>
               <div className="mt-3 space-y-4">
                 {itineraryItems.map((item, index) => (
@@ -413,24 +444,13 @@ const CreateTourForm: React.FC<Props> = ({ initial, onSubmit, onCancel, onUpload
                     <div>
                       <Label htmlFor={`desc-${index}`}>Mô tả</Label>
                       <div className="mt-2">
-                        <CKEditor
-                          editor={ClassicEditor}
+                        <CustomCKEditor
                           data={item.description}
-                          config={{
-                            language: 'vi',
-                            toolbar: [
-                              'heading','|','bold','italic','underline','link','bulletedList','numberedList','blockQuote','imageUpload','undo','redo','|','sourceEditing'
-                            ]
-                          } as any}
-                          onReady={(editor: any) => {
-                            const base = baseApiUrl;
-                            const token = authToken;
-                            editor.plugins.get('FileRepository').createUploadAdapter = (loader: any) => new CkUploadAdapter(loader, base, token);
-                          }}
-                          onChange={(_, editor: any) => {
-                            const data = editor.getData();
+                          onChange={(data) => {
                             setItineraryItems(prev => prev.map((it, i) => i === index ? { ...it, description: data } : it));
                           }}
+                          baseApiUrl={baseApiUrl}
+                          authToken={authToken}
                         />
                       </div>
                     </div>
@@ -449,38 +469,15 @@ const CreateTourForm: React.FC<Props> = ({ initial, onSubmit, onCancel, onUpload
           <div className="space-y-4">
             <div>
               <Label htmlFor="description">Mô tả chi tiết <span className="text-red-500">*</span></Label>
-              <div className="mt-2 h-[300px] ckeditor-container">
-                <CKEditor
-                    editor={ClassicEditor}
-                    data={formData.description}
-                  config={{
-                      language: 'vi',
-                      toolbar: [
-                        "heading","|","bold","italic","underline","link","bulletedList","numberedList","blockQuote","insertTable","undo","redo","imageUpload","|","videoUpload","|","sourceEditing"
-                      ],
-                    htmlSupport: {
-                        allow: [
-                          {
-                            name: /.*/,
-                            attributes: true,
-                            classes: true,
-                            styles: true
-                          }
-                        ]
-                    }
-                  } as any}
-                    onReady={(editor: any) => {
-                      const base = baseApiUrl;
-                      const token = authToken;
-                      // custom upload adapter
-                      editor.plugins.get("FileRepository").createUploadAdapter = (loader: any) => new CkUploadAdapter(loader, base, token);
-                      editorRef.current = editor;
-                    }}
-                    onChange={(_, editor: any) => {
-                      const data = editor.getData();
-                      setFormData(p => ({ ...p, description: data }));
-                    }}
-                  />
+              <div className="mt-2 h-[250px] ckeditor-container">
+                <CustomCKEditor
+                  data={formData.description}
+                  onChange={(data) => {
+                    setFormData(p => ({ ...p, description: data }));
+                  }}
+                  baseApiUrl={baseApiUrl}
+                  authToken={authToken}
+                />
               </div>
               {errors.description && <p className="text-sm text-red-500 mt-1">{errors.description}</p>}
               {/* Hidden input to handle video uploads via our API and insert into editor as <video> */}
@@ -500,9 +497,7 @@ const CreateTourForm: React.FC<Props> = ({ initial, onSubmit, onCancel, onUpload
                 });
                 if (videoInputRef.current) videoInputRef.current.value = "";
               }} />
-              <div className="mt-2">
-                <Button type="button" variant="outline" onClick={() => videoInputRef.current?.click()}>Tải video</Button>
-              </div>
+             
             </div>
             <div>
               <div className="flex items-center justify-between">
@@ -559,19 +554,13 @@ const CreateTourForm: React.FC<Props> = ({ initial, onSubmit, onCancel, onUpload
             <div>
               <Label htmlFor="terms">Điều khoản <span className="text-red-500">*</span></Label>
               <div className="mt-2 h-[200px] ckeditor-container">
-                <CKEditor
-                  editor={ClassicEditor}
+                <CustomCKEditor
                   data={formData.terms || ''}
-                  config={{
-                    language: 'vi',
-                    toolbar: [
-                      'heading','|','bold','italic','underline','link','bulletedList','numberedList','blockQuote','undo','redo','|','sourceEditing'
-                    ],
-                  }}
-                  onChange={(_, editor: any) => {
-                    const data = editor.getData();
+                  onChange={(data) => {
                     setFormData(p => ({ ...p, terms: data }));
                   }}
+                  baseApiUrl={baseApiUrl}
+                  authToken={authToken}
                 />
               </div>
               {errors.terms && <p className="text-sm text-red-500 mt-1">{errors.terms}</p>}
@@ -581,6 +570,36 @@ const CreateTourForm: React.FC<Props> = ({ initial, onSubmit, onCancel, onUpload
 
         <TabsContent value="settings" className="space-y-4">
           <div className="space-y-4">
+            {/* Tour Guide Selection - Only for Admin */}
+            {!isTourGuide && (
+              <div className="space-y-2">
+                <Label htmlFor="tourGuideId">Hướng dẫn viên <span className="text-red-500">*</span></Label>
+                {loadingGuides ? (
+                  <div className="flex items-center space-x-2">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-900"></div>
+                    <span className="text-sm text-gray-500">Đang tải danh sách hướng dẫn viên...</span>
+                  </div>
+                ) : (
+                  <Select
+                    value={formData.tourGuideId || ""}
+                    onValueChange={(value) => setFormData(p => ({ ...p, tourGuideId: value }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Chọn hướng dẫn viên" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {tourGuides.map((guide) => (
+                        <SelectItem key={guide.id} value={guide.id}>
+                          {guide.firstName} {guide.lastName} ({guide.email})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+                {errors.tourGuideId && <p className="text-sm text-red-500 mt-1">{errors.tourGuideId}</p>}
+              </div>
+            )}
+
             {!isTourGuide ? (
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
@@ -609,7 +628,14 @@ const CreateTourForm: React.FC<Props> = ({ initial, onSubmit, onCancel, onUpload
           <Button variant="outline" onClick={onCancel}>Hủy</Button>
         )}
         <Button onClick={() => {
-          if (!validate()) return;
+          if (!validate()) {
+            // Show toast with validation errors
+            const errorMessages = Object.values(errors);
+            if (errorMessages.length > 0) {
+              toast.error(`Vui lòng điền đầy đủ thông tin: ${errorMessages.join(", ")}`);
+            }
+            return;
+          }
           onSubmit({
             ...formData,
             includes: JSON.stringify(includesList),
