@@ -95,6 +95,8 @@ jobs:
         port: ${{ secrets.VPS_PORT }}
         source: "frontend-production.tar.gz"
         target: "C:/Users/deploy/"
+        debug: true
+        timeout: 60s
 
     - name: Deploy to Windows VPS (Production)
       uses: appleboy/ssh-action@v1.0.3
