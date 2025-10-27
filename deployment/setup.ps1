@@ -87,13 +87,24 @@ try {
     Write-Host "IIS WebAdministration module available" -ForegroundColor Green
 } catch {
     Write-Host "IIS WebAdministration module not available" -ForegroundColor Red
-    Write-Host "Please install IIS with WebAdministration module" -ForegroundColor Yellow
+    Write-Host "Please install IIS first by running: .\install-iis.ps1" -ForegroundColor Yellow
+    Write-Host "Or install manually using Windows Features" -ForegroundColor Yellow
+    exit 1
 }
 
 # Configure IIS
 Write-Host "`n[STEP 4] Configuring IIS..." -ForegroundColor Yellow
 try {
-    Import-Module WebAdministration
+    # Import WebAdministration module
+    Write-Host "Importing WebAdministration module..." -ForegroundColor White
+    Import-Module WebAdministration -ErrorAction Stop
+    
+    # Verify module is loaded
+    if (Get-Command Get-WebAppPool -ErrorAction SilentlyContinue) {
+        Write-Host "WebAdministration module loaded successfully" -ForegroundColor Green
+    } else {
+        throw "WebAdministration module not properly loaded"
+    }
     
     # Create application pool for production
     if (!(Get-WebAppPool -Name "TouriMateAPIProduction" -ErrorAction SilentlyContinue)) {
@@ -133,6 +144,8 @@ try {
     
 } catch {
     Write-Host "IIS configuration failed: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "Please ensure IIS is installed with WebAdministration module" -ForegroundColor Yellow
+    Write-Host "You can install it using: Enable-WindowsOptionalFeature -Online -FeatureName IIS-WebServerRole,IIS-WebServer,IIS-CommonHttpFeatures,IIS-ASPNET45" -ForegroundColor Yellow
 }
 
 # Configure firewall
