@@ -2,7 +2,7 @@ name: Backend CI/CD
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main ]
     paths:
       - 'tourimate/**'
       - 'entities/**'
@@ -46,68 +46,6 @@ jobs:
       with:
         name: test-results
         path: '**/TestResults/**'
-
-  deploy-staging:
-    needs: build-and-test
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/develop'
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Setup .NET
-      uses: actions/setup-dotnet@v4
-      with:
-        dotnet-version: ${{ env.DOTNET_VERSION }}
-
-    - name: Restore dependencies
-      run: dotnet restore ${{ env.SOLUTION_PATH }}
-
-    - name: Build for staging
-      run: dotnet build ${{ env.PROJECT_PATH }} --configuration Release --no-restore
-
-    - name: Publish application
-      run: dotnet publish ${{ env.PROJECT_PATH }} --configuration Release --output ./publish --no-build
-
-    - name: Create deployment package
-      run: |
-        cd publish
-        tar -czf ../tourimate-staging.tar.gz .
-
-    - name: Deploy to Windows VPS (Staging)
-      uses: appleboy/ssh-action@v1.0.3
-      with:
-        host: ${{ secrets.VPS_HOST }}
-        username: ${{ secrets.VPS_USERNAME }}
-        key: ${{ secrets.VPS_SSH_KEY }}
-        port: ${{ secrets.VPS_PORT }}
-        script: |
-          # Stop the application
-          net stop "TouriMate API Staging" 2>$null
-          
-          # Backup current deployment
-          if (Test-Path "C:\inetpub\wwwroot\tourimate-staging") {
-            Move-Item "C:\inetpub\wwwroot\tourimate-staging" "C:\inetpub\wwwroot\tourimate-staging-backup-$(Get-Date -Format 'yyyyMMdd-HHmmss')" -Force
-          }
-          
-          # Create new directory
-          New-Item -ItemType Directory -Path "C:\inetpub\wwwroot\tourimate-staging" -Force
-          
-          # Extract new files
-          tar -xzf tourimate-staging.tar.gz -C "C:\inetpub\wwwroot\tourimate-staging"
-          
-          # Set permissions
-          icacls "C:\inetpub\wwwroot\tourimate-staging" /grant "IIS_IUSRS:(OI)(CI)F" /T
-          
-          # Start the application
-          net start "TouriMate API Staging"
-
-    - name: Upload deployment package
-      uses: actions/upload-artifact@v4
-      with:
-        name: tourimate-staging-package
-        path: tourimate-staging.tar.gz
 
   deploy-production:
     needs: build-and-test
