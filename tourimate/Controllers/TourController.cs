@@ -421,7 +421,11 @@ public sealed class TourController : ControllerBase
                 CreatedBy = userId.Value,
                 DivisionCode = request.DivisionCode,
                 ProvinceCode = request.ProvinceCode,
-                WardCode = request.WardCode
+                WardCode = request.WardCode,
+                AverageRating = 4.0m, // Mặc định 4 sao cho tour mới
+                TotalReviews = 0,
+                TotalBookings = 0,
+                ViewCount = 0
             };
 
             _db.Tours.Add(tour);

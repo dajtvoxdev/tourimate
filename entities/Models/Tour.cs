@@ -67,7 +67,7 @@ public class Tour : BaseEntity, IAuditableEntity
     public Guid TourGuideId { get; set; }
 
     [Column(TypeName = "decimal(3,2)")]
-    public decimal AverageRating { get; set; } = 0;
+    public decimal AverageRating { get; set; } = 4.0m;
 
     public int TotalReviews { get; set; } = 0;
 
