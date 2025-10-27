@@ -95,6 +95,9 @@ jobs:
         port: ${{ secrets.VPS_PORT }}
         script: |
           powershell -Command "
+          # Change to home directory
+          cd C:\Users\deploy
+          
           # Stop IIS site
           Import-Module WebAdministration
           Stop-Website -Name 'TouriMate Frontend Production' -ErrorAction SilentlyContinue

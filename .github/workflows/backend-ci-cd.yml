@@ -84,6 +84,21 @@ jobs:
         port: ${{ secrets.VPS_PORT }}
         script: |
           powershell -Command "
+          # Debug: Show current directory
+          Write-Host 'Current directory:' (Get-Location)
+          
+          # Debug: List files in current directory
+          Write-Host 'Files in current directory:'
+          Get-ChildItem
+          
+          # Change to home directory
+          cd C:\Users\deploy
+          Write-Host 'Changed to:' (Get-Location)
+          
+          # Debug: List files in home directory
+          Write-Host 'Files in home directory:'
+          Get-ChildItem
+          
           # Stop the application
           net stop 'TouriMate API Production' 2>$null
           
