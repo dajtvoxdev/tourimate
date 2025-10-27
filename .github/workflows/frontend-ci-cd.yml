@@ -84,27 +84,30 @@ jobs:
     - name: Create deployment package
       run: |
         cd tourimate-client/dist
-        tar -czf ../../frontend-production.tar.gz .
+        zip -r ../../frontend-production.zip .
+        cd ../..
+        echo "Package created successfully"
+        ls -lh frontend-production.zip
 
-    - name: Upload deployment package and script to VPS
-      uses: appleboy/scp-action@master
+    - name: Upload deployment package to VPS
+      uses: appleboy/scp-action@v0.1.4
       with:
         host: ${{ secrets.VPS_HOST }}
         username: ${{ secrets.VPS_USERNAME }}
         key: ${{ secrets.VPS_SSH_KEY }}
         port: ${{ secrets.VPS_PORT }}
-        source: "frontend-production.tar.gz,deployment/deploy-frontend.ps1"
+        source: "frontend-production.zip"
         target: "C:/Users/deploy/"
-        debug: true
-        timeout: 60s
+        strip_components: 0
 
-    - name: Deploy to Windows VPS (Production)
-      uses: appleboy/ssh-action@master
+    - name: Execute deployment on VPS
+      uses: appleboy/ssh-action@v1.0.3
       with:
         host: ${{ secrets.VPS_HOST }}
         username: ${{ secrets.VPS_USERNAME }}
         key: ${{ secrets.VPS_SSH_KEY }}
         port: ${{ secrets.VPS_PORT }}
+        command_timeout: 30m
         script: |
           echo "=== RUNNING FRONTEND DEPLOYMENT SCRIPT ==="
           cd C:\Users\deploy
@@ -112,37 +115,12 @@ jobs:
           pwd
           echo "Files in directory:"
           ls -la
-          echo "Checking tar.gz file..."
-          if [ -f "frontend-production.tar.gz" ]; then
-            echo "✅ Package found: frontend-production.tar.gz"
-            ls -lh frontend-production.tar.gz
-            echo "Contents of tar.gz:"
-            tar -tzf frontend-production.tar.gz | head -10
-          else
-            echo "❌ ERROR: frontend-production.tar.gz not found!"
-            exit 1
-          fi
-          echo "=== FRONTEND DEPLOYMENT START ==="
-          echo "Stopping IIS site..."
-          powershell -Command "Import-Module WebAdministration; Stop-Website -Name 'TouriMate Frontend Production' -ErrorAction SilentlyContinue"
-          echo "Backing up existing deployment..."
-          if [ -d "C:\inetpub\wwwroot\tourimate-frontend-production" ]; then
-            powershell -Command "Move-Item 'C:\inetpub\wwwroot\tourimate-frontend-production' 'C:\inetpub\wwwroot\tourimate-frontend-production-backup-$(Get-Date -Format ''yyyyMMdd-HHmmss'')' -Force"
-          fi
-          echo "Creating new directory..."
-          powershell -Command "New-Item -ItemType Directory -Path 'C:\inetpub\wwwroot\tourimate-frontend-production' -Force"
-          echo "Extracting files..."
-          tar -xzf frontend-production.tar.gz -C "C:\inetpub\wwwroot\tourimate-frontend-production" -v
-          echo "Files after extraction:"
-          powershell -Command "Get-ChildItem 'C:\inetpub\wwwroot\tourimate-frontend-production' -Recurse | Select-Object -First 10"
-          echo "Setting permissions..."
-          powershell -Command "icacls 'C:\inetpub\wwwroot\tourimate-frontend-production' /grant 'IIS_IUSRS:(OI)(CI)F' /T"
-          echo "Starting IIS site..."
-          powershell -Command "Start-Website -Name 'TouriMate Frontend Production'"
-          echo "=== FRONTEND DEPLOYMENT COMPLETE ==="
+          echo "Running PowerShell script..."
+          powershell.exe -ExecutionPolicy Bypass -Command "& { $ErrorActionPreference = 'Continue'; Write-Host '=== DEBUG START ==='; Write-Host 'PowerShell Version:' $PSVersionTable.PSVersion; Write-Host 'Current user:' $(whoami); Set-Location C:\Users\deploy; Write-Host 'Current directory:' $(Get-Location); Write-Host 'Files in deploy directory:'; Get-ChildItem | Format-Table Name, Length, LastWriteTime -AutoSize; Write-Host 'Checking ZIP file...'; if (Test-Path 'frontend-production.zip') { $zipFile = Get-Item 'frontend-production.zip'; Write-Host 'ZIP exists - Size:' ([math]::Round($zipFile.Length / 1MB, 2)) 'MB'; } else { Write-Host 'ERROR: ZIP file not found!'; exit 1; }; Write-Host '=== DEPLOYMENT START ==='; try { Import-Module WebAdministration; Stop-Website -Name 'TouriMate Frontend Production' -ErrorAction SilentlyContinue; Write-Host 'Website stopped'; } catch { Write-Host 'Warning:' $_ }; $deployPath = 'C:\inetpub\wwwroot\tourimate-frontend-production'; if (Test-Path $deployPath) { $backup = 'C:\inetpub\wwwroot\tourimate-frontend-production-backup-' + (Get-Date -Format 'yyyyMMdd-HHmmss'); Move-Item $deployPath $backup -Force; Write-Host 'Backed up to:' $backup; }; New-Item -ItemType Directory -Path $deployPath -Force | Out-Null; Write-Host 'Extracting files...'; Expand-Archive -Path 'C:\Users\deploy\frontend-production.zip' -DestinationPath $deployPath -Force; $files = Get-ChildItem $deployPath -Recurse -File; Write-Host 'Extracted' $files.Count 'files'; Get-ChildItem $deployPath | Format-Table Name, Length -AutoSize; icacls $deployPath /grant 'IIS_IUSRS:(OI)(CI)F' /T; Start-Website -Name 'TouriMate Frontend Production'; $site = Get-Website -Name 'TouriMate Frontend Production'; Write-Host 'Website state:' $site.State; Write-Host '=== DEPLOYMENT COMPLETE ==='; }"
+          echo "Script execution completed"
 
     - name: Upload deployment package
       uses: actions/upload-artifact@v4
       with:
         name: frontend-production-package
-        path: frontend-production.tar.gz
+        path: frontend-production.zip
