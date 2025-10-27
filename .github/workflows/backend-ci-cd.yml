@@ -73,22 +73,135 @@ jobs:
     - name: Create deployment package
       run: |
         cd publish
-        tar -czf ../tourimate-production.tar.gz .
+        zip -r ../tourimate-production.zip .
+        echo "Package created, size:"
+        ls -lh ../tourimate-production.zip
 
-    - name: Upload deployment package and script to VPS
-      uses: appleboy/scp-action@master
+    - name: Create deployment script
+      run: |
+        cat > deploy.ps1 << 'EOFSCRIPT'
+        $ErrorActionPreference = 'Continue'
+        
+        Write-Host "=== DEBUG START ==="
+        Write-Host "PowerShell Version: $($PSVersionTable.PSVersion)"
+        Write-Host "Current user: $(whoami)"
+        Write-Host "Current directory: $(Get-Location)"
+        
+        Write-Host "Changing to deploy directory..."
+        Set-Location C:\Users\deploy
+        Write-Host "Current location: $(Get-Location)"
+        
+        Write-Host "Files in deploy directory:"
+        Get-ChildItem | Format-Table Name, Length, LastWriteTime -AutoSize
+        
+        Write-Host "Checking ZIP file..."
+        if (Test-Path 'tourimate-production.zip') {
+            $zipFile = Get-Item 'tourimate-production.zip'
+            Write-Host "ZIP file exists"
+            Write-Host "  Size: $([math]::Round($zipFile.Length / 1MB, 2)) MB"
+            Write-Host "  Last Modified: $($zipFile.LastWriteTime)"
+        } else {
+            Write-Host "ERROR: ZIP file does not exist!"
+            Get-ChildItem | Select-Object Name
+            exit 1
+        }
+        
+        Write-Host ""
+        Write-Host "=== DEPLOYMENT START ==="
+        
+        Write-Host "Stopping IIS website..."
+        try {
+            Import-Module WebAdministration -ErrorAction Stop
+            Stop-Website -Name 'TouriMate API Production' -ErrorAction SilentlyContinue
+            Write-Host "  Website stopped"
+        } catch {
+            Write-Host "  Warning: $_"
+        }
+        
+        Write-Host "Backing up existing deployment..."
+        $deployPath = 'C:\inetpub\wwwroot\tourimate-production'
+        if (Test-Path $deployPath) {
+            $backupName = "tourimate-production-backup-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
+            $backupPath = "C:\inetpub\wwwroot\$backupName"
+            Move-Item $deployPath $backupPath -Force
+            Write-Host "  Backed up to: $backupName"
+        } else {
+            Write-Host "  No existing deployment to backup"
+        }
+        
+        Write-Host "Creating deployment directory..."
+        New-Item -ItemType Directory -Path $deployPath -Force | Out-Null
+        Write-Host "  Directory created"
+        
+        Write-Host "Extracting files..."
+        try {
+            Expand-Archive -Path 'C:\Users\deploy\tourimate-production.zip' -DestinationPath $deployPath -Force
+            Write-Host "  Extraction completed"
+        } catch {
+            Write-Host "  ERROR during extraction: $_"
+            Write-Host "  Full error: $($_.Exception.Message)"
+            exit 1
+        }
+        
+        Write-Host "Verifying extraction..."
+        $extractedFiles = Get-ChildItem $deployPath -Recurse -File
+        Write-Host "  Total files extracted: $($extractedFiles.Count)"
+        
+        Write-Host "Top-level contents:"
+        Get-ChildItem $deployPath | Format-Table Name, Length, LastWriteTime -AutoSize
+        
+        Write-Host "Looking for DLL files..."
+        $dllFiles = Get-ChildItem $deployPath -Filter "*.dll" -Recurse -File
+        Write-Host "  Found $($dllFiles.Count) DLL files"
+        if ($dllFiles.Count -gt 0) {
+            Write-Host "  Main DLLs:"
+            $dllFiles | Where-Object { $_.Name -notlike "System.*" -and $_.Name -notlike "Microsoft.*" } | Select-Object -First 5 | ForEach-Object {
+                Write-Host "    $($_.Name) - $([math]::Round($_.Length / 1KB, 2)) KB"
+            }
+        }
+        
+        Write-Host "Setting permissions..."
+        icacls $deployPath /grant "IIS_IUSRS:(OI)(CI)F" /T | Out-Null
+        Write-Host "  Permissions set"
+        
+        Write-Host "Starting IIS website..."
+        try {
+            Start-Website -Name 'TouriMate API Production' -ErrorAction Stop
+            Start-Sleep -Seconds 2
+            $site = Get-Website -Name 'TouriMate API Production'
+            Write-Host "  Website state: $($site.State)"
+            
+            if ($site.State -ne 'Started') {
+                Write-Host "  WARNING: Website did not start properly!"
+                exit 1
+            }
+        } catch {
+            Write-Host "  ERROR starting website: $_"
+            Write-Host "  Full error: $($_.Exception.Message)"
+            exit 1
+        }
+        
+        Write-Host ""
+        Write-Host "=== DEPLOYMENT COMPLETE ==="
+        Write-Host "Deployment finished at: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
+        EOFSCRIPT
+        
+        echo "Deployment script created"
+        cat deploy.ps1
+
+    - name: Upload deployment package to VPS
+      uses: appleboy/scp-action@v0.1.4
       with:
         host: ${{ secrets.VPS_HOST }}
         username: ${{ secrets.VPS_USERNAME }}
         key: ${{ secrets.VPS_SSH_KEY }}
         port: ${{ secrets.VPS_PORT }}
-        source: "tourimate-production.tar.gz,deployment/deploy-backend.ps1"
+        source: "tourimate-production.zip,deploy.ps1"
         target: "C:/Users/deploy/"
-        debug: true
-        timeout: 60s
+        strip_components: 0
 
-    - name: Deploy to Windows VPS (Production)
-      uses: appleboy/ssh-action@master
+    - name: Execute deployment on VPS
+      uses: appleboy/ssh-action@v1.0.3
       with:
         host: ${{ secrets.VPS_HOST }}
         username: ${{ secrets.VPS_USERNAME }}
@@ -96,36 +209,42 @@ jobs:
         port: ${{ secrets.VPS_PORT }}
         command_timeout: 30m
         script: |
-          echo "=== RUNNING DEPLOYMENT SCRIPT ==="
-          cd C:\Users\deploy
-          echo "Current directory:"
-          pwd
-          echo "Files in directory:"
-          ls -la
-          echo "Running PowerShell script..."
-          powershell.exe -ExecutionPolicy Bypass -File deploy-backend.ps1
-          echo "Script execution completed"
-
-    - name: Run database migrations
-      uses: appleboy/ssh-action@master
+          powershell.exe -ExecutionPolicy Bypass -Command "& { C:\Users\deploy\deploy.ps1 *>&1 | Tee-Object -FilePath C:\Users\deploy\deploy.log }"
+          
+    - name: Download deployment log
+      uses: appleboy/scp-action@v0.1.4
+      if: always()
       with:
         host: ${{ secrets.VPS_HOST }}
         username: ${{ secrets.VPS_USERNAME }}
         key: ${{ secrets.VPS_SSH_KEY }}
         port: ${{ secrets.VPS_PORT }}
+        source: "C:/Users/deploy/deploy.log"
+        target: "./"
+        strip_components: 3
+        
+    - name: Upload deployment log
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: deployment-log
+        path: deploy.log
+
+    - name: Run database migrations
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.VPS_HOST }}
+        username: ${{ secrets.VPS_USERNAME }}
+        key: ${{ secrets.VPS_SSH_KEY }}
+        port: ${{ secrets.VPS_PORT }}
+        command_timeout: 10m
         script: |
-          echo "=== DATABASE MIGRATION START ==="
-          cd C:\inetpub\wwwroot\tourimate-production
-          echo "Current directory:"
-          pwd
-          echo "Files in directory:"
-          ls -la
-          echo "Running database migration..."
-          dotnet ef database update --connection "${{ secrets.CONNECTION_STRING_PRODUCTION }}"
-          echo "=== DATABASE MIGRATION COMPLETE ==="
+          powershell.exe -ExecutionPolicy Bypass -Command "& { Set-Location C:\inetpub\wwwroot\tourimate-production; Write-Host 'Running database migration...'; dotnet ef database update --connection '${{ secrets.CONNECTION_STRING_PRODUCTION }}'; Write-Host 'Migration completed' }"
 
     - name: Upload deployment package
       uses: actions/upload-artifact@v4
       with:
         name: tourimate-production-package
-        path: tourimate-production.tar.gz
+        path: |
+          tourimate-production.zip
+          deploy.ps1
