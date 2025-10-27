@@ -94,26 +94,28 @@ jobs:
         key: ${{ secrets.VPS_SSH_KEY }}
         port: ${{ secrets.VPS_PORT }}
         script: |
+          powershell -Command "
           # Stop IIS site
           Import-Module WebAdministration
-          Stop-Website -Name "TouriMate Frontend Production" -ErrorAction SilentlyContinue
+          Stop-Website -Name 'TouriMate Frontend Production' -ErrorAction SilentlyContinue
           
           # Backup current deployment
-          if (Test-Path "C:\inetpub\wwwroot\tourimate-frontend-production") {
-            Move-Item "C:\inetpub\wwwroot\tourimate-frontend-production" "C:\inetpub\wwwroot\tourimate-frontend-production-backup-$(Get-Date -Format 'yyyyMMdd-HHmmss')" -Force
+          if (Test-Path 'C:\inetpub\wwwroot\tourimate-frontend-production') {
+            Move-Item 'C:\inetpub\wwwroot\tourimate-frontend-production' 'C:\inetpub\wwwroot\tourimate-frontend-production-backup-$(Get-Date -Format ''yyyyMMdd-HHmmss'')' -Force
           }
           
           # Create new directory
-          New-Item -ItemType Directory -Path "C:\inetpub\wwwroot\tourimate-frontend-production" -Force
+          New-Item -ItemType Directory -Path 'C:\inetpub\wwwroot\tourimate-frontend-production' -Force
           
           # Extract new files
-          tar -xzf frontend-production.tar.gz -C "C:\inetpub\wwwroot\tourimate-frontend-production"
+          tar -xzf frontend-production.tar.gz -C 'C:\inetpub\wwwroot\tourimate-frontend-production'
           
           # Set permissions
-          icacls "C:\inetpub\wwwroot\tourimate-frontend-production" /grant "IIS_IUSRS:(OI)(CI)F" /T
+          icacls 'C:\inetpub\wwwroot\tourimate-frontend-production' /grant 'IIS_IUSRS:(OI)(CI)F' /T
           
           # Start IIS site
-          Start-Website -Name "TouriMate Frontend Production"
+          Start-Website -Name 'TouriMate Frontend Production'
+          "
 
     - name: Upload deployment package
       uses: actions/upload-artifact@v4

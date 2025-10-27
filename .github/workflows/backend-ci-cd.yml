@@ -83,25 +83,27 @@ jobs:
         key: ${{ secrets.VPS_SSH_KEY }}
         port: ${{ secrets.VPS_PORT }}
         script: |
+          powershell -Command "
           # Stop the application
-          net stop "TouriMate API Production" 2>$null
+          net stop 'TouriMate API Production' 2>$null
           
           # Backup current deployment
-          if (Test-Path "C:\inetpub\wwwroot\tourimate-production") {
-            Move-Item "C:\inetpub\wwwroot\tourimate-production" "C:\inetpub\wwwroot\tourimate-production-backup-$(Get-Date -Format 'yyyyMMdd-HHmmss')" -Force
+          if (Test-Path 'C:\inetpub\wwwroot\tourimate-production') {
+            Move-Item 'C:\inetpub\wwwroot\tourimate-production' 'C:\inetpub\wwwroot\tourimate-production-backup-$(Get-Date -Format ''yyyyMMdd-HHmmss'')' -Force
           }
           
           # Create new directory
-          New-Item -ItemType Directory -Path "C:\inetpub\wwwroot\tourimate-production" -Force
+          New-Item -ItemType Directory -Path 'C:\inetpub\wwwroot\tourimate-production' -Force
           
           # Extract new files
-          tar -xzf tourimate-production.tar.gz -C "C:\inetpub\wwwroot\tourimate-production"
+          tar -xzf tourimate-production.tar.gz -C 'C:\inetpub\wwwroot\tourimate-production'
           
           # Set permissions
-          icacls "C:\inetpub\wwwroot\tourimate-production" /grant "IIS_IUSRS:(OI)(CI)F" /T
+          icacls 'C:\inetpub\wwwroot\tourimate-production' /grant 'IIS_IUSRS:(OI)(CI)F' /T
           
           # Start the application
-          net start "TouriMate API Production"
+          net start 'TouriMate API Production'
+          "
 
     - name: Run database migrations
       uses: appleboy/ssh-action@v1.0.3
@@ -111,9 +113,11 @@ jobs:
         key: ${{ secrets.VPS_SSH_KEY }}
         port: ${{ secrets.VPS_PORT }}
         script: |
+          powershell -Command "
           # Run database migrations
-          cd "C:\inetpub\wwwroot\tourimate-production"
-          dotnet ef database update --connection "${{ secrets.CONNECTION_STRING_PRODUCTION }}"
+          cd 'C:\inetpub\wwwroot\tourimate-production'
+          dotnet ef database update --connection '${{ secrets.CONNECTION_STRING_PRODUCTION }}'
+          "
 
     - name: Upload deployment package
       uses: actions/upload-artifact@v4
