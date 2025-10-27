@@ -435,8 +435,8 @@ export default function Tours() {
           <>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
               {tours.map((tour) => (
-                <Card key={tour.id} className="group hover:shadow-lg transition-shadow duration-200">
-                  <CardContent className="p-0">
+                <Card key={tour.id} className="group hover:shadow-lg transition-shadow duration-200 h-full flex flex-col">
+                  <CardContent className="p-0 flex flex-col h-full">
                     {/* Tour Image */}
                     <div className="relative h-48 overflow-hidden rounded-t-lg">
                       {tour.imageUrls && tour.imageUrls.length > 0 ? (
@@ -476,8 +476,8 @@ export default function Tours() {
                     </div>
 
                     {/* Tour Info */}
-                    <div className="p-4 space-y-3">
-                      <div>
+                    <div className="p-4 flex flex-col flex-grow">
+                      <div className="flex-grow">
                         <h3
                           className="font-semibold text-lg text-gray-900 line-clamp-2 mb-1 hover:underline cursor-pointer"
                           onClick={() => navigate(`/tour/${tour.id}`)}
@@ -494,50 +494,53 @@ export default function Tours() {
                         />
                       </div>
 
-                      <div className="flex items-center gap-4 text-sm text-gray-500">
-                        <div className="flex items-center gap-1">
-                          <MapPin className="w-4 h-4" />
-                          <span className="truncate">
-                            {tour.location}
-                            {tour.wardName ? `, ${tour.wardName}` : ''}
-                            {tour.provinceName ? `, ${tour.provinceName}` : ''}
-                          </span>
+                      <div className="space-y-3 mt-3">
+                        <div className="flex items-start gap-4 text-sm text-gray-500 flex-col">
+                          <div className="flex items-center gap-1">
+                            <MapPin className="w-4 h-4" />
+                            <span className="truncate">
+                              {tour.location}
+                              {tour.wardName ? `, ${tour.wardName}` : ''}
+                              {tour.provinceName ? `, ${tour.provinceName}` : ''}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Clock className="w-4 h-4" />
+                            <span>
+                              {tour.recentTripTime && tour.recentTripTime.trim().length > 0
+                                ? tour.recentTripTime
+                                : formatDuration(tour.duration)}
+                            </span>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-1">
-                          <Clock className="w-4 h-4" />
-                          <span>
-                            {tour.recentTripTime && tour.recentTripTime.trim().length > 0
-                              ? tour.recentTripTime
-                              : formatDuration(tour.duration)}
-                          </span>
+
+                        <div className="flex items-center gap-4 text-sm text-gray-500">
+                          <div className="flex items-center gap-1">
+                            <Star className="w-4 h-4 text-yellow-500 fill-current" />
+                            <span>{tour.averageRating.toFixed(1)} ({tour.totalReviews})</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Users className="w-4 h-4" />
+                            <span>{tour.totalBookings}</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Eye className="w-4 h-4" />
+                            <span>{tour.viewCount}</span>
+                          </div>
+                        </div>
+
+                        <div className="pt-2 space-y-1">
+                          <p className="text-xs text-gray-500">Hướng dẫn viên: {tour.tourGuideName}</p>
+                          {tour.recentDepartureDivisionName && (
+                            <p className="text-xs text-gray-500">Điểm đi: {tour.recentDepartureDivisionName}</p>
+                          )}
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-4 text-sm text-gray-500">
-                        <div className="flex items-center gap-1">
-                          <Star className="w-4 h-4 text-yellow-500 fill-current" />
-                          <span>{tour.averageRating.toFixed(1)} ({tour.totalReviews})</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Users className="w-4 h-4" />
-                          <span>{tour.totalBookings}</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Eye className="w-4 h-4" />
-                          <span>{tour.viewCount}</span>
-                        </div>
-                      </div>
+                      <Separator className="my-4" />
 
-                      <div className="pt-2 space-y-1">
-                        <p className="text-xs text-gray-500">Hướng dẫn viên: {tour.tourGuideName}</p>
-                        {tour.recentDepartureDivisionName && (
-                          <p className="text-xs text-gray-500">Điểm đi: {tour.recentDepartureDivisionName}</p>
-                        )}
-                      </div>
-
-                      <Separator />
-
-                      <div className="flex gap-2 pt-2">
+                      {/* Buttons - Always at bottom */}
+                      <div className="flex gap-2 mt-auto">
                         <Button
                           onClick={() => navigate(`/tour/${tour.id}`)}
                           className="flex-1"
