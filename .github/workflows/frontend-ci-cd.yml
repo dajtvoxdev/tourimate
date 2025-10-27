@@ -111,11 +111,11 @@ jobs:
           pwd
           echo "Files in current directory:"
           ls -la
-          echo "Changing to home directory..."
+          echo "Changing to deploy directory..."
           cd C:\Users\deploy
           echo "Changed to:"
           pwd
-          echo "Files in home directory:"
+          echo "Files in deploy directory:"
           ls -la
           echo "Checking tar.gz file..."
           if [ -f "frontend-production.tar.gz" ]; then
@@ -139,7 +139,7 @@ jobs:
           echo "Extracting files..."
           tar -xzf frontend-production.tar.gz -C "C:\inetpub\wwwroot\tourimate-frontend-production" -v
           echo "Files after extraction:"
-          powershell -Command "Get-ChildItem 'C:\inetpub\wwwroot\tourimate-frontend-production' -Recurse"
+          powershell -Command "Get-ChildItem 'C:\inetpub\wwwroot\tourimate-frontend-production' -Recurse | Select-Object -First 10"
           echo "Setting permissions..."
           powershell -Command "icacls 'C:\inetpub\wwwroot\tourimate-frontend-production' /grant 'IIS_IUSRS:(OI)(CI)F' /T"
           echo "Starting IIS site..."
