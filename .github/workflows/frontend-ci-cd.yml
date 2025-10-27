@@ -105,9 +105,50 @@ jobs:
         username: ${{ secrets.VPS_USERNAME }}
         key: ${{ secrets.VPS_SSH_KEY }}
         port: ${{ secrets.VPS_PORT }}
+        shell: pwsh
         script: |
-          echo "=== RUNNING FRONTEND DEPLOYMENT SCRIPT ==="
-          powershell.exe -ExecutionPolicy Bypass -File C:\Users\deploy\deploy-frontend.ps1
+          Write-Host "=== RUNNING FRONTEND DEPLOYMENT SCRIPT ===" -ForegroundColor Cyan
+          Set-Location C:\Users\deploy
+          Write-Host "Current directory:" (Get-Location) -ForegroundColor White
+          Write-Host "Files in directory:" -ForegroundColor White
+          Get-ChildItem | Format-Table Name, Length -AutoSize
+          
+          Write-Host "Checking tar.gz file..." -ForegroundColor Yellow
+          if (Test-Path "frontend-production.tar.gz") {
+            Write-Host "✅ Package found: frontend-production.tar.gz" -ForegroundColor Green
+            Write-Host "Size:" ((Get-Item "frontend-production.tar.gz").Length / 1MB) "MB" -ForegroundColor White
+          } else {
+            Write-Host "❌ ERROR: frontend-production.tar.gz not found!" -ForegroundColor Red
+            exit 1
+          }
+          
+          Write-Host "=== FRONTEND DEPLOYMENT START ===" -ForegroundColor Cyan
+          Write-Host "Stopping IIS site..." -ForegroundColor Yellow
+          Import-Module WebAdministration
+          Stop-Website -Name "TouriMate Frontend Production" -ErrorAction SilentlyContinue
+          
+          Write-Host "Backing up existing deployment..." -ForegroundColor Yellow
+          if (Test-Path "C:\inetpub\wwwroot\tourimate-frontend-production") {
+            Move-Item "C:\inetpub\wwwroot\tourimate-frontend-production" "C:\inetpub\wwwroot\tourimate-frontend-production-backup-$(Get-Date -Format 'yyyyMMdd-HHmmss')" -Force
+          }
+          
+          Write-Host "Creating new directory..." -ForegroundColor Yellow
+          New-Item -ItemType Directory -Path "C:\inetpub\wwwroot\tourimate-frontend-production" -Force | Out-Null
+          
+          Write-Host "Extracting files..." -ForegroundColor Yellow
+          tar -xzf "frontend-production.tar.gz" -C "C:\inetpub\wwwroot\tourimate-frontend-production" -v
+          
+          Write-Host "Verifying extraction..." -ForegroundColor Yellow
+          $files = Get-ChildItem "C:\inetpub\wwwroot\tourimate-frontend-production" -Recurse -File
+          Write-Host "Total files extracted:" $files.Count -ForegroundColor Green
+          
+          Write-Host "Setting permissions..." -ForegroundColor Yellow
+          icacls "C:\inetpub\wwwroot\tourimate-frontend-production" /grant "IIS_IUSRS:(OI)(CI)F" /T
+          
+          Write-Host "Starting IIS site..." -ForegroundColor Yellow
+          Start-Website -Name "TouriMate Frontend Production"
+          
+          Write-Host "=== FRONTEND DEPLOYMENT COMPLETE ===" -ForegroundColor Green
 
     - name: Upload deployment package
       uses: actions/upload-artifact@v4

@@ -95,9 +95,50 @@ jobs:
         key: ${{ secrets.VPS_SSH_KEY }}
         port: ${{ secrets.VPS_PORT }}
         command_timeout: 30m
+        shell: pwsh
         script: |
-          echo "=== RUNNING DEPLOYMENT SCRIPT ==="
-          powershell.exe -ExecutionPolicy Bypass -File C:\Users\deploy\deploy-backend.ps1
+          Write-Host "=== RUNNING DEPLOYMENT SCRIPT ===" -ForegroundColor Cyan
+          Set-Location C:\Users\deploy
+          Write-Host "Current directory:" (Get-Location) -ForegroundColor White
+          Write-Host "Files in directory:" -ForegroundColor White
+          Get-ChildItem | Format-Table Name, Length -AutoSize
+          
+          Write-Host "Checking tar.gz file..." -ForegroundColor Yellow
+          if (Test-Path "tourimate-production.tar.gz") {
+            Write-Host "✅ Package found: tourimate-production.tar.gz" -ForegroundColor Green
+            Write-Host "Size:" ((Get-Item "tourimate-production.tar.gz").Length / 1MB) "MB" -ForegroundColor White
+          } else {
+            Write-Host "❌ ERROR: tourimate-production.tar.gz not found!" -ForegroundColor Red
+            exit 1
+          }
+          
+          Write-Host "=== DEPLOYMENT START ===" -ForegroundColor Cyan
+          Write-Host "Stopping IIS website..." -ForegroundColor Yellow
+          Import-Module WebAdministration
+          Stop-Website -Name "TouriMate API Production" -ErrorAction SilentlyContinue
+          
+          Write-Host "Backing up existing deployment..." -ForegroundColor Yellow
+          if (Test-Path "C:\inetpub\wwwroot\tourimate-production") {
+            Move-Item "C:\inetpub\wwwroot\tourimate-production" "C:\inetpub\wwwroot\tourimate-production-backup-$(Get-Date -Format 'yyyyMMdd-HHmmss')" -Force
+          }
+          
+          Write-Host "Creating new directory..." -ForegroundColor Yellow
+          New-Item -ItemType Directory -Path "C:\inetpub\wwwroot\tourimate-production" -Force | Out-Null
+          
+          Write-Host "Extracting files..." -ForegroundColor Yellow
+          tar -xzf "tourimate-production.tar.gz" -C "C:\inetpub\wwwroot\tourimate-production" -v
+          
+          Write-Host "Verifying extraction..." -ForegroundColor Yellow
+          $files = Get-ChildItem "C:\inetpub\wwwroot\tourimate-production" -Recurse -File
+          Write-Host "Total files extracted:" $files.Count -ForegroundColor Green
+          
+          Write-Host "Setting permissions..." -ForegroundColor Yellow
+          icacls "C:\inetpub\wwwroot\tourimate-production" /grant "IIS_IUSRS:(OI)(CI)F" /T
+          
+          Write-Host "Starting IIS website..." -ForegroundColor Yellow
+          Start-Website -Name "TouriMate API Production"
+          
+          Write-Host "=== DEPLOYMENT COMPLETE ===" -ForegroundColor Green
 
     - name: Run database migrations
       uses: appleboy/ssh-action@v1.0.3
@@ -106,16 +147,16 @@ jobs:
         username: ${{ secrets.VPS_USERNAME }}
         key: ${{ secrets.VPS_SSH_KEY }}
         port: ${{ secrets.VPS_PORT }}
+        shell: pwsh
         script: |
-          echo "=== DATABASE MIGRATION START ==="
-          cd C:\inetpub\wwwroot\tourimate-production
-          echo "Current directory:"
-          pwd
-          echo "Files in directory:"
-          ls -la
-          echo "Running database migration..."
+          Write-Host "=== DATABASE MIGRATION START ===" -ForegroundColor Cyan
+          Set-Location C:\inetpub\wwwroot\tourimate-production
+          Write-Host "Current directory:" (Get-Location) -ForegroundColor White
+          Write-Host "Files in directory:" -ForegroundColor White
+          Get-ChildItem | Select-Object Name, Length
+          Write-Host "Running database migration..." -ForegroundColor Yellow
           dotnet ef database update --connection "${{ secrets.CONNECTION_STRING_PRODUCTION }}"
-          echo "=== DATABASE MIGRATION COMPLETE ==="
+          Write-Host "=== DATABASE MIGRATION COMPLETE ===" -ForegroundColor Green
 
     - name: Upload deployment package
       uses: actions/upload-artifact@v4
