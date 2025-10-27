@@ -93,42 +93,45 @@ jobs:
         key: ${{ secrets.VPS_SSH_KEY }}
         port: ${{ secrets.VPS_PORT }}
         script: |
-          echo "=== DEBUG START ==="
-          echo "Current directory:"
-          pwd
-          echo "Files in current directory:"
-          dir
-          echo "Changing to home directory..."
-          cd C:\Users\deploy
-          echo "Changed to:"
-          pwd
-          echo "Files in home directory:"
-          dir
-          echo "Checking tar.gz file..."
-          if exist tourimate-production.tar.gz (
-            echo "tar.gz file exists"
-            dir tourimate-production.tar.gz
-          ) else (
-            echo "ERROR: tar.gz file does not exist!"
-            exit /b 1
-          )
-          echo "=== DEPLOYMENT START ==="
-          echo "Stopping IIS website..."
+          powershell -Command "
+          Write-Host '=== DEBUG START ==='
+          Write-Host 'Current directory:' (Get-Location)
+          Write-Host 'Files in current directory:'
+          Get-ChildItem
+          Write-Host 'Changing to home directory...'
+          Set-Location C:\Users\deploy
+          Write-Host 'Changed to:' (Get-Location)
+          Write-Host 'Files in home directory:'
+          Get-ChildItem
+          Write-Host 'Checking tar.gz file...'
+          if (Test-Path 'tourimate-production.tar.gz') {
+            Write-Host 'tar.gz file exists, size:' (Get-Item 'tourimate-production.tar.gz').Length
+            Write-Host 'Contents of tar.gz:'
+            tar -tzf tourimate-production.tar.gz
+          } else {
+            Write-Host 'ERROR: tar.gz file does not exist!'
+            exit 1
+          }
+          Write-Host '=== DEPLOYMENT START ==='
+          Write-Host 'Stopping IIS website...'
           Import-Module WebAdministration
-          Stop-Website -Name "TouriMate API Production" -ErrorAction SilentlyContinue
-          if exist "C:\inetpub\wwwroot\tourimate-production" (
-            echo "Backing up existing deployment..."
-            move "C:\inetpub\wwwroot\tourimate-production" "C:\inetpub\wwwroot\tourimate-production-backup-%date:~-4,4%%date:~-10,2%%date:~-7,2%-%time:~0,2%%time:~3,2%%time:~6,2%" 2>nul
-          )
-          echo "Creating new directory..."
-          mkdir "C:\inetpub\wwwroot\tourimate-production" 2>nul
-          echo "Extracting files..."
-          tar -xzf tourimate-production.tar.gz -C "C:\inetpub\wwwroot\tourimate-production" -v
-          echo "Setting permissions..."
-          icacls "C:\inetpub\wwwroot\tourimate-production" /grant "IIS_IUSRS:(OI)(CI)F" /T
-          echo "Starting IIS website..."
-          Start-Website -Name "TouriMate API Production"
-          echo "=== DEPLOYMENT COMPLETE ==="
+          Stop-Website -Name 'TouriMate API Production' -ErrorAction SilentlyContinue
+          if (Test-Path 'C:\inetpub\wwwroot\tourimate-production') {
+            Write-Host 'Backing up existing deployment...'
+            Move-Item 'C:\inetpub\wwwroot\tourimate-production' 'C:\inetpub\wwwroot\tourimate-production-backup-$(Get-Date -Format ''yyyyMMdd-HHmmss'')' -Force
+          }
+          Write-Host 'Creating new directory...'
+          New-Item -ItemType Directory -Path 'C:\inetpub\wwwroot\tourimate-production' -Force
+          Write-Host 'Extracting files...'
+          tar -xzf tourimate-production.tar.gz -C 'C:\inetpub\wwwroot\tourimate-production' -v
+          Write-Host 'Files after extraction:'
+          Get-ChildItem 'C:\inetpub\wwwroot\tourimate-production' -Recurse
+          Write-Host 'Setting permissions...'
+          icacls 'C:\inetpub\wwwroot\tourimate-production' /grant 'IIS_IUSRS:(OI)(CI)F' /T
+          Write-Host 'Starting IIS website...'
+          Start-Website -Name 'TouriMate API Production'
+          Write-Host '=== DEPLOYMENT COMPLETE ==='
+          "
 
     - name: Run database migrations
       uses: appleboy/ssh-action@v1.0.3
@@ -139,9 +142,14 @@ jobs:
         port: ${{ secrets.VPS_PORT }}
         script: |
           powershell -Command "
-          # Run database migrations
-          cd 'C:\inetpub\wwwroot\tourimate-production'
+          Write-Host '=== DATABASE MIGRATION START ==='
+          Set-Location C:\inetpub\wwwroot\tourimate-production
+          Write-Host 'Current directory:' (Get-Location)
+          Write-Host 'Files in directory:'
+          Get-ChildItem
+          Write-Host 'Running database migration...'
           dotnet ef database update --connection '${{ secrets.CONNECTION_STRING_PRODUCTION }}'
+          Write-Host '=== DATABASE MIGRATION COMPLETE ==='
           "
 
     - name: Upload deployment package

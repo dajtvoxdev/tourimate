@@ -385,11 +385,11 @@ export function ReviewCard({ review, onVoteHelpful, onReply }: ReviewCardProps) 
                   <div className="flex items-center gap-2">
                     <Avatar className="w-6 h-6">
                       <AvatarFallback className="bg-gray-100 text-gray-600 text-xs">
-                        {getUserInitials(reply.user.firstName, reply.user.lastName)}
+                        {getUserInitials(reply.replyUser.firstName, reply.replyUser.lastName)}
                       </AvatarFallback>
                     </Avatar>
                     <span className="font-medium text-sm">
-                      {reply.user.firstName} {reply.user.lastName}
+                      {reply.replyUser.firstName} {reply.replyUser.lastName}
                     </span>
                     <span className="text-xs text-gray-500">
                       {formatDate(reply.createdAt)}

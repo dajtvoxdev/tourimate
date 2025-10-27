@@ -105,29 +105,54 @@ jobs:
         port: ${{ secrets.VPS_PORT }}
         script: |
           powershell -Command "
-          # Change to home directory
-          cd C:\Users\deploy
-          
+          Write-Host '=== FRONTEND DEBUG START ==='
+          Write-Host 'Current directory:' (Get-Location)
+          Write-Host 'Files in current directory:'
+          Get-ChildItem
+          Write-Host 'Changing to home directory...'
+          Set-Location C:\Users\deploy
+          Write-Host 'Changed to:' (Get-Location)
+          Write-Host 'Files in home directory:'
+          Get-ChildItem
+          Write-Host 'Checking tar.gz file...'
+          if (Test-Path 'frontend-production.tar.gz') {
+            Write-Host 'tar.gz file exists, size:' (Get-Item 'frontend-production.tar.gz').Length
+            Write-Host 'Contents of tar.gz:'
+            tar -tzf frontend-production.tar.gz
+          } else {
+            Write-Host 'ERROR: tar.gz file does not exist!'
+            exit 1
+          }
+          Write-Host '=== FRONTEND DEPLOYMENT START ==='
           # Stop IIS site
           Import-Module WebAdministration
           Stop-Website -Name 'TouriMate Frontend Production' -ErrorAction SilentlyContinue
           
           # Backup current deployment
           if (Test-Path 'C:\inetpub\wwwroot\tourimate-frontend-production') {
+            Write-Host 'Backing up existing deployment...'
             Move-Item 'C:\inetpub\wwwroot\tourimate-frontend-production' 'C:\inetpub\wwwroot\tourimate-frontend-production-backup-$(Get-Date -Format ''yyyyMMdd-HHmmss'')' -Force
           }
           
           # Create new directory
+          Write-Host 'Creating new directory...'
           New-Item -ItemType Directory -Path 'C:\inetpub\wwwroot\tourimate-frontend-production' -Force
           
           # Extract new files
-          tar -xzf frontend-production.tar.gz -C 'C:\inetpub\wwwroot\tourimate-frontend-production'
+          Write-Host 'Extracting files...'
+          tar -xzf frontend-production.tar.gz -C 'C:\inetpub\wwwroot\tourimate-frontend-production' -v
+          
+          Write-Host 'Files after extraction:'
+          Get-ChildItem 'C:\inetpub\wwwroot\tourimate-frontend-production' -Recurse
           
           # Set permissions
+          Write-Host 'Setting permissions...'
           icacls 'C:\inetpub\wwwroot\tourimate-frontend-production' /grant 'IIS_IUSRS:(OI)(CI)F' /T
           
           # Start IIS site
+          Write-Host 'Starting IIS site...'
           Start-Website -Name 'TouriMate Frontend Production'
+          Write-Host '=== FRONTEND DEPLOYMENT COMPLETE ==='
           "
 
     - name: Upload deployment package

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { format } from "date-fns";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -300,7 +301,7 @@ const TourAvailabilityManagement: React.FC<TourAvailabilityManagementProps> = ({
                           <div className="flex items-center gap-4 mb-2">
                             <div className="flex items-center gap-1">
                               <CalendarIcon className="h-4 w-4 text-blue-500" />
-                              <span className="font-medium">{formatDate(availability.date)}</span>
+                              <span className="font-medium">{format(new Date(availability.date), 'dd/MM/yyyy')}</span>
                             </div>
                             {getAvailabilityBadge(availability)}
                           </div>

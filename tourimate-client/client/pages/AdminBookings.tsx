@@ -354,7 +354,7 @@ export default function AdminBookings() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              {booking.status !== "Completed" && (
+                              {booking.status !== 3 && (
                                 <DropdownMenuItem
                                   onClick={() => handleStatusChange(booking.id, "Completed")}
                                   disabled={actionLoading === booking.id}
@@ -363,7 +363,7 @@ export default function AdminBookings() {
                                   Hoàn thành
                                 </DropdownMenuItem>
                               )}
-                              {booking.status !== "Confirmed" && booking.status !== "Completed" && (
+                              {booking.status !== 2 && booking.status !== 3 && (
                                 <DropdownMenuItem
                                   onClick={() => handleStatusChange(booking.id, "Confirmed")}
                                   disabled={actionLoading === booking.id}
@@ -372,7 +372,7 @@ export default function AdminBookings() {
                                   Xác nhận
                                 </DropdownMenuItem>
                               )}
-                              {booking.status !== "Cancelled" && (
+                              {booking.status !== 4 && (
                                 <DropdownMenuItem
                                   onClick={() => handleStatusChange(booking.id, "Cancelled")}
                                   disabled={actionLoading === booking.id}
