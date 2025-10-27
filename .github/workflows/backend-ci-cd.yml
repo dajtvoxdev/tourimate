@@ -75,6 +75,16 @@ jobs:
         cd publish
         tar -czf ../tourimate-production.tar.gz .
 
+    - name: Upload deployment package to VPS
+      uses: appleboy/scp-action@v0.1.4
+      with:
+        host: ${{ secrets.VPS_HOST }}
+        username: ${{ secrets.VPS_USERNAME }}
+        key: ${{ secrets.VPS_SSH_KEY }}
+        port: ${{ secrets.VPS_PORT }}
+        source: "tourimate-production.tar.gz"
+        target: "C:/Users/deploy/"
+
     - name: Deploy to Windows VPS (Production)
       uses: appleboy/ssh-action@v1.0.3
       with:
