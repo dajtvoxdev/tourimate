@@ -93,59 +93,40 @@ jobs:
         key: ${{ secrets.VPS_SSH_KEY }}
         port: ${{ secrets.VPS_PORT }}
         script: |
-          powershell -Command "
-          # Debug: Show current directory
-          Write-Host 'Current directory:' (Get-Location)
-          
-          # Debug: List files in current directory
-          Write-Host 'Files in current directory:'
-          Get-ChildItem
-          
-          # Change to home directory
+          echo "=== DEBUG START ==="
+          echo "Current directory:"
+          pwd
+          echo "Files in current directory:"
+          dir
+          echo "Changing to home directory..."
           cd C:\Users\deploy
-          Write-Host 'Changed to:' (Get-Location)
-          
-          # Debug: List files in home directory
-          Write-Host 'Files in home directory:'
-          Get-ChildItem
-          
-          # Debug: Check if tar.gz exists
-          if (Test-Path 'tourimate-production.tar.gz') {
-            Write-Host 'tar.gz file exists, size:' (Get-Item 'tourimate-production.tar.gz').Length
-          } else {
-            Write-Host 'ERROR: tar.gz file does not exist!'
-            exit 1
-          }
-          
-          # Stop the application
-          net stop 'TouriMate API Production' 2>$null
-          
-          # Backup current deployment
-          if (Test-Path 'C:\inetpub\wwwroot\tourimate-production') {
-            Move-Item 'C:\inetpub\wwwroot\tourimate-production' 'C:\inetpub\wwwroot\tourimate-production-backup-$(Get-Date -Format ''yyyyMMdd-HHmmss'')' -Force
-          }
-          
-          # Create new directory
-          New-Item -ItemType Directory -Path 'C:\inetpub\wwwroot\tourimate-production' -Force
-          
-          # Debug: List contents of tar.gz
-          Write-Host 'Contents of tar.gz:'
-          tar -tzf tourimate-production.tar.gz
-          
-          # Extract new files
-          Write-Host 'Extracting files...'
-          tar -xzf tourimate-production.tar.gz -C 'C:\inetpub\wwwroot\tourimate-production' -v
-          
-          # Debug: Check extracted files
-          Write-Host 'Files after extraction:'
-          Get-ChildItem 'C:\inetpub\wwwroot\tourimate-production' -Recurse
-          
-          # Set permissions
-          icacls 'C:\inetpub\wwwroot\tourimate-production' /grant 'IIS_IUSRS:(OI)(CI)F' /T
-          
-          # Start the application
-          net start 'TouriMate API Production'
-          "
+          echo "Changed to:"
+          pwd
+          echo "Files in home directory:"
+          dir
+          echo "Checking tar.gz file..."
+          if exist tourimate-production.tar.gz (
+            echo "tar.gz file exists"
+            dir tourimate-production.tar.gz
+          ) else (
+            echo "ERROR: tar.gz file does not exist!"
+            exit /b 1
+          )
+          echo "=== DEPLOYMENT START ==="
+          net stop "TouriMate API Production" 2>nul
+          if exist "C:\inetpub\wwwroot\tourimate-production" (
+            echo "Backing up existing deployment..."
+            move "C:\inetpub\wwwroot\tourimate-production" "C:\inetpub\wwwroot\tourimate-production-backup-%date:~-4,4%%date:~-10,2%%date:~-7,2%-%time:~0,2%%time:~3,2%%time:~6,2%" 2>nul
+          )
+          echo "Creating new directory..."
+          mkdir "C:\inetpub\wwwroot\tourimate-production" 2>nul
+          echo "Extracting files..."
+          tar -xzf tourimate-production.tar.gz -C "C:\inetpub\wwwroot\tourimate-production" -v
+          echo "Setting permissions..."
+          icacls "C:\inetpub\wwwroot\tourimate-production" /grant "IIS_IUSRS:(OI)(CI)F" /T
+          echo "Starting application..."
+          net start "TouriMate API Production"
+          echo "=== DEPLOYMENT COMPLETE ==="
 
     - name: Run database migrations
       uses: appleboy/ssh-action@v1.0.3
