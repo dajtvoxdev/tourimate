@@ -87,7 +87,7 @@ jobs:
         tar -czf ../../frontend-production.tar.gz .
 
     - name: Upload deployment package and script to VPS
-      uses: appleboy/scp-action@v0.1.4
+      uses: appleboy/scp-action@master
       with:
         host: ${{ secrets.VPS_HOST }}
         username: ${{ secrets.VPS_USERNAME }}
@@ -99,56 +99,47 @@ jobs:
         timeout: 60s
 
     - name: Deploy to Windows VPS (Production)
-      uses: appleboy/ssh-action@v1.0.3
+      uses: appleboy/ssh-action@master
       with:
         host: ${{ secrets.VPS_HOST }}
         username: ${{ secrets.VPS_USERNAME }}
         key: ${{ secrets.VPS_SSH_KEY }}
         port: ${{ secrets.VPS_PORT }}
-        shell: pwsh
         script: |
-          Write-Host "=== RUNNING FRONTEND DEPLOYMENT SCRIPT ===" -ForegroundColor Cyan
-          Set-Location C:\Users\deploy
-          Write-Host "Current directory:" (Get-Location) -ForegroundColor White
-          Write-Host "Files in directory:" -ForegroundColor White
-          Get-ChildItem | Format-Table Name, Length -AutoSize
-          
-          Write-Host "Checking tar.gz file..." -ForegroundColor Yellow
-          if (Test-Path "frontend-production.tar.gz") {
-            Write-Host "✅ Package found: frontend-production.tar.gz" -ForegroundColor Green
-            Write-Host "Size:" ((Get-Item "frontend-production.tar.gz").Length / 1MB) "MB" -ForegroundColor White
-          } else {
-            Write-Host "❌ ERROR: frontend-production.tar.gz not found!" -ForegroundColor Red
+          echo "=== RUNNING FRONTEND DEPLOYMENT SCRIPT ==="
+          cd C:\Users\deploy
+          echo "Current directory:"
+          pwd
+          echo "Files in directory:"
+          ls -la
+          echo "Checking tar.gz file..."
+          if [ -f "frontend-production.tar.gz" ]; then
+            echo "✅ Package found: frontend-production.tar.gz"
+            ls -lh frontend-production.tar.gz
+            echo "Contents of tar.gz:"
+            tar -tzf frontend-production.tar.gz | head -10
+          else
+            echo "❌ ERROR: frontend-production.tar.gz not found!"
             exit 1
-          }
-          
-          Write-Host "=== FRONTEND DEPLOYMENT START ===" -ForegroundColor Cyan
-          Write-Host "Stopping IIS site..." -ForegroundColor Yellow
-          Import-Module WebAdministration
-          Stop-Website -Name "TouriMate Frontend Production" -ErrorAction SilentlyContinue
-          
-          Write-Host "Backing up existing deployment..." -ForegroundColor Yellow
-          if (Test-Path "C:\inetpub\wwwroot\tourimate-frontend-production") {
-            Move-Item "C:\inetpub\wwwroot\tourimate-frontend-production" "C:\inetpub\wwwroot\tourimate-frontend-production-backup-$(Get-Date -Format 'yyyyMMdd-HHmmss')" -Force
-          }
-          
-          Write-Host "Creating new directory..." -ForegroundColor Yellow
-          New-Item -ItemType Directory -Path "C:\inetpub\wwwroot\tourimate-frontend-production" -Force | Out-Null
-          
-          Write-Host "Extracting files..." -ForegroundColor Yellow
-          tar -xzf "frontend-production.tar.gz" -C "C:\inetpub\wwwroot\tourimate-frontend-production" -v
-          
-          Write-Host "Verifying extraction..." -ForegroundColor Yellow
-          $files = Get-ChildItem "C:\inetpub\wwwroot\tourimate-frontend-production" -Recurse -File
-          Write-Host "Total files extracted:" $files.Count -ForegroundColor Green
-          
-          Write-Host "Setting permissions..." -ForegroundColor Yellow
-          icacls "C:\inetpub\wwwroot\tourimate-frontend-production" /grant "IIS_IUSRS:(OI)(CI)F" /T
-          
-          Write-Host "Starting IIS site..." -ForegroundColor Yellow
-          Start-Website -Name "TouriMate Frontend Production"
-          
-          Write-Host "=== FRONTEND DEPLOYMENT COMPLETE ===" -ForegroundColor Green
+          fi
+          echo "=== FRONTEND DEPLOYMENT START ==="
+          echo "Stopping IIS site..."
+          powershell -Command "Import-Module WebAdministration; Stop-Website -Name 'TouriMate Frontend Production' -ErrorAction SilentlyContinue"
+          echo "Backing up existing deployment..."
+          if [ -d "C:\inetpub\wwwroot\tourimate-frontend-production" ]; then
+            powershell -Command "Move-Item 'C:\inetpub\wwwroot\tourimate-frontend-production' 'C:\inetpub\wwwroot\tourimate-frontend-production-backup-$(Get-Date -Format ''yyyyMMdd-HHmmss'')' -Force"
+          fi
+          echo "Creating new directory..."
+          powershell -Command "New-Item -ItemType Directory -Path 'C:\inetpub\wwwroot\tourimate-frontend-production' -Force"
+          echo "Extracting files..."
+          tar -xzf frontend-production.tar.gz -C "C:\inetpub\wwwroot\tourimate-frontend-production" -v
+          echo "Files after extraction:"
+          powershell -Command "Get-ChildItem 'C:\inetpub\wwwroot\tourimate-frontend-production' -Recurse | Select-Object -First 10"
+          echo "Setting permissions..."
+          powershell -Command "icacls 'C:\inetpub\wwwroot\tourimate-frontend-production' /grant 'IIS_IUSRS:(OI)(CI)F' /T"
+          echo "Starting IIS site..."
+          powershell -Command "Start-Website -Name 'TouriMate Frontend Production'"
+          echo "=== FRONTEND DEPLOYMENT COMPLETE ==="
 
     - name: Upload deployment package
       uses: actions/upload-artifact@v4
