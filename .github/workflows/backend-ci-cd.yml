@@ -96,7 +96,6 @@ jobs:
         port: ${{ secrets.VPS_PORT }}
         command_timeout: 30m
         script: |
-          # Sử dụng PowerShell cho tất cả commands
           powershell -Command "
             Write-Host '=== DEBUG START ==='
             Write-Host 'Current directory:'
@@ -137,7 +136,6 @@ jobs:
             New-Item -ItemType Directory -Path 'C:\inetpub\wwwroot\tourimate-production' -Force | Out-Null
             
             Write-Host 'Extracting files...'
-            # Sử dụng tar.exe có sẵn trong Windows Server 2019
             tar.exe -xzf 'C:\Users\deploy\tourimate-production.tar.gz' -C 'C:\inetpub\wwwroot\tourimate-production'
             
             Write-Host 'Verifying extraction...'
