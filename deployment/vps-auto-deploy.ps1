@@ -1,13 +1,7 @@
-# TouriMate VPS Auto-Deploy Script
+# TouriMate VPS Auto-Deploy Script - Production Only
 # This script automatically pulls code from Git and builds on VPS
-# Version: 2.0
-# Date: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
 
 param(
-    [Parameter(Mandatory=$false)]
-    [ValidateSet("staging", "production")]
-    [string]$Environment = "production",
-    
     [Parameter(Mandatory=$false)]
     [ValidateSet("backend", "frontend", "both")]
     [string]$Component = "both",
@@ -22,22 +16,16 @@ param(
 # Configuration
 $Config = @{
     GitRepository = "C:\Users\Administrator\Desktop\code"
-    BackupPath = "C:\backups\tourimate"
     LogPath = "C:\logs\tourimate"
     DeployPath = @{
-        BackendStaging = "C:\inetpub\wwwroot\tourimate-staging"
         BackendProduction = "C:\inetpub\wwwroot\tourimate-production"
-        FrontendStaging = "C:\inetpub\wwwroot\tourimate-frontend-staging"
         FrontendProduction = "C:\inetpub\wwwroot\tourimate-frontend-production"
     }
     AppPools = @{
-        BackendStaging = "TouriMateAPIStaging"
         BackendProduction = "TouriMateAPIProduction"
     }
     Sites = @{
-        BackendStaging = "TouriMate API Staging"
         BackendProduction = "TouriMate API Production"
-        FrontendStaging = "TouriMate Frontend Staging"
         FrontendProduction = "TouriMate Frontend Production"
     }
 }
@@ -157,74 +145,45 @@ function Update-GitRepository {
     }
 }
 
-# Backup current deployment
-function Backup-CurrentDeployment {
-    param(
-        [string]$Environment,
-        [string]$Component,
-        [string]$LogFile
-    )
-    
-    Write-Log -Message "Creating backup of current deployment..." -LogFile $LogFile
-    
-    try {
-        if (!(Test-Path $Config.BackupPath)) {
-            New-Item -ItemType Directory -Path $Config.BackupPath -Force | Out-Null
-        }
-        
-        $deployPath = $Config.DeployPath."$($Component)$Environment"
-        
-        if (Test-Path $deployPath) {
-            $backupName = "$Component-$Environment-backup-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
-            $backupFullPath = Join-Path $Config.BackupPath $backupName
-            
-            Write-Log -Message "Backing up $deployPath to $backupFullPath" -LogFile $LogFile
-            Copy-Item -Path $deployPath -Destination $backupFullPath -Recurse -Force
-            
-            # Count files in backup
-            $backupFiles = Get-ChildItem $backupFullPath -Recurse -File
-            Write-Log -Message "Backup created with $($backupFiles.Count) files" -LogFile $LogFile
-            
-            return $backupFullPath
-        } else {
-            Write-Log -Message "No existing deployment found at $deployPath" -LogFile $LogFile
-            return $null
-        }
-    } catch {
-        Handle-Error -ErrorMessage "Backup failed: $($_.Exception.Message)" -LogFile $LogFile
-    }
-}
-
 # Build backend
 function Build-Backend {
-    param(
-        [string]$Environment,
-        [string]$LogFile
-    )
+    param([string]$LogFile)
     
-    Write-Log -Message "Building backend for $Environment environment..." -LogFile $LogFile
+    Write-Log -Message "Building backend..." -LogFile $LogFile
     
     try {
         Set-Location $Config.GitRepository
         
         # Restore dependencies
         Write-Log -Message "Restoring NuGet packages..." -LogFile $LogFile
-        dotnet restore tourimate.sln
+        $restoreOutput = dotnet restore tourimate.sln 2>&1
+        Write-Log -Message "Restore output: $restoreOutput" -LogFile $LogFile
         
         # Build solution
         Write-Log -Message "Building solution..." -LogFile $LogFile
-        dotnet build tourimate.sln --configuration Release --no-restore
+        $buildOutput = dotnet build tourimate.sln --configuration Release --no-restore 2>&1
+        Write-Log -Message "Build output: $buildOutput" -LogFile $LogFile
         
         # Publish application
         Write-Log -Message "Publishing application..." -LogFile $LogFile
         $publishPath = Join-Path $Config.GitRepository "publish"
-        dotnet publish tourimate/tourimate.csproj --configuration Release --output $publishPath --no-build
+        
+        # Clear any existing publish directory
+        if (Test-Path $publishPath) {
+            Remove-Item -Path $publishPath -Recurse -Force
+        }
+        
+        $publishOutput = dotnet publish tourimate/tourimate.csproj --configuration Release --output $publishPath --no-build 2>&1
+        Write-Log -Message "Publish output: $publishOutput" -LogFile $LogFile
         
         # Verify publish
-        $publishedFiles = Get-ChildItem $publishPath -Recurse -File
-        Write-Log -Message "Published $($publishedFiles.Count) files" -LogFile $LogFile
-        
-        return $publishPath
+        if (Test-Path $publishPath) {
+            $publishedFiles = Get-ChildItem $publishPath -Recurse -File
+            Write-Log -Message "Published $($publishedFiles.Count) files" -LogFile $LogFile
+            return $publishPath
+        } else {
+            Handle-Error -ErrorMessage "Publish directory not created at $publishPath" -LogFile $LogFile
+        }
     } catch {
         Handle-Error -ErrorMessage "Backend build failed: $($_.Exception.Message)" -LogFile $LogFile
     }
@@ -232,27 +191,22 @@ function Build-Backend {
 
 # Build frontend
 function Build-Frontend {
-    param(
-        [string]$Environment,
-        [string]$LogFile
-    )
+    param([string]$LogFile)
     
-    Write-Log -Message "Building frontend for $Environment environment..." -LogFile $LogFile
+    Write-Log -Message "Building frontend..." -LogFile $LogFile
     
     try {
         Set-Location (Join-Path $Config.GitRepository "tourimate-client")
         
         # Install dependencies
         Write-Log -Message "Installing npm dependencies..." -LogFile $LogFile
-        npm ci
+        $npmInstallOutput = npm ci 2>&1
+        Write-Log -Message "NPM install output: $npmInstallOutput" -LogFile $LogFile
         
         # Build application
         Write-Log -Message "Building frontend application..." -LogFile $LogFile
-        if ($Environment -eq "production") {
-            npm run build
-        } else {
-            npm run build:staging
-        }
+        $npmBuildOutput = npm run build 2>&1
+        Write-Log -Message "NPM build output: $npmBuildOutput" -LogFile $LogFile
         
         # Verify build
         $buildPath = Join-Path (Join-Path $Config.GitRepository "tourimate-client") "dist"
@@ -271,21 +225,20 @@ function Build-Frontend {
 # Deploy application
 function Deploy-Application {
     param(
-        [string]$Environment,
         [string]$Component,
         [string]$SourcePath,
         [string]$LogFile
     )
     
-    Write-Log -Message "Deploying $Component to $Environment..." -LogFile $LogFile
+    Write-Log -Message "Deploying $Component..." -LogFile $LogFile
     
     try {
-        $deployPath = $Config.DeployPath."$($Component)$Environment"
+        $deployPath = $Config.DeployPath."$($Component)Production"
         
         # Stop application
-        if ($Component -eq "backend") {
-            $appPool = $Config.AppPools."$($Component)$Environment"
-            $siteName = $Config.Sites."$($Component)$Environment"
+        if ($Component -eq "Backend") {
+            $appPool = $Config.AppPools."$($Component)Production"
+            $siteName = $Config.Sites."$($Component)Production"
             
             Write-Log -Message "Stopping application pool: $appPool" -LogFile $LogFile
             Import-Module WebAdministration
@@ -304,14 +257,26 @@ function Deploy-Application {
         
         # Copy files
         Write-Log -Message "Copying files from $SourcePath to $deployPath" -LogFile $LogFile
-        Copy-Item -Path "$SourcePath\*" -Destination $deployPath -Recurse -Force
+        
+        # Verify source path exists
+        if (!(Test-Path $SourcePath)) {
+            Handle-Error -ErrorMessage "Source path does not exist: $SourcePath" -LogFile $LogFile
+        }
+        
+        # Copy files with error handling
+        try {
+            Copy-Item -Path "$SourcePath\*" -Destination $deployPath -Recurse -Force -ErrorAction Stop
+            Write-Log -Message "Files copied successfully" -LogFile $LogFile
+        } catch {
+            Handle-Error -ErrorMessage "Failed to copy files: $($_.Exception.Message)" -LogFile $LogFile
+        }
         
         # Set permissions
         Write-Log -Message "Setting file permissions..." -LogFile $LogFile
         icacls $deployPath /grant "IIS_IUSRS:(OI)(CI)F" /T
         
         # Start application
-        if ($Component -eq "backend") {
+        if ($Component -eq "Backend") {
             Write-Log -Message "Starting application pool: $appPool" -LogFile $LogFile
             Start-WebAppPool -Name $appPool
             Start-Website -Name $siteName
@@ -329,15 +294,12 @@ function Deploy-Application {
 
 # Run database migrations
 function Invoke-DatabaseMigration {
-    param(
-        [string]$Environment,
-        [string]$LogFile
-    )
+    param([string]$LogFile)
     
-    Write-Log -Message "Running database migrations for $Environment..." -LogFile $LogFile
+    Write-Log -Message "Running database migrations..." -LogFile $LogFile
     
     try {
-        $deployPath = $Config.DeployPath."Backend$Environment"
+        $deployPath = $Config.DeployPath.BackendProduction
         Set-Location $deployPath
         
         # Get connection string from appsettings
@@ -361,32 +323,9 @@ function Invoke-DatabaseMigration {
     }
 }
 
-# Cleanup old backups
-function Remove-OldBackups {
-    param([string]$LogFile)
-    
-    Write-Log -Message "Cleaning up old backups..." -LogFile $LogFile
-    
-    try {
-        if (Test-Path $Config.BackupPath) {
-            $oldBackups = Get-ChildItem $Config.BackupPath -Directory | Where-Object { $_.CreationTime -lt (Get-Date).AddDays(-7) }
-            
-            foreach ($backup in $oldBackups) {
-                Write-Log -Message "Removing old backup: $($backup.Name)" -LogFile $LogFile
-                Remove-Item -Path $backup.FullName -Recurse -Force
-            }
-            
-            Write-Log -Message "Cleanup completed" -LogFile $LogFile
-        }
-    } catch {
-        Write-Log -Message "Cleanup failed: $($_.Exception.Message)" -Level "WARNING" -LogFile $LogFile
-    }
-}
-
 # Main deployment function
 function Start-Deployment {
     param(
-        [string]$Environment,
         [string]$Component,
         [string]$Branch,
         [bool]$Force
@@ -396,7 +335,6 @@ function Start-Deployment {
     
     Write-Log -Message "===========================================" -LogFile $LogFile
     Write-Log -Message "TouriMate VPS Auto-Deploy Started" -LogFile $LogFile
-    Write-Log -Message "Environment: $Environment" -LogFile $LogFile
     Write-Log -Message "Component: $Component" -LogFile $LogFile
     Write-Log -Message "Branch: $Branch" -LogFile $LogFile
     Write-Log -Message "Force: $Force" -LogFile $LogFile
@@ -413,38 +351,29 @@ function Start-Deployment {
         if ($Component -eq "backend" -or $Component -eq "both") {
             Write-Log -Message "Starting backend deployment..." -LogFile $LogFile
             
-            # Backup current deployment
-            Backup-CurrentDeployment -Environment $Environment -Component "Backend" -LogFile $LogFile
-            
             # Build backend
-            $backendPublishPath = Build-Backend -Environment $Environment -LogFile $LogFile
+            $backendPublishPath = Build-Backend -LogFile $LogFile
             
             # Deploy backend
-            Deploy-Application -Environment $Environment -Component "Backend" -SourcePath $backendPublishPath -LogFile $LogFile
+            Deploy-Application -Component "Backend" -SourcePath $backendPublishPath -LogFile $LogFile
             
             # Run database migrations
-            Invoke-DatabaseMigration -Environment $Environment -LogFile $LogFile
+            Invoke-DatabaseMigration -LogFile $LogFile
         }
         
         # Deploy frontend
         if ($Component -eq "frontend" -or $Component -eq "both") {
             Write-Log -Message "Starting frontend deployment..." -LogFile $LogFile
             
-            # Backup current deployment
-            Backup-CurrentDeployment -Environment $Environment -Component "Frontend" -LogFile $LogFile
-            
             # Build frontend
-            $frontendBuildPath = Build-Frontend -Environment $Environment -LogFile $LogFile
+            $frontendBuildPath = Build-Frontend -LogFile $LogFile
             
             # Deploy frontend
-            Deploy-Application -Environment $Environment -Component "Frontend" -SourcePath $frontendBuildPath -LogFile $LogFile
+            Deploy-Application -Component "Frontend" -SourcePath $frontendBuildPath -LogFile $LogFile
         }
         
-        # Cleanup
-        Remove-OldBackups -LogFile $LogFile
-        
         Write-Log -Message "===========================================" -LogFile $LogFile
-        Write-Log -Message "🎉 DEPLOYMENT COMPLETED SUCCESSFULLY!" -LogFile $LogFile
+        Write-Log -Message "DEPLOYMENT COMPLETED SUCCESSFULLY!" -LogFile $LogFile
         Write-Log -Message "===========================================" -LogFile $LogFile
         
         Write-Host "Deployment completed successfully!" -ForegroundColor Green
@@ -456,4 +385,4 @@ function Start-Deployment {
 }
 
 # Execute deployment
-Start-Deployment -Environment $Environment -Component $Component -Branch $Branch -Force $Force
+Start-Deployment -Component $Component -Branch $Branch -Force $Force
