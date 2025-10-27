@@ -87,16 +87,15 @@ jobs:
         debug: true
         timeout: 60s
 
-    - name: Deploy to Windows VPS (Production)
+    - name: Check deployment files
       uses: appleboy/ssh-action@master
       with:
         host: ${{ secrets.VPS_HOST }}
         username: ${{ secrets.VPS_USERNAME }}
         key: ${{ secrets.VPS_SSH_KEY }}
         port: ${{ secrets.VPS_PORT }}
-        command_timeout: 30m
         script: |
-          echo "=== RUNNING DEPLOYMENT SCRIPT ==="
+          echo "=== CHECKING DEPLOYMENT FILES ==="
           cd C:\Users\deploy
           echo "Current directory:"
           pwd
@@ -106,13 +105,21 @@ jobs:
           if [ -f "tourimate-production.tar.gz" ]; then
             echo "✅ Package found: tourimate-production.tar.gz"
             ls -lh tourimate-production.tar.gz
-            echo "Contents of tar.gz:"
-            tar -tzf tourimate-production.tar.gz | head -10
           else
             echo "❌ ERROR: tourimate-production.tar.gz not found!"
             exit 1
           fi
-          echo "=== DEPLOYMENT START ==="
+
+    - name: Stop IIS and backup
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ secrets.VPS_HOST }}
+        username: ${{ secrets.VPS_USERNAME }}
+        key: ${{ secrets.VPS_SSH_KEY }}
+        port: ${{ secrets.VPS_PORT }}
+        script: |
+          echo "=== STOPPING IIS AND BACKUP ==="
+          cd C:\Users\deploy
           echo "Stopping IIS website..."
           powershell -Command "Import-Module WebAdministration; Stop-Website -Name 'TouriMate API Production' -ErrorAction SilentlyContinue"
           echo "Backing up existing deployment..."
@@ -121,10 +128,19 @@ jobs:
           fi
           echo "Creating new directory..."
           powershell -Command "New-Item -ItemType Directory -Path 'C:\inetpub\wwwroot\tourimate-production' -Force"
+
+    - name: Extract files and deploy
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ secrets.VPS_HOST }}
+        username: ${{ secrets.VPS_USERNAME }}
+        key: ${{ secrets.VPS_SSH_KEY }}
+        port: ${{ secrets.VPS_PORT }}
+        script: |
+          echo "=== EXTRACTING FILES AND DEPLOYING ==="
+          cd C:\Users\deploy
           echo "Extracting files..."
           tar -xzf tourimate-production.tar.gz -C "C:\inetpub\wwwroot\tourimate-production" -v
-          echo "Files after extraction:"
-          powershell -Command "Get-ChildItem 'C:\inetpub\wwwroot\tourimate-production' -Recurse | Select-Object -First 10"
           echo "Setting permissions..."
           powershell -Command "icacls 'C:\inetpub\wwwroot\tourimate-production' /grant 'IIS_IUSRS:(OI)(CI)F' /T"
           echo "Starting IIS website..."
