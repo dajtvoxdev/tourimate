@@ -86,14 +86,14 @@ jobs:
         cd tourimate-client/dist
         tar -czf ../../frontend-production.tar.gz .
 
-    - name: Upload deployment package to VPS
+    - name: Upload deployment package and script to VPS
       uses: appleboy/scp-action@v0.1.4
       with:
         host: ${{ secrets.VPS_HOST }}
         username: ${{ secrets.VPS_USERNAME }}
         key: ${{ secrets.VPS_SSH_KEY }}
         port: ${{ secrets.VPS_PORT }}
-        source: "frontend-production.tar.gz"
+        source: "frontend-production.tar.gz,deployment/deploy-frontend.ps1"
         target: "C:/Users/deploy/"
         debug: true
         timeout: 60s
@@ -106,45 +106,8 @@ jobs:
         key: ${{ secrets.VPS_SSH_KEY }}
         port: ${{ secrets.VPS_PORT }}
         script: |
-          echo "=== FRONTEND DEBUG START ==="
-          echo "Current directory:"
-          pwd
-          echo "Files in current directory:"
-          ls -la
-          echo "Changing to deploy directory..."
-          cd C:\Users\deploy
-          echo "Changed to:"
-          pwd
-          echo "Files in deploy directory:"
-          ls -la
-          echo "Checking tar.gz file..."
-          if [ -f "frontend-production.tar.gz" ]; then
-            echo "tar.gz file exists, size:"
-            ls -lh frontend-production.tar.gz
-            echo "Contents of tar.gz:"
-            tar -tzf frontend-production.tar.gz
-          else
-            echo "ERROR: tar.gz file does not exist!"
-            exit 1
-          fi
-          echo "=== FRONTEND DEPLOYMENT START ==="
-          echo "Stopping IIS site..."
-          powershell -Command "Import-Module WebAdministration; Stop-Website -Name 'TouriMate Frontend Production' -ErrorAction SilentlyContinue"
-          echo "Backing up existing deployment..."
-          if [ -d "C:\inetpub\wwwroot\tourimate-frontend-production" ]; then
-            powershell -Command "Move-Item 'C:\inetpub\wwwroot\tourimate-frontend-production' 'C:\inetpub\wwwroot\tourimate-frontend-production-backup-$(Get-Date -Format ''yyyyMMdd-HHmmss'')' -Force"
-          fi
-          echo "Creating new directory..."
-          powershell -Command "New-Item -ItemType Directory -Path 'C:\inetpub\wwwroot\tourimate-frontend-production' -Force"
-          echo "Extracting files..."
-          tar -xzf frontend-production.tar.gz -C "C:\inetpub\wwwroot\tourimate-frontend-production" -v
-          echo "Files after extraction:"
-          powershell -Command "Get-ChildItem 'C:\inetpub\wwwroot\tourimate-frontend-production' -Recurse | Select-Object -First 10"
-          echo "Setting permissions..."
-          powershell -Command "icacls 'C:\inetpub\wwwroot\tourimate-frontend-production' /grant 'IIS_IUSRS:(OI)(CI)F' /T"
-          echo "Starting IIS site..."
-          powershell -Command "Start-Website -Name 'TouriMate Frontend Production'"
-          echo "=== FRONTEND DEPLOYMENT COMPLETE ==="
+          echo "=== RUNNING FRONTEND DEPLOYMENT SCRIPT ==="
+          powershell.exe -ExecutionPolicy Bypass -File C:\Users\deploy\deploy-frontend.ps1
 
     - name: Upload deployment package
       uses: actions/upload-artifact@v4
