@@ -1,0 +1,184 @@
+name: Backend CI/CD
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'tourimate/**'
+      - 'entities/**'
+      - '.github/workflows/backend-ci-cd.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'tourimate/**'
+      - 'entities/**'
+
+env:
+  DOTNET_VERSION: '8.0.x'
+  PROJECT_PATH: './tourimate'
+  SOLUTION_PATH: './tourimate.sln'
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+
+    - name: Restore dependencies
+      run: dotnet restore ${{ env.SOLUTION_PATH }}
+
+    - name: Build solution
+      run: dotnet build ${{ env.SOLUTION_PATH }} --configuration Release --no-restore
+
+    - name: Run tests
+      run: dotnet test ${{ env.SOLUTION_PATH }} --configuration Release --no-build --verbosity normal --collect:"XPlat Code Coverage"
+
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: test-results
+        path: '**/TestResults/**'
+
+  deploy-staging:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/develop'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+
+    - name: Restore dependencies
+      run: dotnet restore ${{ env.SOLUTION_PATH }}
+
+    - name: Build for staging
+      run: dotnet build ${{ env.PROJECT_PATH }} --configuration Release --no-restore
+
+    - name: Publish application
+      run: dotnet publish ${{ env.PROJECT_PATH }} --configuration Release --output ./publish --no-build
+
+    - name: Create deployment package
+      run: |
+        cd publish
+        tar -czf ../tourimate-staging.tar.gz .
+
+    - name: Deploy to Windows VPS (Staging)
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.VPS_HOST }}
+        username: ${{ secrets.VPS_USERNAME }}
+        key: ${{ secrets.VPS_SSH_KEY }}
+        port: ${{ secrets.VPS_PORT }}
+        script: |
+          # Stop the application
+          net stop "TouriMate API Staging" || true
+          
+          # Backup current deployment
+          if [ -d "C:\inetpub\wwwroot\tourimate-staging" ]; then
+            Move-Item "C:\inetpub\wwwroot\tourimate-staging" "C:\inetpub\wwwroot\tourimate-staging-backup-$(Get-Date -Format 'yyyyMMdd-HHmmss')" -Force
+          fi
+          
+          # Create new directory
+          New-Item -ItemType Directory -Path "C:\inetpub\wwwroot\tourimate-staging" -Force
+          
+          # Extract new files
+          tar -xzf tourimate-staging.tar.gz -C "C:\inetpub\wwwroot\tourimate-staging"
+          
+          # Set permissions
+          icacls "C:\inetpub\wwwroot\tourimate-staging" /grant "IIS_IUSRS:(OI)(CI)F" /T
+          
+          # Start the application
+          net start "TouriMate API Staging"
+
+    - name: Upload deployment package
+      uses: actions/upload-artifact@v4
+      with:
+        name: tourimate-staging-package
+        path: tourimate-staging.tar.gz
+
+  deploy-production:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+
+    - name: Restore dependencies
+      run: dotnet restore ${{ env.SOLUTION_PATH }}
+
+    - name: Build for production
+      run: dotnet build ${{ env.PROJECT_PATH }} --configuration Release --no-restore
+
+    - name: Publish application
+      run: dotnet publish ${{ env.PROJECT_PATH }} --configuration Release --output ./publish --no-build
+
+    - name: Create deployment package
+      run: |
+        cd publish
+        tar -czf ../tourimate-production.tar.gz .
+
+    - name: Deploy to Windows VPS (Production)
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.VPS_HOST }}
+        username: ${{ secrets.VPS_USERNAME }}
+        key: ${{ secrets.VPS_SSH_KEY }}
+        port: ${{ secrets.VPS_PORT }}
+        script: |
+          # Stop the application
+          net stop "TouriMate API Production" || true
+          
+          # Backup current deployment
+          if [ -d "C:\inetpub\wwwroot\tourimate-production" ]; then
+            Move-Item "C:\inetpub\wwwroot\tourimate-production" "C:\inetpub\wwwroot\tourimate-production-backup-$(Get-Date -Format 'yyyyMMdd-HHmmss')" -Force
+          fi
+          
+          # Create new directory
+          New-Item -ItemType Directory -Path "C:\inetpub\wwwroot\tourimate-production" -Force
+          
+          # Extract new files
+          tar -xzf tourimate-production.tar.gz -C "C:\inetpub\wwwroot\tourimate-production"
+          
+          # Set permissions
+          icacls "C:\inetpub\wwwroot\tourimate-production" /grant "IIS_IUSRS:(OI)(CI)F" /T
+          
+          # Start the application
+          net start "TouriMate API Production"
+
+    - name: Run database migrations
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.VPS_HOST }}
+        username: ${{ secrets.VPS_USERNAME }}
+        key: ${{ secrets.VPS_SSH_KEY }}
+        port: ${{ secrets.VPS_PORT }}
+        script: |
+          # Run database migrations
+          cd "C:\inetpub\wwwroot\tourimate-production"
+          dotnet ef database update --connection "${{ secrets.CONNECTION_STRING_PRODUCTION }}"
+
+    - name: Upload deployment package
+      uses: actions/upload-artifact@v4
+      with:
+        name: tourimate-production-package
+        path: tourimate-production.tar.gz
