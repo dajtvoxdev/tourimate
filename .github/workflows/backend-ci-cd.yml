@@ -84,12 +84,12 @@ jobs:
         port: ${{ secrets.VPS_PORT }}
         script: |
           # Stop the application
-          net stop "TouriMate API Staging" || true
+          net stop "TouriMate API Staging" 2>$null
           
           # Backup current deployment
-          if [ -d "C:\inetpub\wwwroot\tourimate-staging" ]; then
+          if (Test-Path "C:\inetpub\wwwroot\tourimate-staging") {
             Move-Item "C:\inetpub\wwwroot\tourimate-staging" "C:\inetpub\wwwroot\tourimate-staging-backup-$(Get-Date -Format 'yyyyMMdd-HHmmss')" -Force
-          fi
+          }
           
           # Create new directory
           New-Item -ItemType Directory -Path "C:\inetpub\wwwroot\tourimate-staging" -Force
@@ -146,12 +146,12 @@ jobs:
         port: ${{ secrets.VPS_PORT }}
         script: |
           # Stop the application
-          net stop "TouriMate API Production" || true
+          net stop "TouriMate API Production" 2>$null
           
           # Backup current deployment
-          if [ -d "C:\inetpub\wwwroot\tourimate-production" ]; then
+          if (Test-Path "C:\inetpub\wwwroot\tourimate-production") {
             Move-Item "C:\inetpub\wwwroot\tourimate-production" "C:\inetpub\wwwroot\tourimate-production-backup-$(Get-Date -Format 'yyyyMMdd-HHmmss')" -Force
-          fi
+          }
           
           # Create new directory
           New-Item -ItemType Directory -Path "C:\inetpub\wwwroot\tourimate-production" -Force
