@@ -87,65 +87,24 @@ jobs:
         debug: true
         timeout: 60s
 
-    - name: Check deployment files
+    - name: Deploy to Windows VPS (Production)
       uses: appleboy/ssh-action@master
       with:
         host: ${{ secrets.VPS_HOST }}
         username: ${{ secrets.VPS_USERNAME }}
         key: ${{ secrets.VPS_SSH_KEY }}
         port: ${{ secrets.VPS_PORT }}
+        command_timeout: 30m
         script: |
-          echo "=== CHECKING DEPLOYMENT FILES ==="
+          echo "=== RUNNING DEPLOYMENT SCRIPT ==="
           cd C:\Users\deploy
           echo "Current directory:"
           pwd
           echo "Files in directory:"
           ls -la
-          echo "Checking tar.gz file..."
-          if [ -f "tourimate-production.tar.gz" ]; then
-            echo "✅ Package found: tourimate-production.tar.gz"
-            ls -lh tourimate-production.tar.gz
-          else
-            echo "❌ ERROR: tourimate-production.tar.gz not found!"
-            exit 1
-          fi
-
-    - name: Stop IIS and backup
-      uses: appleboy/ssh-action@master
-      with:
-        host: ${{ secrets.VPS_HOST }}
-        username: ${{ secrets.VPS_USERNAME }}
-        key: ${{ secrets.VPS_SSH_KEY }}
-        port: ${{ secrets.VPS_PORT }}
-        script: |
-          echo "=== STOPPING IIS AND BACKUP ==="
-          cd C:\Users\deploy
-          echo "Stopping IIS website..."
-          powershell -Command "Import-Module WebAdministration; Stop-Website -Name 'TouriMate API Production' -ErrorAction SilentlyContinue"
-          echo "Backing up existing deployment..."
-          if [ -d "C:\inetpub\wwwroot\tourimate-production" ]; then
-            powershell -Command "Move-Item 'C:\inetpub\wwwroot\tourimate-production' 'C:\inetpub\wwwroot\tourimate-production-backup-$(Get-Date -Format ''yyyyMMdd-HHmmss'')' -Force"
-          fi
-          echo "Creating new directory..."
-          powershell -Command "New-Item -ItemType Directory -Path 'C:\inetpub\wwwroot\tourimate-production' -Force"
-
-    - name: Extract files and deploy
-      uses: appleboy/ssh-action@master
-      with:
-        host: ${{ secrets.VPS_HOST }}
-        username: ${{ secrets.VPS_USERNAME }}
-        key: ${{ secrets.VPS_SSH_KEY }}
-        port: ${{ secrets.VPS_PORT }}
-        script: |
-          echo "=== EXTRACTING FILES AND DEPLOYING ==="
-          cd C:\Users\deploy
-          echo "Extracting files..."
-          tar -xzf tourimate-production.tar.gz -C "C:\inetpub\wwwroot\tourimate-production" -v
-          echo "Setting permissions..."
-          powershell -Command "icacls 'C:\inetpub\wwwroot\tourimate-production' /grant 'IIS_IUSRS:(OI)(CI)F' /T"
-          echo "Starting IIS website..."
-          powershell -Command "Start-Website -Name 'TouriMate API Production'"
-          echo "=== DEPLOYMENT COMPLETE ==="
+          echo "Running PowerShell script..."
+          powershell.exe -ExecutionPolicy Bypass -File deploy-backend.ps1
+          echo "Script execution completed"
 
     - name: Run database migrations
       uses: appleboy/ssh-action@master
