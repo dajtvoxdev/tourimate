@@ -18,10 +18,12 @@ import { Slider } from "../components/ui/slider";
 import { useToast } from "../hooks/use-toast";
 import { TourListDto, TourSearchRequest, TourSearchResponse, SORT_OPTIONS } from "../types/tour";
 import { TourApiService, TourCategoryDto } from "../lib/tourApi";
+import { useAuth } from "../src/hooks/useAuth";
 
 export default function Tours() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user } = useAuth();
   
   // State for tours and loading
   const [tours, setTours] = useState<TourListDto[]>([]);
@@ -542,13 +544,15 @@ export default function Tours() {
                         >
                           Chi tiết
                         </Button>
-                        <Button
-                          variant="outline"
-                          onClick={() => navigate(`/tour/${tour.id}/book`)}
-                          className="flex-1"
-                        >
-                          Đặt tour
-                        </Button>
+                        {!(user && user.role === "TourGuide" && tour.tourGuideId === user.id) && (
+                          <Button
+                            variant="outline"
+                            onClick={() => navigate(`/tour/${tour.id}/book`)}
+                            className="flex-1"
+                          >
+                            Đặt tour
+                          </Button>
+                        )}
                       </div>
                     </div>
                   </CardContent>

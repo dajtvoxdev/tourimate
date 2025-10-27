@@ -17,7 +17,8 @@ import {
   ChevronRight,
   Check,
   X,
-  AlertCircle
+  AlertCircle,
+  ArrowUp
 } from "lucide-react";
 import Header from "../components/Header";
 import { Button } from "../components/ui/button";
@@ -47,6 +48,7 @@ export default function TourDetail() {
   const [categories, setCategories] = useState<TourCategoryDto[]>([]);
   const [currentRating, setCurrentRating] = useState(0);
   const [currentReviewCount, setCurrentReviewCount] = useState(0);
+  const [showBackToTop, setShowBackToTop] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -64,6 +66,16 @@ export default function TourDetail() {
         setCategories(data || []);
       } catch {}
     })();
+  }, []);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+      setShowBackToTop(scrollTop > 300);
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
   const fetchTourDetail = async (tourId: string) => {
@@ -175,6 +187,13 @@ export default function TourDetail() {
     
     // Refresh tour data from API to ensure consistency
     await refreshTourData();
+  };
+
+  const scrollToTop = () => {
+    window.scrollTo({
+      top: 0,
+      behavior: 'smooth'
+    });
   };
 
   const nextImage = () => {
@@ -510,7 +529,7 @@ export default function TourDetail() {
           {/* Sidebar */}
           <div className="space-y-6">
             {/* Booking Card */}
-            <Card className="sticky top-24">
+            <Card>
               <CardHeader>
                 <CardTitle className="text-xl">Đặt tour</CardTitle>
               </CardHeader>
@@ -667,6 +686,17 @@ export default function TourDetail() {
           </div>
         </div>
       </div>
+
+      {/* Back to Top Button */}
+      {showBackToTop && (
+        <Button
+          onClick={scrollToTop}
+          className="fixed bottom-6 right-6 z-50 rounded-full shadow-lg hover:shadow-xl transition-all duration-300"
+          size="lg"
+        >
+          <ArrowUp className="h-5 w-5" />
+        </Button>
+      )}
     </div>
   );
 }

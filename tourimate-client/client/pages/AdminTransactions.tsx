@@ -151,6 +151,9 @@ export default function AdminTransactions() {
     switch (status.toLowerCase()) {
       case "completed":
         return <Badge className="bg-green-100 text-green-800">Hoàn thành</Badge>;
+      case "confirmed":
+      case "confirm":
+        return <Badge className="bg-blue-100 text-blue-800">Đã chuyển khoản</Badge>;
       case "pendingpayment":
         return <Badge className="bg-yellow-100 text-yellow-800">Chờ thanh toán</Badge>;
       case "cancelled":
@@ -287,6 +290,7 @@ export default function AdminTransactions() {
                   <SelectContent>
                     <SelectItem value="all">Tất cả</SelectItem>
                     <SelectItem value="completed">Hoàn thành</SelectItem>
+                    <SelectItem value="confirmed">Đã chuyển khoản</SelectItem>
                     <SelectItem value="pendingpayment">Chờ thanh toán</SelectItem>
                     <SelectItem value="cancelled">Đã hủy</SelectItem>
                     <SelectItem value="pending">Chờ duyệt</SelectItem>
@@ -391,6 +395,15 @@ export default function AdminTransactions() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
+                            {transaction.status !== "Confirmed" && transaction.status !== "confirm" && transaction.status !== "Completed" && (
+                              <DropdownMenuItem
+                                onClick={() => handleStatusChange(transaction.id, "Confirmed")}
+                                disabled={actionLoading === transaction.id}
+                              >
+                                <Check className="w-4 h-4 mr-2" />
+                                Đã chuyển khoản
+                              </DropdownMenuItem>
+                            )}
                             {transaction.status !== "Completed" && (
                               <DropdownMenuItem
                                 onClick={() => handleStatusChange(transaction.id, "Completed")}

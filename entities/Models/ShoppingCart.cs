@@ -28,5 +28,5 @@ public class ShoppingCart : BaseEntity
     public decimal Subtotal => Quantity * Product.Price;
 
     [NotMapped]
-    public bool IsAvailable => Product.IsInStock && Product.Stock >= Quantity;
+    public bool IsAvailable => Product.Status == "Active" && Product.StockQuantity >= Quantity;
 }

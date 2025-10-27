@@ -5,6 +5,7 @@ import Header from "./Header";
 import FeaturedTours from "./FeaturedTours";
 import { TourDto } from "../types/tour";
 import { TourApiService } from "../lib/tourApi";
+import { useAuth } from "../src/hooks/useAuth";
 
 
 export default function TourHomepage() {
@@ -12,6 +13,7 @@ export default function TourHomepage() {
   const navigate = useNavigate();
   const [featuredTours, setFeaturedTours] = useState<TourDto[]>([]);
   const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
 
   useEffect(() => {
     fetchFeaturedTours();
@@ -477,9 +479,10 @@ export default function TourHomepage() {
                     <h3 className="font-semibold text-lg text-gray-900 line-clamp-2">
                       {tour.title}
                     </h3>
-                    <p className="text-sm text-gray-600 line-clamp-2">
-                      {tour.shortDescription}
-                    </p>
+                    <div 
+                      className="text-sm text-gray-600 line-clamp-2 prose prose-sm max-w-none"
+                      dangerouslySetInnerHTML={{ __html: tour.shortDescription }}
+                    />
                     
                     <div className="flex items-center gap-4 text-sm text-gray-500">
                       <div className="flex items-center gap-1">
@@ -503,12 +506,14 @@ export default function TourHomepage() {
                       >
                         Chi tiết
                       </button>
-                      <button
-                        onClick={() => navigate(`/tour/${tour.id}/book`)}
-                        className="flex-1 bg-tour-teal hover:bg-tour-blue text-white py-2 px-4 rounded-lg transition-colors duration-200"
-                      >
-                        Đặt tour
-                      </button>
+                      {!(user && user.role === "TourGuide" && tour.tourGuideId === user.id) && (
+                        <button
+                          onClick={() => navigate(`/tour/${tour.id}/book`)}
+                          className="flex-1 bg-tour-teal hover:bg-tour-blue text-white py-2 px-4 rounded-lg transition-colors duration-200"
+                        >
+                          Đặt tour
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>

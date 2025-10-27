@@ -198,6 +198,15 @@ function Build-Frontend {
     try {
         Set-Location (Join-Path $Config.GitRepository "tourimate-client")
         
+        # Create environment file for production
+        $EnvContent = @"
+# Production API URL (VPS) - using port 5000 for API
+VITE_API_BASE_URL=http://tourimate.site:5000
+"@
+        $EnvFile = Join-Path (Join-Path $Config.GitRepository "tourimate-client") ".env.production"
+        $EnvContent | Out-File -FilePath $EnvFile -Encoding UTF8
+        Write-Log -Message "Created .env.production file with VPS API URL" -LogFile $LogFile
+        
         # Install dependencies
         Write-Log -Message "Installing npm dependencies..." -LogFile $LogFile
         $npmInstallOutput = npm ci 2>&1

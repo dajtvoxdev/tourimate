@@ -6,6 +6,7 @@ import Header from "../../../components/Header";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { ArrowLeft, UserPlus } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
+import { useSearchParams } from "react-router-dom";
 
 // Helper: normalize Vietnamese phone numbers to +84 format
 const normalizePhone = (raw: string) => {
@@ -25,6 +26,7 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
   const { login } = useAuth();
 
   const onSubmit = async (data: LoginRequest) => {
@@ -40,9 +42,13 @@ export default function Login() {
         expiresAt: String((res as any).refreshTokenExpiresAt || new Date()),
       });
       
-      // Check if there's a return URL from the protected route
+      // Check if there's a return URL from the protected route or query parameter
       const from = location.state?.from;
-      if (from) {
+      const returnUrl = searchParams.get('returnUrl');
+      
+      if (returnUrl) {
+        navigate(decodeURIComponent(returnUrl), { replace: true });
+      } else if (from) {
         navigate(from, { replace: true });
       } else {
         // Navigation will be handled by the Header component based on user role

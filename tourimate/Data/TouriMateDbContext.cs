@@ -48,6 +48,12 @@ public class TouriMateDbContext : DbContext
     // Payment Integration
     public DbSet<SePayTransaction> SePayTransactions { get; set; }
     public DbSet<Refund> Refunds { get; set; }
+    
+    // Pricing Configuration
+    public DbSet<PricingConfig> PricingConfigs { get; set; }
+    
+    // Cost Management
+    public DbSet<Cost> Costs { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -221,16 +227,28 @@ public class TouriMateDbContext : DbContext
 
         // Product relationships
         modelBuilder.Entity<Product>()
-            .HasOne(p => p.Category)
-            .WithMany(pc => pc.Products)
-            .HasForeignKey(p => p.CategoryId)
+            .HasOne(p => p.Tour)
+            .WithMany()
+            .HasForeignKey(p => p.TourId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<Product>()
+            .HasOne(p => p.TourGuide)
+            .WithMany()
+            .HasForeignKey(p => p.TourGuideId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<Product>()
+            .HasOne(p => p.Creator)
+            .WithMany()
+            .HasForeignKey(p => p.CreatedBy)
             .OnDelete(DeleteBehavior.NoAction);
 
         modelBuilder.Entity<Product>()
-            .HasOne(p => p.Vendor)
-            .WithMany(u => u.Products)
-            .HasForeignKey(p => p.VendorId)
-            .OnDelete(DeleteBehavior.Cascade);
+            .HasOne(p => p.Updater)
+            .WithMany()
+            .HasForeignKey(p => p.UpdatedBy)
+            .OnDelete(DeleteBehavior.NoAction);
 
         // Order relationships
         modelBuilder.Entity<Order>()
@@ -252,7 +270,7 @@ public class TouriMateDbContext : DbContext
 
         modelBuilder.Entity<OrderItem>()
             .HasOne(oi => oi.Product)
-            .WithMany(p => p.OrderItems)
+            .WithMany()
             .HasForeignKey(oi => oi.ProductId)
             .OnDelete(DeleteBehavior.NoAction);
 
@@ -270,7 +288,7 @@ public class TouriMateDbContext : DbContext
 
         modelBuilder.Entity<ShoppingCart>()
             .HasOne(sc => sc.Product)
-            .WithMany(p => p.CartItems)
+            .WithMany()
             .HasForeignKey(sc => sc.ProductId)
             .OnDelete(DeleteBehavior.NoAction);
     }
@@ -414,10 +432,10 @@ public class TouriMateDbContext : DbContext
             .HasIndex(t => new { t.DivisionCode, t.IsActive });
 
         modelBuilder.Entity<Product>()
-            .HasIndex(p => new { p.CategoryId, p.IsActive });
+            .HasIndex(p => new { p.Category, p.Status });
 
         modelBuilder.Entity<Product>()
-            .HasIndex(p => new { p.Price, p.IsActive });
+            .HasIndex(p => new { p.Price, p.Status });
 
         modelBuilder.Entity<Booking>()
             .HasIndex(b => new { b.TourDate, b.Status });

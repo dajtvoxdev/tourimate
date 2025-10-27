@@ -25,6 +25,7 @@ import {
   CheckCircle,
   RotateCcw,
   TrendingUp,
+  TrendingDown,
   Cog
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -116,15 +117,24 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) => {
         { id: "tour-reviews", label: "Đánh giá Tour", icon: Star, path: "/admin/reviews" }
       ]
     },
-    !isTourGuideOnly ? {
-      id: "transactions",
-      label: "Quản lý Giao dịch",
-      icon: CreditCard,
+    isTourGuideOnly ? {
+      id: "products",
+      label: "Quản lý Sản phẩm",
+      icon: Package,
       children: [
-        { id: "all-transactions", label: "Tất cả giao dịch", icon: CreditCard, path: "/admin/transactions" },
-        { id: "bookings", label: "Đặt tour", icon: Calendar, path: "/admin/bookings" }
+        { id: "my-products", label: "Sản phẩm của tôi", icon: Package, path: "/admin/products" },
+        { id: "create-product", label: "Tạo sản phẩm", icon: Package, path: "/admin/product/create" }
       ]
     } : null,
+    // !isTourGuideOnly ? {
+    //   id: "transactions",
+    //   label: "Quản lý Giao dịch",
+    //   icon: CreditCard,
+    //   children: [
+    //     { id: "all-transactions", label: "Tất cả giao dịch", icon: CreditCard, path: "/admin/transactions" },
+    //    // { id: "bookings", label: "Đặt tour", icon: Calendar, path: "/admin/bookings" }
+    //   ]
+    // } : null,
     !isTourGuideOnly ? {
       id: "users",
       label: "Quản lý Người dùng",
@@ -133,7 +143,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) => {
         { id: "all-users", label: "Tất cả Người dùng", icon: Users, path: "/admin/users" },
         { id: "tour-guide-applications", label: "Đơn đăng ký hướng dẫn viên", icon: FileText, path: "/admin/tour-guide-applications" },
         { id: "tour-guides", label: "Hướng dẫn viên", icon: Shield, path: "/admin/guides" },
-        { id: "user-roles", label: "Phân quyền", icon: Settings, path: "/admin/user-roles" }
+        //{ id: "user-roles", label: "Phân quyền", icon: Settings, path: "/admin/user-roles" }
       ]
     } : {
       id: "guides",
@@ -167,7 +177,8 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) => {
       icon: CreditCard,
       children: [
         { id: "transactions", label: "Giao dịch của tôi", icon: CreditCard, path: "/admin/transactions?mine=1" },
-        { id: "revenue", label: "Doanh thu", icon: DollarSign, path: "/admin/revenue?mine=1" }
+        { id: "revenue", label: "Doanh thu", icon: DollarSign, path: "/admin/revenue?mine=1" },
+        { id: "cost-management", label: "Chi phí của tôi", icon: TrendingDown, path: "/admin/cost-management?mine=1" }
       ]
     } : {
       id: "payments",
@@ -176,26 +187,27 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) => {
       children: [
         { id: "transactions", label: "Giao dịch", icon: CreditCard, path: "/admin/transactions" },
         { id: "revenue", label: "Doanh thu", icon: DollarSign, path: "/admin/revenue" },
-        { id: "refunds", label: "Hoàn tiền", icon: RotateCcw, path: "/admin/refunds" }
+        { id: "refunds", label: "Hoàn tiền", icon: RotateCcw, path: "/admin/refunds" },
+        { id: "cost-management", label: "Chi phí", icon: TrendingDown, path: "/admin/cost-management" }
       ]
     },
-    isTourGuideOnly ? {
-      id: "analytics",
-      label: "Thống kê",
-      icon: BarChart3,
-      children: [
-        { id: "performance", label: "Hiệu suất của tôi", icon: TrendingUp, path: "/admin/performance?mine=1" }
-      ]
-    } : {
-      id: "analytics",
-      label: "Thống kê",
-      icon: BarChart3,
-      children: [
-        { id: "overview", label: "Tổng quan", icon: BarChart3, path: "/admin/analytics" },
-        { id: "reports", label: "Báo cáo", icon: FileText, path: "/admin/reports" },
-        { id: "performance", label: "Hiệu suất", icon: TrendingUp, path: "/admin/performance" }
-      ]
-    }
+    // isTourGuideOnly ? {
+    //   id: "analytics",
+    //   label: "Thống kê",
+    //   icon: BarChart3,
+    //   children: [
+    //     { id: "performance", label: "Hiệu suất của tôi", icon: TrendingUp, path: "/admin/performance?mine=1" }
+    //   ]
+    // } : {
+    //   id: "analytics",
+    //   label: "Thống kê",
+    //   icon: BarChart3,
+    //   children: [
+    //     { id: "overview", label: "Tổng quan", icon: BarChart3, path: "/admin/analytics" },
+    //     { id: "reports", label: "Báo cáo", icon: FileText, path: "/admin/reports" },
+    //     { id: "performance", label: "Hiệu suất", icon: TrendingUp, path: "/admin/performance" }
+    //   ]
+    // }
     ,
     // {
     //   id: "communications",
@@ -217,7 +229,8 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) => {
         // { id: "general", label: "Tổng quan", icon: Settings, path: "/admin/settings" },
         // { id: "system", label: "Hệ thống", icon: Cog, path: "/admin/settings/system" },
         // { id: "security", label: "Bảo mật", icon: Shield, path: "/admin/settings/security" },
-        { id: "divisions", label: "Đơn vị hành chính", icon: MapPin, path: "/admin/divisions" }
+        { id: "divisions", label: "Đơn vị hành chính", icon: MapPin, path: "/admin/divisions" },
+        { id: "pricing-config", label: "Cấu hình giá", icon: DollarSign, path: "/admin/pricing-config" },
       ]
     } : undefined as any
   ];

@@ -397,13 +397,14 @@ const AdminTourManagement = () => {
               </div>
               
               <div className="flex items-end">
-                <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-                  <DialogTrigger asChild>
-                    <Button className="w-full">
-                      <Plus className="h-4 w-4 mr-2" />
-                      Tạo Tour
-                    </Button>
-                  </DialogTrigger>
+                {isTourGuide && (
+                  <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button className="w-full">
+                        <Plus className="h-4 w-4 mr-2" />
+                        Tạo Tour
+                      </Button>
+                    </DialogTrigger>
                   <DialogContent className="max-w-[1200px] w-[95vw] h-[90vh] flex flex-col">
                     <DialogHeader>
                       <DialogTitle>Tạo Tour Mới</DialogTitle>
@@ -437,7 +438,8 @@ const AdminTourManagement = () => {
                       }}
                     />
                   </DialogContent>
-                </Dialog>
+                  </Dialog>
+                )}
               </div>
             </div>
           </CardContent>
@@ -533,9 +535,11 @@ const AdminTourManagement = () => {
                           <Button size="sm" variant="outline" onClick={() => openViewDialog(tour)}>
                             <Eye className="h-4 w-4" />
                           </Button>
-                          <Button size="sm" variant="outline" onClick={() => openEditDialog(tour)}>
-                            <Edit className="h-4 w-4" />
-                          </Button>
+                          {isTourGuide && (
+                            <Button size="sm" variant="outline" onClick={() => openEditDialog(tour)}>
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                          )}
                           <Button 
                             size="sm" 
                             variant="outline" 
@@ -546,12 +550,13 @@ const AdminTourManagement = () => {
                           >
                             <Clock className="h-4 w-4" />
                           </Button>
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <Button size="sm" variant="outline">
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </AlertDialogTrigger>
+                          {isTourGuide && (
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button size="sm" variant="outline">
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </AlertDialogTrigger>
                             <AlertDialogContent>
                               <AlertDialogHeader>
                                 <AlertDialogTitle>Xóa tour?</AlertDialogTitle>
@@ -564,7 +569,8 @@ const AdminTourManagement = () => {
                                 <AlertDialogAction onClick={() => handleDeleteTour(tour.id)}>Xóa</AlertDialogAction>
                               </AlertDialogFooter>
                             </AlertDialogContent>
-                          </AlertDialog>
+                            </AlertDialog>
+                          )}
                           {isAdmin && (
                             <>
                               {(() => {
@@ -653,7 +659,8 @@ const AdminTourManagement = () => {
         </Card>
 
         {/* Edit Tour Dialog */}
-        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        {isTourGuide && (
+          <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
           <DialogContent className="max-w-[1200px] w-[95vw] h-[90vh] flex flex-col">
             <DialogHeader>
               <DialogTitle>Chỉnh sửa Tour</DialogTitle>
@@ -720,7 +727,8 @@ const AdminTourManagement = () => {
               />
             )}
           </DialogContent>
-        </Dialog>
+          </Dialog>
+        )}
 
         {/* View Tour Dialog */}
         <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>

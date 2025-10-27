@@ -65,7 +65,8 @@ export const httpWithRefresh = async (url: string, options: HttpOptions = {}): P
         localStorage.removeItem("refreshToken");
         localStorage.removeItem("refreshTokenExpiresAt");
         localStorage.removeItem("userProfile");
-        window.location.href = "/login";
+        const currentUrl = window.location.pathname + window.location.search;
+        window.location.href = `/login?returnUrl=${encodeURIComponent(currentUrl)}`;
       }
     } catch {
       // Refresh failed, clear auth and redirect to login
@@ -73,7 +74,8 @@ export const httpWithRefresh = async (url: string, options: HttpOptions = {}): P
       localStorage.removeItem("refreshToken");
       localStorage.removeItem("refreshTokenExpiresAt");
       localStorage.removeItem("userProfile");
-      window.location.href = "/login";
+      const currentUrl = window.location.pathname + window.location.search;
+      window.location.href = `/login?returnUrl=${encodeURIComponent(currentUrl)}`;
     }
   }
 

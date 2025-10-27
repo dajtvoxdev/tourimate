@@ -106,6 +106,15 @@ const TourBooking: React.FC = () => {
   });
 
   useEffect(() => {
+    // Check authentication first
+    if (!user) {
+      toast.error("Vui lòng đăng nhập để đặt tour");
+      // Save current URL as return URL
+      const currentUrl = window.location.pathname + window.location.search;
+      navigate(`/login?returnUrl=${encodeURIComponent(currentUrl)}`);
+      return;
+    }
+
     const loadData = async () => {
       if (!tourId) return;
       
@@ -178,10 +187,19 @@ const TourBooking: React.FC = () => {
     };
 
     loadData();
-  }, [tourId, navigate, searchParams]);
+  }, [tourId, navigate, searchParams, user]);
 
   const handleBooking = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Check authentication
+    if (!user) {
+      toast.error("Vui lòng đăng nhập để đặt tour");
+      // Save current URL as return URL
+      const currentUrl = window.location.pathname + window.location.search;
+      navigate(`/login?returnUrl=${encodeURIComponent(currentUrl)}`);
+      return;
+    }
     
     if (!selectedAvailability) {
       toast.error("Vui lòng chọn ngày khởi hành");
@@ -301,6 +319,24 @@ const TourBooking: React.FC = () => {
       toast.error("Không thể sao chép");
     }
   };
+
+  // Early return if user is not authenticated
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Cần đăng nhập</h2>
+          <p className="text-gray-600 mb-4">Vui lòng đăng nhập để đặt tour</p>
+          <Button onClick={() => {
+            const currentUrl = window.location.pathname + window.location.search;
+            navigate(`/login?returnUrl=${encodeURIComponent(currentUrl)}`);
+          }}>
+            Đăng nhập
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (

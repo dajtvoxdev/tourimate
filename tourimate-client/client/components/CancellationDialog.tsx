@@ -232,7 +232,10 @@ export function CancellationDialog({ open, onOpenChange, bookingId, onCancelSucc
                   <Alert variant="destructive">
                     <AlertTriangle className="h-4 w-4" />
                     <AlertDescription>
-                      Không thể hoàn tiền theo chính sách hiện tại.
+                      {refundCalculation.refundPolicy.includes("Chưa thanh toán") 
+                        ? "Bạn chưa thanh toán cho tour này, không cần hoàn tiền."
+                        : "Không thể hoàn tiền theo chính sách hiện tại."
+                      }
                     </AlertDescription>
                   </Alert>
                 )}

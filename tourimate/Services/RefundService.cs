@@ -54,7 +54,18 @@ public class RefundService : IRefundService
             OriginalAmount = booking.TotalAmount
         };
 
-        // Business rules for refund
+        // Check if booking has been paid
+        if (booking.Status == BookingStatus.PendingPayment)
+        {
+            // No payment made yet - no refund needed
+            result.CanRefund = false;
+            result.RefundPercentage = 0;
+            result.RefundAmount = 0;
+            result.RefundPolicy = "Chưa thanh toán - Không cần hoàn tiền";
+            return result;
+        }
+
+        // Business rules for refund (only for paid bookings)
         if (daysBeforeTour >= 7)
         {
             // More than 1 week: 100% refund

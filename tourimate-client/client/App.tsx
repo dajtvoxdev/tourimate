@@ -35,6 +35,11 @@ import AdminTransactions from "./pages/AdminTransactions";
 import AdminBookings from "./pages/AdminBookings";
 import AdminRevenue from "./pages/AdminRevenue";
 import AdminRefunds from "./pages/AdminRefunds";
+import AdminPricingConfig from "./pages/AdminPricingConfig";
+import AdminCostManagement from "./pages/AdminCostManagement";
+import TourGuideCostManagement from "./pages/TourGuideCostManagement";
+import TourGuideProductManagement from "./pages/TourGuideProductManagement";
+import ProductForm from "./pages/ProductForm";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AdminProtectedRoute from "./components/AdminProtectedRoute";
 import NonAdminProtectedRoute from "./components/NonAdminProtectedRoute";
@@ -166,6 +171,54 @@ const App = () => (
               <AdminProtectedRoute>
                 <AdminRefunds />
               </AdminProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/admin/pricing-config" 
+            element={
+              <AdminProtectedRoute>
+                <AdminPricingConfig />
+              </AdminProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/admin/cost-management" 
+            element={
+              <AdminProtectedRoute>
+                <AdminCostManagement />
+              </AdminProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/admin/products" 
+            element={
+              <ProtectedRoute>
+                <TourGuideProductManagement />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/admin/product/create" 
+            element={
+              <ProtectedRoute>
+                <ProductForm />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/admin/product/:id/edit" 
+            element={
+              <ProtectedRoute>
+                <ProductForm />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/cost-management" 
+            element={
+              <ProtectedRoute>
+                <TourGuideCostManagement />
+              </ProtectedRoute>
             } 
           />
         <Route

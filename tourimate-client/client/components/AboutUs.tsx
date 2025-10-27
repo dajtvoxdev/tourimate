@@ -1,200 +1,126 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  User,
-  ChevronDown,
-  LogOut,
-  MapPin,
-  Phone,
-  Mail,
-  Award,
-  Users,
-  Star,
-  Heart,
-  Shield,
-  Globe,
-} from "lucide-react";
+import { MapPin, Calendar, Bus, Star, Users, Eye, Heart, Shield, Globe, Award, Phone, Mail } from "lucide-react";
+import Header from "./Header";
+import { httpJson, getApiBase } from "@/src/lib/http";
 
-interface TeamMember {
-  id: number;
-  name: string;
-  position: string;
-  description: string;
-  image: string;
-  experience: string;
-}
-
-interface Achievement {
-  id: number;
-  title: string;
-  value: string;
-  icon: React.ReactNode;
+interface CompanyStats {
+  totalTours: number;
+  totalGuides: number;
+  totalCustomers: number;
+  averageRating: number;
 }
 
 export default function AboutUs() {
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const navigate = useNavigate();
+  const [stats, setStats] = useState<CompanyStats | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const handleLogout = () => {
-    navigate("/");
+  useEffect(() => {
+    fetchCompanyStats();
+  }, []);
+
+  const fetchCompanyStats = async () => {
+    try {
+      setLoading(true);
+      
+      // Fetch company statistics from API
+      const statsData = await httpJson<CompanyStats>(`${getApiBase()}/api/stats`, { skipAuth: true });
+      setStats(statsData);
+    } catch (err) {
+      console.error('Error fetching company stats:', err);
+      // Set default stats if API fails
+      setStats({
+        totalTours: 0,
+        totalGuides: 0,
+        totalCustomers: 0,
+        averageRating: 0
+      });
+    } finally {
+      setLoading(false);
+    }
   };
-
-  const handleNavigation = (path: string) => {
-    navigate(path);
-  };
-
-  const teamMembers: TeamMember[] = [
-    {
-      id: 1,
-      name: "Nguyễn Thành Long",
-      position: "Giám đốc điều hành",
-      description:
-        "Với hơn 10 năm kinh nghiệm trong ngành du lịch, anh Long đã dẫn dắt công ty phát triển và mở rộng khắp Việt Nam.",
-      image:
-        "https://cdn.builder.io/api/v1/image/assets/TEMP/db84159ff10c8b7bceb41b0f85ded4139e62ae21?width=712",
-      experience: "10+ năm",
-    },
-    {
-      id: 2,
-      name: "Trần Thị Mai",
-      position: "Trưởng phòng Marketing",
-      description:
-        "Chuyên gia marketing du lịch với niềm đam mê chia sẻ vẻ đẹp Việt Nam đến bạn bè quốc tế.",
-      image:
-        "https://cdn.builder.io/api/v1/image/assets/TEMP/2168645f531d28b82837c632f89d3ed0ceaf4956?width=720",
-      experience: "7+ năm",
-    },
-    {
-      id: 3,
-      name: "Lê Văn Minh",
-      position: "Trưởng phòng Tour",
-      description:
-        "Chuyên thiết kế và tổ chức các tour du lịch độc đáo, mang lại trải nghiệm khó quên cho du khách.",
-      image:
-        "https://cdn.builder.io/api/v1/image/assets/TEMP/283482ebc0855495706c7faf4d8ce5277cf54e0b?width=710",
-      experience: "8+ năm",
-    },
-  ];
-
-  const achievements: Achievement[] = [
-    {
-      id: 1,
-      title: "Khách hàng phục vụ",
-      value: "50,000+",
-      icon: <Users className="w-8 h-8 text-tour-blue" />,
-    },
-    {
-      id: 2,
-      title: "Đánh giá 5 sao",
-      value: "98%",
-      icon: <Star className="w-8 h-8 text-yellow-500 fill-current" />,
-    },
-    {
-      id: 3,
-      title: "Năm kinh nghiệm",
-      value: "15+",
-      icon: <Award className="w-8 h-8 text-tour-blue" />,
-    },
-    {
-      id: 4,
-      title: "Điểm đến",
-      value: "63",
-      icon: <MapPin className="w-8 h-8 text-tour-blue" />,
-    },
-  ];
 
   return (
     <div className="min-h-screen bg-white">
       {/* Header */}
-      <header className="relative z-20 p-4 md:p-6">
-        <div className="flex items-center justify-between max-w-9xl mx-auto">
-          {/* Navigation Menu */}
-          <nav className="flex space-x-6 md:space-x-8">
-            <button
-              onClick={() => handleNavigation("/home")}
-              className="bg-gray-200 hover:bg-tour-teal transition-colors duration-200 px-6 py-2 rounded-2xl"
-            >
-              <span className="font-nunito text-lg md:text-xl font-bold text-black">
-                Trang chủ
-              </span>
-            </button>
-            <button className="bg-tour-teal hover:bg-tour-blue transition-colors duration-200 px-6 py-2 rounded-2xl">
-              <span className="font-nunito text-lg md:text-xl font-bold text-black">
-                Về chúng tôi
-              </span>
-            </button>
-            <button
-              onClick={() => handleNavigation("/tour-guides")}
-              className="bg-gray-200 hover:bg-tour-teal transition-colors duration-200 px-6 py-2 rounded-2xl"
-            >
-              <span className="font-nunito text-lg md:text-xl font-bold text-black">
-                Hướng dẫn viên
-              </span>
-            </button>
-          </nav>
-
-          {/* Avatar Dropdown */}
-          <div className="relative">
-            <button
-              onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-              className="flex items-center space-x-2 p-2 hover:bg-gray-100 rounded-full transition-colors duration-200"
-            >
-              <div className="w-12 h-12 md:w-16 md:h-16 bg-tour-light-blue rounded-full flex items-center justify-center">
-                <User className="w-6 h-6 md:w-8 md:h-8 text-black" />
-              </div>
-              <ChevronDown
-                className={`w-4 h-4 text-black transition-transform duration-200 ${isDropdownOpen ? "rotate-180" : ""}`}
-              />
-            </button>
-
-            {/* Dropdown Menu */}
-            {isDropdownOpen && (
-              <div className="absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden">
-                <div className="py-2">
-                  <button
-                    onClick={() => handleNavigation("/profile")}
-                    className="w-full px-6 py-3 text-left hover:bg-gray-50 transition-colors duration-200 flex items-center space-x-3"
-                  >
-                    <User className="w-5 h-5 text-gray-600" />
-                    <span className="font-nunito text-lg font-medium text-black">
-                      Thông tin cá nhân
-                    </span>
-                  </button>
-                  <div className="border-t border-gray-100 my-1"></div>
-                  <button
-                    onClick={handleLogout}
-                    className="w-full px-6 py-3 text-left hover:bg-red-50 transition-colors duration-200 flex items-center space-x-3 text-red-600"
-                  >
-                    <LogOut className="w-5 h-5" />
-                    <span className="font-nunito text-lg font-medium">
-                      Đăng xuất
-                    </span>
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </header>
+      <Header />
 
       {/* Hero Section */}
       <section
         className="relative h-[500px] md:h-[600px] lg:h-[700px] bg-cover bg-center bg-no-repeat"
         style={{
           backgroundImage:
-            "url('https://cdn.builder.io/api/v1/image/assets/TEMP/63b4c457c84f25d77787717a687e234d71e49dd0?width=2570')",
+            "url('https://images.unsplash.com/photo-1488646953014-85cb44e25828?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80')",
         }}
       >
         <div className="absolute inset-0 bg-black bg-opacity-40"></div>
         <div className="relative z-10 container mx-auto px-4 h-full flex items-center justify-center">
           <div className="text-center">
             <h1 className="font-josefin text-4xl md:text-6xl lg:text-8xl font-bold text-white mb-6 leading-tight">
-              Về Travel Guide Vietnam
+              Về TouriMate
             </h1>
             <p className="font-nunito text-xl md:text-2xl lg:text-3xl text-white max-w-4xl mx-auto">
-              Đồng hành cùng bạn khám phá vẻ đẹp Việt Nam qua từng hành trình
-              đầy ý nghĩa
+              Đồng hành cùng bạn khám phá vẻ đẹp Việt Nam qua từng hành trình đầy ý nghĩa
             </p>
+          </div>
+        </div>
+      </section>
+
+      {/* About Section */}
+      <section className="py-16 md:py-24 bg-gradient-to-br from-blue-50 to-indigo-100">
+        <div className="container mx-auto px-4">
+          <div className="text-center mb-16">
+            <p className="font-josefin text-lg md:text-2xl font-bold text-tour-blue mb-4">
+              Về chúng tôi
+            </p>
+            <h2 className="font-itim text-4xl md:text-5xl lg:text-6xl text-gray-900 font-normal mb-6">
+              TouriMate - Người bạn đồng hành tin cậy
+            </h2>
+            <p className="font-nunito text-lg md:text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed">
+              Chúng tôi kết nối bạn với những hướng dẫn viên chuyên nghiệp và những trải nghiệm du lịch đáng nhớ nhất
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {/* Feature 1 */}
+            <div className="bg-white rounded-2xl p-8 shadow-lg hover:shadow-xl transition-shadow duration-300">
+              <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-6">
+                <Users className="w-6 h-6 text-tour-blue" />
+              </div>
+              <h3 className="font-nunito text-xl font-bold text-gray-900 mb-4">
+                Hướng dẫn viên chuyên nghiệp
+              </h3>
+              <p className="font-nunito text-gray-600 leading-relaxed">
+                Đội ngũ hướng dẫn viên giàu kinh nghiệm, am hiểu sâu sắc về văn hóa và lịch sử địa phương
+              </p>
+            </div>
+
+            {/* Feature 2 */}
+            <div className="bg-white rounded-2xl p-8 shadow-lg hover:shadow-xl transition-shadow duration-300">
+              <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-6">
+                <MapPin className="w-6 h-6 text-green-600" />
+              </div>
+              <h3 className="font-nunito text-xl font-bold text-gray-900 mb-4">
+                Điểm đến đa dạng
+              </h3>
+              <p className="font-nunito text-gray-600 leading-relaxed">
+                Từ biển đảo xanh biếc đến núi rừng hùng vĩ, khám phá mọi vẻ đẹp của Việt Nam
+              </p>
+            </div>
+
+            {/* Feature 3 */}
+            <div className="bg-white rounded-2xl p-8 shadow-lg hover:shadow-xl transition-shadow duration-300">
+              <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mb-6">
+                <Star className="w-6 h-6 text-purple-600" />
+              </div>
+              <h3 className="font-nunito text-xl font-bold text-gray-900 mb-4">
+                Trải nghiệm tuyệt vời
+              </h3>
+              <p className="font-nunito text-gray-600 leading-relaxed">
+                Cam kết mang đến những kỷ niệm đáng nhớ với dịch vụ chất lượng cao và giá cả hợp lý
+              </p>
+            </div>
           </div>
         </div>
       </section>
@@ -208,7 +134,7 @@ export default function AboutUs() {
             </h2>
             <div className="space-y-6 text-lg md:text-xl leading-relaxed text-gray-700">
               <p className="font-nunito">
-                <strong className="text-tour-blue">Travel Guide Vietnam</strong>{" "}
+                <strong className="text-tour-blue">TouriMate</strong>{" "}
                 ra đời từ tình yêu sâu sắc với đất nước Việt Nam và mong muốn
                 chia sẻ những vẻ đẹp tuyệt vời này đến với mọi người. Chúng tôi
                 tin rằng du lịch không chỉ là việc di chuyển từ nơi này đến nơi
@@ -228,30 +154,68 @@ export default function AboutUs() {
         </div>
       </section>
 
-      {/* Achievements */}
+      {/* Statistics */}
       <section className="py-12 md:py-20 bg-gray-50">
         <div className="container mx-auto px-4">
           <h2 className="font-itim text-3xl md:text-4xl lg:text-5xl text-black text-center mb-12">
             Thành tựu của chúng tôi
           </h2>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 lg:gap-8">
-            {achievements.map((achievement) => (
-              <div
-                key={achievement.id}
-                className="bg-white rounded-[20px] p-6 md:p-8 text-center shadow-lg hover:shadow-xl transition-shadow duration-300"
-              >
+          
+          {loading ? (
+            <div className="flex justify-center items-center py-12">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-tour-blue"></div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 lg:gap-8">
+              <div className="bg-white rounded-[20px] p-6 md:p-8 text-center shadow-lg hover:shadow-xl transition-shadow duration-300">
                 <div className="flex justify-center mb-4">
-                  {achievement.icon}
+                  <Users className="w-8 h-8 text-tour-blue" />
                 </div>
                 <h3 className="font-nunito text-2xl md:text-3xl lg:text-4xl font-bold text-tour-blue mb-2">
-                  {achievement.value}
+                  {stats?.totalCustomers || 0}+
                 </h3>
                 <p className="font-nunito text-base md:text-lg text-gray-700">
-                  {achievement.title}
+                  Khách hàng phục vụ
                 </p>
               </div>
-            ))}
-          </div>
+              
+              <div className="bg-white rounded-[20px] p-6 md:p-8 text-center shadow-lg hover:shadow-xl transition-shadow duration-300">
+                <div className="flex justify-center mb-4">
+                  <Star className="w-8 h-8 text-yellow-500 fill-current" />
+                </div>
+                <h3 className="font-nunito text-2xl md:text-3xl lg:text-4xl font-bold text-tour-blue mb-2">
+                  {stats?.averageRating ? stats.averageRating.toFixed(1) : '0.0'}
+                </h3>
+                <p className="font-nunito text-base md:text-lg text-gray-700">
+                  Đánh giá trung bình
+                </p>
+              </div>
+              
+              <div className="bg-white rounded-[20px] p-6 md:p-8 text-center shadow-lg hover:shadow-xl transition-shadow duration-300">
+                <div className="flex justify-center mb-4">
+                  <MapPin className="w-8 h-8 text-tour-blue" />
+                </div>
+                <h3 className="font-nunito text-2xl md:text-3xl lg:text-4xl font-bold text-tour-blue mb-2">
+                  {stats?.totalTours || 0}+
+                </h3>
+                <p className="font-nunito text-base md:text-lg text-gray-700">
+                  Tour du lịch
+                </p>
+              </div>
+              
+              <div className="bg-white rounded-[20px] p-6 md:p-8 text-center shadow-lg hover:shadow-xl transition-shadow duration-300">
+                <div className="flex justify-center mb-4">
+                  <Users className="w-8 h-8 text-tour-blue" />
+                </div>
+                <h3 className="font-nunito text-2xl md:text-3xl lg:text-4xl font-bold text-tour-blue mb-2">
+                  {stats?.totalGuides || 0}+
+                </h3>
+                <p className="font-nunito text-base md:text-lg text-gray-700">
+                  Hướng dẫn viên
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       </section>
 
@@ -302,94 +266,32 @@ export default function AboutUs() {
         </div>
       </section>
 
-      {/* Team Section */}
-      <section className="py-12 md:py-20 bg-gray-50">
-        <div className="container mx-auto px-4">
-          <h2 className="font-itim text-3xl md:text-4xl lg:text-5xl text-black text-center mb-12">
-            Đội ngũ lãnh đạo
+      {/* CTA Section */}
+      <section
+        className="py-12 md:py-20 bg-cover bg-center bg-no-repeat relative"
+        style={{
+          backgroundImage:
+            "url('https://images.unsplash.com/photo-1488646953014-85cb44e25828?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80')",
+        }}
+      >
+        <div className="absolute inset-0 bg-blue-400 bg-opacity-50"></div>
+        <div className="relative z-10 container mx-auto px-4 text-center">
+          <h2 className="font-itim text-4xl md:text-5xl lg:text-6xl text-white font-normal">
+            Bạn đã chuẩn bị gì chưa ?
           </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 lg:gap-12">
-            {teamMembers.map((member) => (
-              <div
-                key={member.id}
-                className="bg-white rounded-[30px] overflow-hidden shadow-lg hover:shadow-xl transition-shadow duration-300"
-              >
-                <div className="aspect-square overflow-hidden">
-                  <img
-                    src={member.image}
-                    alt={member.name}
-                    className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
-                  />
-                </div>
-                <div className="p-6">
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="font-nunito text-xl md:text-2xl font-bold text-black">
-                      {member.name}
-                    </h3>
-                    <span className="bg-tour-light-blue text-tour-blue px-3 py-1 rounded-full text-sm font-medium">
-                      {member.experience}
-                    </span>
-                  </div>
-                  <p className="font-nunito text-lg font-medium text-tour-blue mb-4">
-                    {member.position}
-                  </p>
-                  <p className="font-nunito text-base text-gray-700 leading-relaxed">
-                    {member.description}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Contact Information */}
-      <section className="py-12 md:py-20 bg-white">
-        <div className="container mx-auto px-4">
-          <h2 className="font-itim text-3xl md:text-4xl lg:text-5xl text-black text-center mb-12">
-            Liên hệ với chúng tôi
-          </h2>
-          <div className="max-w-4xl mx-auto">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              <div className="text-center">
-                <div className="bg-tour-light-blue rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
-                  <MapPin className="w-8 h-8 text-tour-blue" />
-                </div>
-                <h3 className="font-nunito text-xl font-bold text-black mb-2">
-                  Địa chỉ
-                </h3>
-                <p className="font-nunito text-lg text-gray-700">
-                  123 Nguyễn Huệ, Quận 1<br />
-                  TP. Hồ Chí Minh, Việt Nam
-                </p>
-              </div>
-              <div className="text-center">
-                <div className="bg-tour-light-blue rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
-                  <Phone className="w-8 h-8 text-tour-blue" />
-                </div>
-                <h3 className="font-nunito text-xl font-bold text-black mb-2">
-                  Điện thoại
-                </h3>
-                <p className="font-nunito text-lg text-gray-700">
-                  +84 123 456 789
-                  <br />
-                  +84 987 654 321
-                </p>
-              </div>
-              <div className="text-center">
-                <div className="bg-tour-light-blue rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
-                  <Mail className="w-8 h-8 text-tour-blue" />
-                </div>
-                <h3 className="font-nunito text-xl font-bold text-black mb-2">
-                  Email
-                </h3>
-                <p className="font-nunito text-lg text-gray-700">
-                  info@travelguide.vn
-                  <br />
-                  booking@travelguide.vn
-                </p>
-              </div>
-            </div>
+          <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
+            <button 
+              onClick={() => navigate('/tours')}
+              className="bg-white hover:bg-gray-100 text-tour-blue font-nunito text-xl font-bold py-4 px-8 rounded-full transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl"
+            >
+              Khám phá tour
+            </button>
+            <button 
+              onClick={() => navigate('/tour-guide-registration')}
+              className="bg-tour-teal hover:bg-tour-blue text-white font-nunito text-xl font-bold py-4 px-8 rounded-full transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl"
+            >
+              Đăng ký hướng dẫn viên
+            </button>
           </div>
         </div>
       </section>
@@ -399,7 +301,7 @@ export default function AboutUs() {
         <div className="container mx-auto px-4">
           <div className="text-center">
             <p className="font-nunito text-lg md:text-xl text-black">
-              © 2024 Travel Guide Vietnam. All rights reserved.
+              © 2024 TouriMate. All rights reserved.
             </p>
           </div>
         </div>

@@ -6,6 +6,7 @@ import { Badge } from "./ui/badge";
 import { Card, CardContent } from "./ui/card";
 import { TourDto } from "../types/tour";
 import { TourApiService } from "../lib/tourApi";
+import { useAuth } from "../src/hooks/useAuth";
 
 interface FeaturedToursProps {
   limit?: number;
@@ -17,6 +18,7 @@ export default function FeaturedTours({ limit = 6, showTitle = true }: FeaturedT
   const [featuredTours, setFeaturedTours] = useState<TourDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentSlide, setCurrentSlide] = useState(0);
+  const { user } = useAuth();
 
   useEffect(() => {
     fetchFeaturedTours();
@@ -139,9 +141,10 @@ export default function FeaturedTours({ limit = 6, showTitle = true }: FeaturedT
                     <h3 className="font-semibold text-lg text-gray-900 line-clamp-2 mb-1">
                       {tour.title}
                     </h3>
-                    <p className="text-sm text-gray-600 line-clamp-2">
-                      {tour.shortDescription}
-                    </p>
+                    <div 
+                      className="text-sm text-gray-600 line-clamp-2 prose prose-sm max-w-none"
+                      dangerouslySetInnerHTML={{ __html: tour.shortDescription }}
+                    />
                   </div>
 
                   <div className="flex items-center gap-4 text-sm text-gray-500">
@@ -183,13 +186,15 @@ export default function FeaturedTours({ limit = 6, showTitle = true }: FeaturedT
                     >
                       Chi tiết
                     </Button>
-                    <Button
-                      variant="outline"
-                      onClick={() => navigate(`/tour/${tour.id}/book`)}
-                      className="flex-1"
-                    >
-                      Đặt tour
-                    </Button>
+                    {!(user && user.role === "TourGuide" && tour.tourGuideId === user.id) && (
+                      <Button
+                        variant="outline"
+                        onClick={() => navigate(`/tour/${tour.id}/book`)}
+                        className="flex-1"
+                      >
+                        Đặt tour
+                      </Button>
+                    )}
                   </div>
                 </div>
               </CardContent>
