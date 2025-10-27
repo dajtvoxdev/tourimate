@@ -109,6 +109,14 @@ jobs:
           Write-Host 'Files in home directory:'
           Get-ChildItem
           
+          # Debug: Check if tar.gz exists
+          if (Test-Path 'tourimate-production.tar.gz') {
+            Write-Host 'tar.gz file exists, size:' (Get-Item 'tourimate-production.tar.gz').Length
+          } else {
+            Write-Host 'ERROR: tar.gz file does not exist!'
+            exit 1
+          }
+          
           # Stop the application
           net stop 'TouriMate API Production' 2>$null
           
@@ -120,8 +128,17 @@ jobs:
           # Create new directory
           New-Item -ItemType Directory -Path 'C:\inetpub\wwwroot\tourimate-production' -Force
           
+          # Debug: List contents of tar.gz
+          Write-Host 'Contents of tar.gz:'
+          tar -tzf tourimate-production.tar.gz
+          
           # Extract new files
-          tar -xzf tourimate-production.tar.gz -C 'C:\inetpub\wwwroot\tourimate-production'
+          Write-Host 'Extracting files...'
+          tar -xzf tourimate-production.tar.gz -C 'C:\inetpub\wwwroot\tourimate-production' -v
+          
+          # Debug: Check extracted files
+          Write-Host 'Files after extraction:'
+          Get-ChildItem 'C:\inetpub\wwwroot\tourimate-production' -Recurse
           
           # Set permissions
           icacls 'C:\inetpub\wwwroot\tourimate-production' /grant 'IIS_IUSRS:(OI)(CI)F' /T
