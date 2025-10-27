@@ -113,7 +113,9 @@ jobs:
             exit /b 1
           )
           echo "=== DEPLOYMENT START ==="
-          net stop "TouriMate API Production" 2>nul
+          echo "Stopping IIS website..."
+          Import-Module WebAdministration
+          Stop-Website -Name "TouriMate API Production" -ErrorAction SilentlyContinue
           if exist "C:\inetpub\wwwroot\tourimate-production" (
             echo "Backing up existing deployment..."
             move "C:\inetpub\wwwroot\tourimate-production" "C:\inetpub\wwwroot\tourimate-production-backup-%date:~-4,4%%date:~-10,2%%date:~-7,2%-%time:~0,2%%time:~3,2%%time:~6,2%" 2>nul
@@ -124,8 +126,8 @@ jobs:
           tar -xzf tourimate-production.tar.gz -C "C:\inetpub\wwwroot\tourimate-production" -v
           echo "Setting permissions..."
           icacls "C:\inetpub\wwwroot\tourimate-production" /grant "IIS_IUSRS:(OI)(CI)F" /T
-          echo "Starting application..."
-          net start "TouriMate API Production"
+          echo "Starting IIS website..."
+          Start-Website -Name "TouriMate API Production"
           echo "=== DEPLOYMENT COMPLETE ==="
 
     - name: Run database migrations
