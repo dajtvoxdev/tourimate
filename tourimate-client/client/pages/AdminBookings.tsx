@@ -377,7 +377,8 @@ export default function AdminBookings() {
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                               {/* Tour Status Actions - Payment confirmation is handled in Transactions */}
-                              {booking.status !== 3 && (
+                              {/* Only allow "Hoàn thành tour" if status is "Confirmed" (2) */}
+                              {booking.status === 2 && (
                                 <DropdownMenuItem
                                   onClick={() => handleStatusChange(booking.id, "Completed")}
                                   disabled={actionLoading === booking.id}
@@ -386,7 +387,8 @@ export default function AdminBookings() {
                                   Hoàn thành tour
                                 </DropdownMenuItem>
                               )}
-                              {booking.status !== 2 && booking.status !== 3 && (
+                              {/* Only allow "Xác nhận tour" if status is "PendingPayment" (1) */}
+                              {booking.status === 1 && (
                                 <DropdownMenuItem
                                   onClick={() => handleStatusChange(booking.id, "Confirmed")}
                                   disabled={actionLoading === booking.id}
@@ -395,7 +397,8 @@ export default function AdminBookings() {
                                   Xác nhận tour
                                 </DropdownMenuItem>
                               )}
-                              {booking.status !== 4 && (
+                              {/* Allow "Hủy tour" for all statuses except already cancelled (3) */}
+                              {booking.status !== 3 && (
                                 <DropdownMenuItem
                                   onClick={() => handleStatusChange(booking.id, "Cancelled")}
                                   disabled={actionLoading === booking.id}
