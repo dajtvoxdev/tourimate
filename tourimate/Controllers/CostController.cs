@@ -1,10 +1,11 @@
+using Entities.Enums;
+using Entities.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using tourimate.Contracts.Costs;
+using System.Security.Claims;
 using tourimate.Contracts.Common;
+using tourimate.Contracts.Costs;
 using TouriMate.Data;
-using Entities.Models;
-using Entities.Enums;
 
 namespace tourimate.Controllers;
 
@@ -598,12 +599,13 @@ public class CostController : ControllerBase
 
     private Guid? GetCurrentUserId()
     {
-        var userIdClaim = User.FindFirst("userId");
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier) ?? User.FindFirst("sub");
         if (userIdClaim != null && Guid.TryParse(userIdClaim.Value, out var userId))
         {
             return userId;
         }
         return null;
     }
+
 }
 

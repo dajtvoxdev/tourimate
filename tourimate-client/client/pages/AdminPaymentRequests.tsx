@@ -418,7 +418,7 @@ export default function AdminPaymentRequests() {
               <DollarSign className="w-12 h-12 text-gray-400 mx-auto mb-4" />
               <h3 className="text-lg font-semibold text-gray-900 mb-2">Chưa có yêu cầu thanh toán</h3>
               <p className="text-gray-600">
-                Các tour guide sẽ tạo yêu cầu thanh toán sau khi tour hoàn thành.
+                Các Hưỡng dẫn viên sẽ tạo yêu cầu thanh toán sau khi tour hoàn thành.
               </p>
             </CardContent>
           </Card>
@@ -542,7 +542,7 @@ export default function AdminPaymentRequests() {
                   <div className="flex items-center">
                     <AlertTriangle className="w-5 h-5 text-yellow-600 mr-2" />
                     <p className="text-sm text-yellow-800">
-                      <strong>Lưu ý:</strong> Sau khi xác nhận, tour guide sẽ nhận được thông báo về việc thanh toán.
+                      <strong>Lưu ý:</strong> Sau khi xác nhận, hưỡng dẫn viên sẽ nhận được thông báo về việc thanh toán.
                     </p>
                   </div>
                 </div>
