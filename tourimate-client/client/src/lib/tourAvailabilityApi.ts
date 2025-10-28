@@ -146,9 +146,9 @@ export class TourAvailabilityApiService {
     });
   }
 
-  // Get divisions for dropdown
+  // Get provinces for dropdown (optimized)
   static async getDivisions(): Promise<DivisionDto[]> {
-    return httpJson<DivisionDto[]>(`${getApiBase()}/api/divisions`, {
+    return httpJson<DivisionDto[]>(`${getApiBase()}/api/divisions/provinces`, {
       skipAuth: true
     });
   }

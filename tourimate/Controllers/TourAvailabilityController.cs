@@ -23,10 +23,7 @@ public class TourAvailabilityController : ControllerBase
     {
         try
         {
-            var query = _db.TourAvailabilities
-                .Include(ta => ta.Tour)
-                .Include(ta => ta.DepartureDivision)
-                .AsQueryable();
+            var query = _db.TourAvailabilities.AsQueryable();
 
             // Apply filters
             if (request.TourId.HasValue)
@@ -75,6 +72,8 @@ public class TourAvailabilityController : ControllerBase
             var tourAvailabilities = await query
                 .Skip(skip)
                 .Take(request.PageSize)
+                .Include(ta => ta.Tour)
+                .Include(ta => ta.DepartureDivision)
                 .ToListAsync();
 
             var totalPages = (int)Math.Ceiling((double)totalCount / request.PageSize);
@@ -127,10 +126,10 @@ public class TourAvailabilityController : ControllerBase
         try
         {
             var tourAvailabilities = await _db.TourAvailabilities
-                .Include(ta => ta.Tour)
-                .Include(ta => ta.DepartureDivision)
                 .Where(ta => ta.TourId == tourId)
                 .OrderBy(ta => ta.Date)
+                .Include(ta => ta.Tour)
+                .Include(ta => ta.DepartureDivision)
                 .ToListAsync();
 
             return Ok(tourAvailabilities.Select(MapToDto).ToList());
