@@ -24,6 +24,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { httpJson, getApiBase } from "@/src/lib/http";
 import { toast } from "sonner";
 import { useAuth } from "@/src/hooks/useAuth";
+import { useSearchParams } from "react-router-dom";
 import AdminLayout from "@/components/AdminLayout";
 
 interface Transaction {
@@ -64,6 +65,7 @@ interface TransactionStats {
 
 export default function AdminTransactions() {
   const { user } = useAuth();
+  const [searchParams] = useSearchParams();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [stats, setStats] = useState<TransactionStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -76,6 +78,9 @@ export default function AdminTransactions() {
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [showTransactionDialog, setShowTransactionDialog] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  
+  // Check if this is "mine" view for tour guide
+  const isMineView = searchParams.get('mine') === '1';
 
   useEffect(() => {
     fetchTransactions();
@@ -102,8 +107,14 @@ export default function AdminTransactions() {
         params.append("search", searchTerm.trim());
       }
 
+      // Use different API endpoint based on user role and view
+      let apiEndpoint = `${getApiBase()}/api/transactions`;
+      if (isMineView && user?.role === "TourGuide") {
+        apiEndpoint = `${getApiBase()}/api/transactions/tour-guide`;
+      }
+
       const response = await httpJson<TransactionsResponse>(
-        `${getApiBase()}/api/transactions?${params.toString()}`
+        `${apiEndpoint}?${params.toString()}`
       );
       
       setTransactions(response.transactions);
@@ -193,12 +204,16 @@ export default function AdminTransactions() {
     });
   };
 
-  if (!user || user.role !== "Admin") {
+  if (!user || (user.role !== "Admin" && !(user.role === "TourGuide" && isMineView))) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <h2 className="text-xl font-semibold text-gray-900 mb-2">Không có quyền truy cập</h2>
-          <p className="text-gray-600">Bạn cần quyền quản trị để truy cập trang này.</p>
+          <p className="text-gray-600">
+            {!user ? "Bạn cần đăng nhập để truy cập trang này." : 
+             user.role !== "Admin" && !isMineView ? "Bạn cần quyền quản trị để truy cập trang này." :
+             "Bạn chỉ có thể xem giao dịch của tour của chính mình."}
+          </p>
         </div>
       </div>
     );
@@ -210,8 +225,12 @@ export default function AdminTransactions() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Quản lý giao dịch</h1>
-            <p className="text-gray-600">Quản lý tất cả giao dịch đặt tour và đơn hàng</p>
+            <h1 className="text-2xl font-bold text-gray-900">
+              {isMineView ? "Giao dịch của tôi" : "Quản lý giao dịch"}
+            </h1>
+            <p className="text-gray-600">
+              {isMineView ? "Xem các giao dịch từ tour của bạn" : "Quản lý tất cả giao dịch đặt tour và đơn hàng"}
+            </p>
           </div>
           <div className="text-sm text-gray-500">
             Tổng cộng: {totalCount} giao dịch

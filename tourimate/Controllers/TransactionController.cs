@@ -236,6 +236,124 @@ public class TransactionController : ControllerBase
     }
 
     /// <summary>
+    /// Get transactions for tour guide (only their own tours)
+    /// </summary>
+    /// <param name="page">Page number</param>
+    /// <param name="pageSize">Page size</param>
+    /// <param name="status">Filter by status</param>
+    /// <param name="type">Filter by type (Booking, Order)</param>
+    /// <param name="search">Search term</param>
+    /// <returns>List of transactions for tour guide's tours</returns>
+    [HttpGet("tour-guide")]
+    public async Task<IActionResult> GetTransactionsForTourGuide(
+        int page = 1,
+        int pageSize = 20,
+        string? status = null,
+        string? type = null,
+        string? search = null)
+    {
+        try
+        {
+            var userId = GetCurrentUserId();
+            if (userId == null)
+            {
+                return Unauthorized("User not authenticated");
+            }
+
+            // Check if user is tour guide
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId.Value);
+            if (user == null || user.Role != UserRole.TourGuide)
+            {
+                return Forbid("Only tour guides can access this endpoint");
+            }
+
+            var transactions = new List<object>();
+            var totalCount = 0;
+
+            // Get bookings for tour guide's tours only
+            var bookingQuery = _context.Bookings
+                .Include(b => b.Tour)
+                .Include(b => b.TourAvailability)
+                .Include(b => b.Customer)
+                .Where(b => b.Tour.TourGuideId == userId.Value) // Only bookings for tour guide's tours
+                .AsQueryable();
+
+            if (!string.IsNullOrEmpty(status) && Enum.TryParse<BookingStatus>(status, true, out var bookingStatus))
+            {
+                bookingQuery = bookingQuery.Where(b => b.Status == bookingStatus);
+            }
+
+            if (!string.IsNullOrEmpty(search))
+            {
+                bookingQuery = bookingQuery.Where(b =>
+                    b.BookingNumber.Contains(search) ||
+                    b.Tour.Title.Contains(search) ||
+                    b.Customer.FirstName.Contains(search) ||
+                    b.Customer.LastName.Contains(search) ||
+                    b.Customer.Email.Contains(search));
+            }
+
+            if (string.IsNullOrEmpty(type) || type.ToLower() == "booking")
+            {
+                var bookingCount = await bookingQuery.CountAsync();
+                totalCount += bookingCount;
+
+                var bookings = await bookingQuery
+                    .OrderByDescending(b => b.CreatedAt)
+                    .Skip((page - 1) * pageSize)
+                    .Take(pageSize)
+                    .Select(b => new
+                    {
+                        Id = b.Id,
+                        TransactionNumber = b.BookingNumber,
+                        Type = "Booking",
+                        Status = b.Status.ToString(),
+                        Amount = b.TotalAmount,
+                        CustomerName = b.Customer.FirstName + " " + b.Customer.LastName,
+                        CustomerEmail = b.Customer.Email,
+                        TourTitle = b.Tour.Title,
+                        TourDate = b.TourAvailability.Date,
+                        Participants = b.Participants,
+                        CreatedAt = b.CreatedAt,
+                        UpdatedAt = b.UpdatedAt,
+                        PaymentStatus = b.PaymentStatus.ToString(),
+                        ContactInfo = b.ContactInfo
+                    })
+                    .ToListAsync();
+
+                transactions.AddRange(bookings);
+            }
+
+            // Note: Orders are not filtered by tour guide since they're not tour-specific
+            // Tour guides can only see bookings for their tours
+
+            // Sort combined results by creation date
+            var sortedTransactions = transactions
+                .OrderByDescending(t => ((dynamic)t).CreatedAt)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToList();
+
+            return Ok(new
+            {
+                transactions = sortedTransactions,
+                pagination = new
+                {
+                    page,
+                    pageSize,
+                    totalCount,
+                    totalPages = (int)Math.Ceiling((double)totalCount / pageSize)
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting transactions for tour guide");
+            return StatusCode(500, "Internal server error");
+        }
+    }
+
+    /// <summary>
     /// Update transaction status
     /// </summary>
 
@@ -530,6 +648,16 @@ public class TransactionController : ControllerBase
             _logger.LogError(ex, "Error updating transaction status for {TransactionId}", transactionId);
             return StatusCode(500, "Internal server error");
         }
+    }
+
+    private Guid? GetCurrentUserId()
+    {
+        var userIdClaim = User.FindFirst("userId");
+        if (userIdClaim != null && Guid.TryParse(userIdClaim.Value, out var userId))
+        {
+            return userId;
+        }
+        return null;
     }
 }
 

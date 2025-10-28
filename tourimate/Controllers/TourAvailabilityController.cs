@@ -78,10 +78,6 @@ public class TourAvailabilityController : ControllerBase
                 .Skip(skip)
                 .Take(request.PageSize);
             
-            _logger.LogInformation("TourAvailability Query: {Query}", finalQuery.ToQueryString());
-            _logger.LogInformation("TourAvailability Parameters: TourId={TourId}, Page={Page}, PageSize={PageSize}, Skip={Skip}", 
-                request.TourId, request.Page, request.PageSize, skip);
-            
             var tourAvailabilities = await finalQuery.ToListAsync();
             
             // Load related data separately for better performance
