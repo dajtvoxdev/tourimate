@@ -148,6 +148,13 @@ const TourBooking: React.FC = () => {
         setCategories(categoriesData);
         setAdminBanking(bankingData);
         
+        // Check if user is tour guide trying to book their own tour
+        if (user && user.role === "TourGuide" && tourData.tourGuideId === user.id) {
+          toast.error("Bạn không thể đặt tour của chính mình");
+          navigate(`/tour/${tourId}`);
+          return;
+        }
+        
         // Handle existing booking data
         if (bookingData) {
           setExistingBooking(bookingData);
@@ -198,6 +205,12 @@ const TourBooking: React.FC = () => {
       // Save current URL as return URL
       const currentUrl = window.location.pathname + window.location.search;
       navigate(`/login?returnUrl=${encodeURIComponent(currentUrl)}`);
+      return;
+    }
+    
+    // Check if user is tour guide trying to book their own tour
+    if (user.role === "TourGuide" && tour && tour.tourGuideId === user.id) {
+      toast.error("Bạn không thể đặt tour của chính mình");
       return;
     }
     
