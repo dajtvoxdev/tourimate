@@ -1,9 +1,11 @@
+using Entities.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using tourimate.Contracts.Pricing;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 using tourimate.Contracts.Common;
+using tourimate.Contracts.Pricing;
 using TouriMate.Data;
-using Entities.Models;
 
 namespace tourimate.Controllers;
 
@@ -310,11 +312,7 @@ public class PricingConfigController : ControllerBase
 
     private Guid? GetCurrentUserId()
     {
-        var userIdClaim = User.FindFirst("userId");
-        if (userIdClaim != null && Guid.TryParse(userIdClaim.Value, out var userId))
-        {
-            return userId;
-        }
-        return null;
+        var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue(JwtRegisteredClaimNames.Sub);
+        return string.IsNullOrEmpty(userIdClaim) ? null : Guid.Parse(userIdClaim);
     }
 }

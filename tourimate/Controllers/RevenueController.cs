@@ -32,13 +32,12 @@ public class RevenueController : ControllerBase
     {
         try
         {
-            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            if (string.IsNullOrEmpty(userId))
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier) ?? User.FindFirst("sub");
+            if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userGuid))
             {
                 return Unauthorized("User not authenticated");
             }
 
-            var userGuid = Guid.Parse(userId);
             var userRole = User.FindFirst(ClaimTypes.Role)?.Value;
 
             // For TourGuide: Revenue = Paid Cost records where they are recipient
@@ -229,13 +228,12 @@ public class RevenueController : ControllerBase
     {
         try
         {
-            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            if (string.IsNullOrEmpty(userId))
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier) ?? User.FindFirst("sub");
+            if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userGuid))
             {
                 return Unauthorized("User not authenticated");
             }
 
-            var userGuid = Guid.Parse(userId);
             var userRole = User.FindFirst(ClaimTypes.Role)?.Value;
 
             // For TourGuide: Statistics from Cost records
@@ -400,13 +398,12 @@ public class RevenueController : ControllerBase
     {
         try
         {
-            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            if (string.IsNullOrEmpty(userId))
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier) ?? User.FindFirst("sub");
+            if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out var userGuid))
             {
                 return Unauthorized("User not authenticated");
             }
 
-            var userGuid = Guid.Parse(userId);
             var userRole = User.FindFirst(ClaimTypes.Role)?.Value;
 
             // Base query

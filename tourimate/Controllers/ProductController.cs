@@ -6,6 +6,7 @@ using Entities.Models;
 using Entities.Enums;
 using System.Security.Claims;
 using System.Text.Json;
+using System.IdentityModel.Tokens.Jwt;
 
 namespace tourimate.Controllers;
 
@@ -732,11 +733,7 @@ public class ProductController : ControllerBase
 
     private Guid? GetCurrentUserId()
     {
-        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier) ?? User.FindFirst("sub");
-        if (userIdClaim != null && Guid.TryParse(userIdClaim.Value, out var userId))
-        {
-            return userId;
-        }
-        return null;
+        var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue(JwtRegisteredClaimNames.Sub);
+        return string.IsNullOrEmpty(userIdClaim) ? null : Guid.Parse(userIdClaim);
     }
 }
