@@ -36,6 +36,10 @@ public class Transaction : BaseEntity, IAuditableEntity
     [MaxLength(50)]
     public string Status { get; set; } = "pending"; // pending, completed, failed, cancelled, refunded
 
+    [Required]
+    [MaxLength(10)]
+    public string TransactionDirection { get; set; } = "in"; // "in" for money in, "out" for money out
+
     [MaxLength(50)]
     public string? PaymentMethod { get; set; }
 
@@ -82,4 +86,10 @@ public class Transaction : BaseEntity, IAuditableEntity
 
     [NotMapped]
     public bool IsRefund => Type == "refund";
+
+    [NotMapped]
+    public bool IsMoneyIn => TransactionDirection == "in";
+
+    [NotMapped]
+    public bool IsMoneyOut => TransactionDirection == "out";
 }

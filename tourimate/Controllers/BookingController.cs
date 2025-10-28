@@ -101,12 +101,33 @@ public class BookingController : ControllerBase
 
             _context.Bookings.Add(booking);
 
+            // Create corresponding Transaction for the booking
+            var transaction = new Transaction
+            {
+                TransactionId = bookingNumber, // Use booking number as transaction ID
+                UserId = userId.Value,
+                Type = "booking_payment",
+                EntityId = booking.Id,
+                EntityType = "Booking",
+                Amount = totalAmount,
+                Currency = "VND",
+                Status = "pending",
+                TransactionDirection = "in", // Money coming in from customer
+                PaymentMethod = "Bank Transfer",
+                PaymentGateway = "SePay",
+                Description = $"Booking payment for tour: {tourAvailability.Tour.Title}",
+                CreatedBy = userId,
+                UpdatedBy = userId
+            };
+
+            _context.Transactions.Add(transaction);
+
             // Update tour availability booked participants
             tourAvailability.BookedParticipants += request.AdultCount + request.ChildCount;
 
             await _context.SaveChangesAsync();
 
-            _logger.LogInformation("Booking created successfully: {BookingNumber}", bookingNumber);
+            _logger.LogInformation("Booking and Transaction created successfully: {BookingNumber}", bookingNumber);
 
             return Ok(new { bookingNumber });
         }
