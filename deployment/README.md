@@ -1,194 +1,99 @@
-# TouriMate Local CI/CD Pipeline
+# TouriMate Deployment
 
-This CI/CD solution builds your project locally and deploys it to your VPS via SSH when you push to the main branch.
+## 🚀 Quick Start
 
-## 🚀 Features
-
-- **Automatic Build**: Builds both backend (.NET) and frontend (React) locally
-- **Production Config**: Uses `appsettings.Production.json` for backend and `.env.production` for frontend
-- **SSH Deployment**: Deploys built files to VPS via SSH
-- **Git Integration**: Automatically triggers on `git push` to main branch
-- **Manual Execution**: Can be run manually for testing
-
-## 📁 Files Structure
-
-```
-deployment/
-├── local-ci-cd.ps1          # Main CI/CD script
-├── git-hook.sh              # Git hook script
-├── run-ci-cd.bat            # Windows batch runner
-├── setup-git-hooks.ps1     # Git hooks setup
-├── ci-cd-config.json       # Configuration file
-└── README.md               # This file
-```
-
-## ⚙️ Setup Instructions
-
-### 1. Prerequisites
-
-Make sure you have installed:
-- .NET SDK (for backend build)
-- Node.js and npm (for frontend build)
-- Git (for version control)
-- SSH client (for VPS deployment)
-
-### 2. Configure VPS Access
-
-Ensure you can SSH to your VPS:
+### Single Command Deployment
 ```bash
-ssh Administrator@tourimate.site
+.\run-auto-deploy.bat
 ```
 
-### 3. Setup Git Hooks (Automatic CI/CD)
-
-Run the setup script to enable automatic CI/CD on git push:
-
-```powershell
-.\deployment\setup-git-hooks.ps1
+### Manual Deployment
+```bash
+.\auto-build-deploy.ps1
 ```
 
-### 4. Manual Testing
+## 📋 Prerequisites
 
-Test the CI/CD pipeline manually:
+1. **Production Configuration Files:**
+   - `tourimate/appsettings.production.json` - Backend production config
+   - `tourimate-client/.env.production` - Frontend production config
 
-```batch
-.\deployment\run-ci-cd.bat
-```
+2. **Required Software:**
+   - .NET SDK 8.0+
+   - Node.js 18+
+   - SSH client (OpenSSH)
 
-Or using PowerShell:
-
-```powershell
-.\deployment\local-ci-cd.ps1
-```
+3. **VPS Access:**
+   - SSH access to `103.161.180.247`
+   - Administrator privileges
+   - IIS configured with `DefaultAppPool`
 
 ## 🔧 Configuration
 
-Edit `deployment/ci-cd-config.json` to customize:
-
-- Project paths
-- VPS connection details
-- Build configurations
-- Environment settings
-
-## 📋 How It Works
-
-### 1. Git Push Trigger
-When you push to the main branch:
-1. Git hook detects the push
-2. Pulls latest changes
-3. Runs the CI/CD pipeline
-
-### 2. Build Process
-1. **Backend Build**:
-   - Restores NuGet packages
-   - Builds with Release configuration
-   - Uses `appsettings.Production.json`
-   - Publishes to `D:\tourimate\publish\backend`
-
-2. **Frontend Build**:
-   - Installs npm dependencies
-   - Creates `.env.production` with VPS API URL
-   - Builds for production
-   - Copies to `D:\tourimate\publish\frontend`
-
-### 3. Deployment Process
-1. **VPS Preparation**:
-   - Stops IIS application pools
-   - Backs up existing files
-   - Creates deployment directories
-
-2. **File Transfer**:
-   - Uses SCP to transfer backend files
-   - Uses SCP to transfer frontend files
-
-3. **VPS Finalization**:
-   - Starts IIS application pools
-   - Verifies deployment
-
-## 🎯 Environment Configuration
-
-### Backend (appsettings.Production.json)
-```json
-{
-  "Logging": {
-    "LogLevel": {
-      "Default": "Information",
-      "Microsoft.AspNetCore": "Warning"
-    }
-  },
-  "ConnectionStrings": {
-    "DefaultConnection": "your-production-connection-string"
-  },
-  "ExternalServices": {
-    "SendGrid": {
-      "ApiKey": "your-sendgrid-api-key",
-      "FromEmail": "noreply@tourimate.site",
-      "FromName": "TouriMate"
-    }
-  }
+### VPS Settings (in `auto-build-deploy.ps1`):
+```powershell
+$Config = @{
+    VpsHost = "103.161.180.247"
+    VpsUser = "Administrator"
+    VpsPort = 22
+    VpsBackendPath = "C:\inetpub\wwwroot\tourimate-production"
+    VpsFrontendPath = "C:\inetpub\wwwroot\tourimate-frontend-production"
 }
 ```
 
-### Frontend (.env.production)
-```
-VITE_API_BASE_URL=https://tourimate.site:5000
+## 📁 Deployment Process
+
+1. **Build Backend:**
+   - Restore NuGet packages
+   - Publish with Release configuration
+   - Copy `appsettings.production.json`
+
+2. **Build Frontend:**
+   - Install npm dependencies
+   - Copy `.env.production`
+   - Build for production
+   - Copy dist files
+
+3. **Deploy to VPS:**
+   - Stop IIS application pools
+   - Transfer files via SCP
+   - Start IIS application pools
+
+4. **Verify Deployment:**
+   - Test backend: `https://tourimate.site:5000/api/health`
+   - Test frontend: `https://tourimate.site`
+
+## 🛠️ Troubleshooting
+
+### Check Configuration
+```bash
+.\check-config-simple.ps1
 ```
 
-## 🚨 Troubleshooting
+### View Logs
+```bash
+Get-Content .\auto-deploy.log -Tail 50
+```
 
 ### Common Issues
+- **SSH Connection Failed**: Check VPS IP and credentials
+- **Build Failed**: Verify .NET SDK and Node.js installation
+- **Deploy Failed**: Check IIS permissions and paths
 
-1. **SSH Connection Failed**:
-   - Check VPS credentials
-   - Verify SSH port (22)
-   - Test SSH connection manually
+## 📊 Monitoring
 
-2. **Build Failed**:
-   - Check .NET SDK installation
-   - Check Node.js/npm installation
-   - Verify project paths in config
+- **Logs**: `deployment/auto-deploy.log`
+- **Backend**: `https://tourimate.site:5000`
+- **Frontend**: `https://tourimate.site`
 
-3. **Deployment Failed**:
-   - Check VPS disk space
-   - Verify IIS permissions
-   - Check VPS paths in config
+## 🎯 Success Indicators
 
-### Logs
+✅ Build completed successfully  
+✅ Files transferred to VPS  
+✅ IIS application pools restarted  
+✅ Health endpoints responding  
+✅ Frontend accessible  
 
-Check the log file for detailed information:
-```
-D:\tourimate\deployment\ci-cd.log
-```
+---
 
-## 🔄 Manual Commands
-
-### Build Only (Skip Deployment)
-```powershell
-.\deployment\local-ci-cd.ps1 -SkipDeploy
-```
-
-### Deploy Only (Skip Build)
-```powershell
-.\deployment\local-ci-cd.ps1 -SkipBuild
-```
-
-### Verbose Output
-```powershell
-.\deployment\local-ci-cd.ps1 -Verbose
-```
-
-## 📞 Support
-
-If you encounter issues:
-1. Check the log file
-2. Verify all prerequisites
-3. Test SSH connection manually
-4. Run with verbose output for debugging
-
-## 🎉 Success!
-
-After successful deployment:
-- **Backend**: https://tourimate.site:5000
-- **Frontend**: https://tourimate.site
-
-Your CI/CD pipeline is now ready! 🚀
+**Note**: This deployment method has been tested and optimized for the TouriMate VPS environment.
