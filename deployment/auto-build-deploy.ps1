@@ -248,8 +248,7 @@ Write-Host "Starting deployment on VPS..."
 # Stop IIS application pools
 Write-Host "Stopping IIS application pools..."
 Import-Module WebAdministration -ErrorAction SilentlyContinue
-Stop-WebAppPool -Name "tourimate-production" -ErrorAction SilentlyContinue
-Stop-WebAppPool -Name "tourimate-frontend-production" -ErrorAction SilentlyContinue
+Stop-WebAppPool -Name "DefaultAppPool" -ErrorAction SilentlyContinue
 
 # Wait a moment
 Start-Sleep -Seconds 2
@@ -289,8 +288,7 @@ Write-Host "VPS preparation completed. Ready for file transfer."
         Write-Log "Starting IIS application pools..."
         $startScript = @"
 Import-Module WebAdministration -ErrorAction SilentlyContinue
-Start-WebAppPool -Name "tourimate-production" -ErrorAction SilentlyContinue
-Start-WebAppPool -Name "tourimate-frontend-production" -ErrorAction SilentlyContinue
+Start-WebAppPool -Name "DefaultAppPool" -ErrorAction SilentlyContinue
 Write-Host "IIS application pools started successfully"
 "@
         

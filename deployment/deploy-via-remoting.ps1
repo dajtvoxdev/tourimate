@@ -225,8 +225,7 @@ function Deploy-ViaRemoting {
         Write-Log "Stopping IIS application pools..."
         Invoke-Command -Session $session -ScriptBlock {
             Import-Module WebAdministration -ErrorAction SilentlyContinue
-            Stop-WebAppPool -Name "tourimate-production" -ErrorAction SilentlyContinue
-            Stop-WebAppPool -Name "tourimate-frontend-production" -ErrorAction SilentlyContinue
+            Stop-WebAppPool -Name "DefaultAppPool" -ErrorAction SilentlyContinue
             Start-Sleep -Seconds 2
         }
         
@@ -242,8 +241,7 @@ function Deploy-ViaRemoting {
         Write-Log "Starting IIS application pools..."
         Invoke-Command -Session $session -ScriptBlock {
             Import-Module WebAdministration -ErrorAction SilentlyContinue
-            Start-WebAppPool -Name "tourimate-production" -ErrorAction SilentlyContinue
-            Start-WebAppPool -Name "tourimate-frontend-production" -ErrorAction SilentlyContinue
+            Start-WebAppPool -Name "DefaultAppPool" -ErrorAction SilentlyContinue
         }
         
         # Close session
