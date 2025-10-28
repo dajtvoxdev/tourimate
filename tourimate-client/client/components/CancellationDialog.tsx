@@ -46,19 +46,31 @@ export function CancellationDialog({ open, onOpenChange, bookingId, isPaid = fal
   const [loading, setLoading] = useState(false);
   const [calculating, setCalculating] = useState(false);
 
-  // Load banks data when dialog opens for paid bookings
+  // Load banks data and user profile when dialog opens for paid bookings
   useEffect(() => {
-    const loadBanks = async () => {
+    const loadBanksAndProfile = async () => {
       try {
-        const response = await httpJson<BankInfo[]>(`${getApiBase()}/api/banks`, { skipAuth: true });
-        setBanks(response);
+        // Load banks
+        const banksResponse = await httpJson<BankInfo[]>(`${getApiBase()}/api/banks`, { skipAuth: true });
+        setBanks(banksResponse);
+
+        // Load user profile to get bank info
+        const profileResponse = await httpJson<any>(`${getApiBase()}/api/auth/me`);
+        
+        // Auto-fill bank info if user has configured it
+        if (profileResponse.bankCode && profileResponse.bankAccount && profileResponse.bankAccountName) {
+          setRefundBankCode(profileResponse.bankCode);
+          setRefundBankName(profileResponse.bankName || "");
+          setRefundBankAccount(profileResponse.bankAccount);
+          setRefundAccountName(profileResponse.bankAccountName);
+        }
       } catch (error) {
-        console.error("Error loading banks:", error);
-        toast.error("Không thể tải danh sách ngân hàng");
+        console.error("Error loading banks and profile:", error);
+        toast.error("Không thể tải thông tin ngân hàng");
       }
     };
     if (open && isPaid) {
-      loadBanks();
+      loadBanksAndProfile();
     }
   }, [open, isPaid]);
 
