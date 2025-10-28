@@ -15,7 +15,8 @@ import {
   Plus,
   Clock,
   CheckCircle,
-  XCircle
+  XCircle,
+  Layers
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,6 +26,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { MultiSelect, MultiSelectOption } from "@/components/ui/multi-select";
 import { httpJson, getApiBase } from "@/src/lib/http";
 import { toast } from "sonner";
 import { useAuth } from "@/src/hooks/useAuth";
@@ -64,10 +66,18 @@ interface PaymentRequestsResponse {
 interface Booking {
   id: string;
   bookingNumber: string;
-  tourTitle: string;
-  status: string;
+  status: number;
   totalAmount: number;
-  tourDate: string;
+  participants: number;
+  createdAt: string;
+  tour: {
+    id: string;
+    title: string;
+  };
+  tourAvailability: {
+    id: string;
+    date: string;
+  };
 }
 
 export default function TourGuidePaymentRequests() {
@@ -84,6 +94,8 @@ export default function TourGuidePaymentRequests() {
   const [selectedRequest, setSelectedRequest] = useState<PaymentRequest | null>(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [selectedBookingId, setSelectedBookingId] = useState<string>("");
+  const [selectedBookingIds, setSelectedBookingIds] = useState<string[]>([]);
+  const [showMultiCreateDialog, setShowMultiCreateDialog] = useState(false);
 
   // Check access
   if (!user || user.role !== "TourGuide") {
@@ -178,7 +190,7 @@ export default function TourGuidePaymentRequests() {
       });
 
       toast.success("Tạo yêu cầu thanh toán thành công", {
-        description: `Số tiền: ${formatCurrency(response.amount)} - Trạng thái: ${response.status}`
+        description: `Số tiền: ${formatCurrency((response as any).amount || 0)} - Trạng thái: ${(response as any).status || 'pending'}`
       });
 
       setShowCreateDialog(false);
@@ -189,6 +201,37 @@ export default function TourGuidePaymentRequests() {
       toast.error(error.message || "Không thể tạo yêu cầu thanh toán");
     } finally {
       setActionLoading(null);
+    }
+  };
+
+  const handleCreateMultiplePaymentRequests = async () => {
+    if (selectedBookingIds.length === 0) {
+      toast.error("Vui lòng chọn ít nhất một tour đã hoàn thành");
+      return;
+    }
+
+    try {
+      const promises = selectedBookingIds.map(bookingId => 
+        httpJson(`${getApiBase()}/api/paymentrequest/create`, {
+          method: "POST",
+          body: JSON.stringify({
+            bookingId: bookingId
+          })
+        })
+      );
+
+      const results = await Promise.all(promises);
+      
+      toast.success(`Tạo thành công ${selectedBookingIds.length} yêu cầu thanh toán`, {
+        description: `Tổng số tiền: ${formatCurrency(results.reduce((sum, result) => sum + ((result as any).amount || 0), 0))}`
+      });
+      
+      setShowMultiCreateDialog(false);
+      setSelectedBookingIds([]);
+      fetchPaymentRequests();
+    } catch (error: any) {
+      console.error("Error creating multiple payment requests:", error);
+      toast.error(error.message || "Không thể tạo yêu cầu thanh toán");
     }
   };
 
@@ -239,18 +282,28 @@ export default function TourGuidePaymentRequests() {
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Yêu cầu thanh toán</h1>
             <p className="text-gray-600">Quản lý các yêu cầu thanh toán từ tour đã hoàn thành</p>
-            <div className="mt-2 text-sm text-gray-500">
-              <p>💡 <strong>Luồng:</strong> Tour hoàn thành → Tạo yêu cầu → Admin xử lý → Nhận thanh toán</p>
-            </div>
           </div>
           <div className="flex items-center gap-4">
             <div className="text-sm text-gray-500">
               Tổng cộng: {totalCount} yêu cầu
             </div>
-            <Button onClick={() => setShowCreateDialog(true)} className="bg-green-600 hover:bg-green-700">
-              <Plus className="w-4 h-4 mr-2" />
-              Tạo yêu cầu
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button 
+                variant="outline" 
+                onClick={() => setShowMultiCreateDialog(true)}
+                disabled={bookings.length === 0}
+              >
+                <Layers className="w-4 h-4 mr-2" />
+                Tạo tất cả
+              </Button>
+              <Button 
+                variant="outline" 
+                onClick={() => setShowCreateDialog(true)}
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Tạo yêu cầu
+              </Button>
+            </div>
           </div>
         </div>
 
@@ -366,7 +419,10 @@ export default function TourGuidePaymentRequests() {
               <p className="text-gray-600 mb-4">
                 Tạo yêu cầu thanh toán cho các tour đã hoàn thành để nhận commission.
               </p>
-              <Button onClick={() => setShowCreateDialog(true)} className="bg-green-600 hover:bg-green-700">
+              <Button 
+                variant="outline" 
+                onClick={() => setShowCreateDialog(true)}
+              >
                 <Plus className="w-4 h-4 mr-2" />
                 Tạo yêu cầu đầu tiên
               </Button>
@@ -508,6 +564,88 @@ export default function TourGuidePaymentRequests() {
             </AlertDialogContent>
           </AlertDialog>
         )}
+
+        {/* Multi-Create Payment Request Dialog */}
+        <AlertDialog open={showMultiCreateDialog} onOpenChange={setShowMultiCreateDialog}>
+          <AlertDialogContent className="max-w-2xl">
+            <AlertDialogHeader>
+              <AlertDialogTitle>Tạo yêu cầu thanh toán cho nhiều tour</AlertDialogTitle>
+              <AlertDialogDescription>
+                Chọn các tour đã hoàn thành để tạo yêu cầu thanh toán hàng loạt.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-2 block">
+                  Chọn tour đã hoàn thành:
+                </label>
+                <MultiSelect
+                  options={bookings.map(booking => ({
+                    value: booking.id,
+                    label: `${booking.tour.title} - ${booking.tourAvailability.date}`,
+                    description: `${booking.participants} người - ${formatCurrency(booking.totalAmount)}`
+                  }))}
+                  selected={selectedBookingIds}
+                  onChange={setSelectedBookingIds}
+                  placeholder="Chọn tour để tạo yêu cầu thanh toán..."
+                  showSelectAll={true}
+                />
+              </div>
+              
+              {selectedBookingIds.length > 0 && (
+                <div className="bg-blue-50 p-4 rounded-lg">
+                  <h4 className="font-medium text-blue-900 mb-2">
+                    Sẽ tạo {selectedBookingIds.length} yêu cầu thanh toán:
+                  </h4>
+                  <div className="space-y-2">
+                    {selectedBookingIds.map(bookingId => {
+                      const booking = bookings.find(b => b.id === bookingId);
+                      return booking ? (
+                        <div key={bookingId} className="flex justify-between items-center text-sm">
+                          <span className="text-blue-800">
+                            {booking.tour.title} - {booking.tourAvailability.date}
+                          </span>
+                          <span className="font-medium text-blue-900">
+                            {formatCurrency(booking.totalAmount)}
+                          </span>
+                        </div>
+                      ) : null;
+                    })}
+                  </div>
+                  <div className="mt-3 pt-3 border-t border-blue-200">
+                    <div className="flex justify-between items-center font-medium text-blue-900">
+                      <span>Tổng số tiền:</span>
+                      <span>
+                        {formatCurrency(
+                          selectedBookingIds.reduce((sum, bookingId) => {
+                            const booking = bookings.find(b => b.id === bookingId);
+                            return sum + (booking?.totalAmount || 0);
+                          }, 0)
+                        )}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => {
+                setShowMultiCreateDialog(false);
+                setSelectedBookingIds([]);
+              }}>
+                Hủy
+              </AlertDialogCancel>
+              <AlertDialogAction 
+                onClick={handleCreateMultiplePaymentRequests}
+                disabled={selectedBookingIds.length === 0}
+              >
+                Tạo {selectedBookingIds.length} yêu cầu
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </AdminLayout>
   );
