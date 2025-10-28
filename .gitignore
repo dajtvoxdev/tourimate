@@ -204,3 +204,4 @@ uploads/
 public/uploads/
 storage/
 /tourimate/appsettings.json
+/tourimate/appsettings.production.json
