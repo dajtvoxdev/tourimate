@@ -201,8 +201,11 @@ function Build-Frontend {
         
         # Copy production env file
         Write-Log "Using production environment file..."
-        if ($Config.ProductionEnv -ne "$($Config.FrontendPath)\.env.production") {
-            Copy-Item -Path $Config.ProductionEnv -Destination "$($Config.FrontendPath)\.env.production" -Force
+        $envProductionPath = "$($Config.FrontendPath)\.env.production"
+        if ($Config.ProductionEnv -ne $envProductionPath) {
+            Copy-Item -Path $Config.ProductionEnv -Destination $envProductionPath -Force
+        } else {
+            Write-Log "Production env file already in correct location"
         }
         
         # Build frontend
@@ -242,9 +245,23 @@ function Deploy-ToVps {
 # VPS Deployment Script
 Write-Host "Starting deployment on VPS..."
 
+# Import WebAdministration module
+Import-Module WebAdministration -ErrorAction SilentlyContinue
+
+# Create IIS Application Pools if they don't exist
+Write-Host "Creating IIS application pools if needed..."
+if (!(Get-WebAppPool -Name "tourimate-production" -ErrorAction SilentlyContinue)) {
+    New-WebAppPool -Name "tourimate-production"
+    Write-Host "Created tourimate-production app pool"
+}
+
+if (!(Get-WebAppPool -Name "tourimate-frontend-production" -ErrorAction SilentlyContinue)) {
+    New-WebAppPool -Name "tourimate-frontend-production"
+    Write-Host "Created tourimate-frontend-production app pool"
+}
+
 # Stop IIS application pools
 Write-Host "Stopping IIS application pools..."
-Import-Module WebAdministration -ErrorAction SilentlyContinue
 Stop-WebAppPool -Name "tourimate-production" -ErrorAction SilentlyContinue
 Stop-WebAppPool -Name "tourimate-frontend-production" -ErrorAction SilentlyContinue
 
@@ -278,7 +295,10 @@ Write-Host "VPS preparation completed. Ready for file transfer."
         
         # Transfer backend files
         Write-Log "Transferring backend files..."
-        $scpBackendCmd = "scp -P $($Config.VpsPort) -r `"$($Config.BackendBuildPath)\*`" `"$sshConnection`":`"$($Config.VpsBackendPath)`""
+        $backendPathEscaped = $Config.BackendBuildPath.Replace('\', '/').Replace(':', '')
+        $vpsBackendPathEscaped = $Config.VpsBackendPath.Replace('\', '/').Replace(':', '')
+        $scpBackendCmd = "scp -P $($Config.VpsPort) -r `"$backendPathEscaped/*`" `"$sshConnection`":`"/$vpsBackendPathEscaped/`""
+        Write-Log "SCP Command: $scpBackendCmd"
         Invoke-Expression $scpBackendCmd
         
         if ($LASTEXITCODE -ne 0) {
@@ -287,7 +307,10 @@ Write-Host "VPS preparation completed. Ready for file transfer."
         
         # Transfer frontend files
         Write-Log "Transferring frontend files..."
-        $scpFrontendCmd = "scp -P $($Config.VpsPort) -r `"$($Config.FrontendBuildPath)\*`" `"$sshConnection`":`"$($Config.VpsFrontendPath)`""
+        $frontendPathEscaped = $Config.FrontendBuildPath.Replace('\', '/').Replace(':', '')
+        $vpsFrontendPathEscaped = $Config.VpsFrontendPath.Replace('\', '/').Replace(':', '')
+        $scpFrontendCmd = "scp -P $($Config.VpsPort) -r `"$frontendPathEscaped/*`" `"$sshConnection`":`"/$vpsFrontendPathEscaped/`""
+        Write-Log "SCP Command: $scpFrontendCmd"
         Invoke-Expression $scpFrontendCmd
         
         if ($LASTEXITCODE -ne 0) {
