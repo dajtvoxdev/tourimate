@@ -6,6 +6,7 @@ using Entities.Enums;
 using TouriMate.Services;
 using System.Security.Claims;
 using System.IdentityModel.Tokens.Jwt;
+using Microsoft.AspNetCore.Authorization;
 
 namespace TouriMate.Controllers;
 

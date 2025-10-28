@@ -66,6 +66,7 @@ public class TouriMateDbContext : DbContext
         ConfigureUsers(modelBuilder);
         ConfigureTours(modelBuilder);
         ConfigureProducts(modelBuilder);
+        ConfigureCosts(modelBuilder);
         ConfigureReviews(modelBuilder);
         ConfigureFinancials(modelBuilder);
         ConfigureSystem(modelBuilder);
@@ -236,7 +237,7 @@ public class TouriMateDbContext : DbContext
             .HasOne(p => p.TourGuide)
             .WithMany()
             .HasForeignKey(p => p.TourGuideId)
-            .OnDelete(DeleteBehavior.Cascade);
+            .OnDelete(DeleteBehavior.NoAction);
 
         modelBuilder.Entity<Product>()
             .HasOne(p => p.Creator)
@@ -291,6 +292,44 @@ public class TouriMateDbContext : DbContext
             .WithMany()
             .HasForeignKey(sc => sc.ProductId)
             .OnDelete(DeleteBehavior.NoAction);
+    }
+
+    private void ConfigureCosts(ModelBuilder modelBuilder)
+    {
+        // Cost relationships - use NoAction to avoid cascade conflicts
+        modelBuilder.Entity<Cost>()
+            .HasOne(c => c.Payer)
+            .WithMany()
+            .HasForeignKey(c => c.PayerId)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        modelBuilder.Entity<Cost>()
+            .HasOne(c => c.Recipient)
+            .WithMany()
+            .HasForeignKey(c => c.RecipientId)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        modelBuilder.Entity<Cost>()
+            .HasOne(c => c.Creator)
+            .WithMany()
+            .HasForeignKey(c => c.CreatedBy)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        modelBuilder.Entity<Cost>()
+            .HasOne(c => c.Updater)
+            .WithMany()
+            .HasForeignKey(c => c.UpdatedBy)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        // Performance indexes for Cost
+        modelBuilder.Entity<Cost>()
+            .HasIndex(c => new { c.Type, c.Status });
+
+        modelBuilder.Entity<Cost>()
+            .HasIndex(c => new { c.RecipientId, c.Status });
+
+        modelBuilder.Entity<Cost>()
+            .HasIndex(c => new { c.PayerId, c.Status });
     }
 
     private void ConfigureReviews(ModelBuilder modelBuilder)
