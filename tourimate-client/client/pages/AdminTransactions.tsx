@@ -196,17 +196,15 @@ export default function AdminTransactions() {
 
   const getStatusBadge = (status: string) => {
     switch (status.toLowerCase()) {
-      case "completed":
-        return <Badge className="bg-green-100 text-green-800">Hoàn thành</Badge>;
       case "confirmed":
       case "confirm":
-        return <Badge className="bg-blue-100 text-blue-800">Đã chuyển khoản</Badge>;
+      case "completed":
+        return <Badge className="bg-green-100 text-green-800">Đã chuyển khoản</Badge>;
       case "pendingpayment":
+      case "pending":
         return <Badge className="bg-yellow-100 text-yellow-800">Chờ thanh toán</Badge>;
       case "cancelled":
-        return <Badge className="bg-red-100 text-red-800">Đã hủy</Badge>;
-      case "pending":
-        return <Badge className="bg-blue-100 text-blue-800">Chờ duyệt</Badge>;
+        return <Badge className="bg-red-100 text-red-800">Hủy</Badge>;
       default:
         return <Badge variant="secondary">{status}</Badge>;
     }
@@ -346,11 +344,9 @@ export default function AdminTransactions() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Tất cả</SelectItem>
-                    <SelectItem value="completed">Hoàn thành</SelectItem>
                     <SelectItem value="confirmed">Đã chuyển khoản</SelectItem>
                     <SelectItem value="pendingpayment">Chờ thanh toán</SelectItem>
-                    <SelectItem value="cancelled">Đã hủy</SelectItem>
-                    <SelectItem value="pending">Chờ duyệt</SelectItem>
+                    <SelectItem value="cancelled">Hủy</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -464,15 +460,6 @@ export default function AdminTransactions() {
                               >
                                 <Check className="w-4 h-4 mr-2" />
                                 Đã chuyển khoản
-                              </DropdownMenuItem>
-                            )}
-                            {transaction.status !== "Completed" && (
-                              <DropdownMenuItem
-                                onClick={() => handleStatusChange(transaction.id, "Completed")}
-                                disabled={actionLoading === transaction.id}
-                              >
-                                <Check className="w-4 h-4 mr-2" />
-                                Hoàn thành
                               </DropdownMenuItem>
                             )}
                             {transaction.status !== "Cancelled" && (
