@@ -89,10 +89,13 @@ public class RevenueController : ControllerBase
                         c.UpdatedAt,
                         c.PaidDate,
                         c.RecipientId,
-                        c.PayerId
+                        c.PayerId,
+                        c.RelatedEntityId,
+                        c.RelatedEntityType
                     })
                     .ToListAsync();
 
+                // Get payer info
                 var payerIds = costsWithPayer.Select(c => c.PayerId).Distinct().ToList();
                 var payers = await _context.Users
                     .Where(u => payerIds.Contains(u.Id))
@@ -104,28 +107,62 @@ public class RevenueController : ControllerBase
                         u.Email
                     })
                     .ToListAsync();
-
                 var payerDict = payers.ToDictionary(p => p.Id);
+
+                // Get booking and tour info
+                var relatedBookingIds = costsWithPayer
+                    .Where(c => c.RelatedEntityId.HasValue && c.RelatedEntityType == "Booking")
+                    .Select(c => c.RelatedEntityId!.Value)
+                    .Distinct()
+                    .ToList();
+
+                var bookingsWithTours = await _context.Bookings
+                    .Where(b => relatedBookingIds.Contains(b.Id))
+                    .Select(b => new
+                    {
+                        b.Id,
+                        b.BookingNumber,
+                        TourId = b.Tour.Id,
+                        TourTitle = b.Tour.Title,
+                        TourGuideId = b.Tour.TourGuideId,
+                        AvailabilityDate = b.TourAvailability.Date,
+                        AdultPrice = b.TourAvailability.AdultPrice,
+                        ChildPrice = b.TourAvailability.ChildPrice
+                    })
+                    .ToListAsync();
+                var bookingDict = bookingsWithTours.ToDictionary(b => b.Id);
 
                 var revenues = costsWithPayer.Select(c =>
                 {
                     var payer = payerDict.GetValueOrDefault(c.PayerId);
+                    var booking = c.RelatedEntityId.HasValue ? bookingDict.GetValueOrDefault(c.RelatedEntityId.Value) : null;
+
                     return new
                     {
                         Id = c.Id,
-                        BookingNumber = c.CostCode,
+                        BookingNumber = booking?.BookingNumber ?? c.CostCode,
                         TotalAmount = c.Amount,
                         PaymentStatus = c.Status == Entities.Models.CostStatus.Paid ? PaymentStatus.Paid : PaymentStatus.Pending,
                         Status = (int)BookingStatus.Confirmed,
                         CreatedAt = c.CreatedAt,
                         UpdatedAt = c.UpdatedAt,
-                        Tour = new
+                        Tour = booking != null ? new
+                        {
+                            Id = booking.TourId,
+                            Title = booking.TourTitle,
+                            TourGuideId = booking.TourGuideId
+                        } : new
                         {
                             Id = Guid.Empty,
                             Title = c.CostName,
                             TourGuideId = c.RecipientId
                         },
-                        TourAvailability = new
+                        TourAvailability = booking != null ? new
+                        {
+                            Date = booking.AvailabilityDate,
+                            AdultPrice = booking.AdultPrice,
+                            ChildPrice = booking.ChildPrice
+                        } : new
                         {
                             Date = c.PaidDate ?? c.CreatedAt,
                             AdultPrice = 0m,
