@@ -52,15 +52,15 @@ public class SePayTransaction : BaseEntity, IAuditableEntity
     // Foreign key to Order or Booking
     public Guid? EntityId { get; set; }
     
-    [MaxLength(20)]
+    [MaxLength(50)]
     public string? EntityType { get; set; } // "Order", "Booking"
 
     // Processing status
     [Required]
-    [MaxLength(20)]
+    [MaxLength(50)]
     public string ProcessingStatus { get; set; } = "pending"; // pending, processed, failed
 
-    [MaxLength(500)]
+    [MaxLength(1000)]
     public string? ProcessingNotes { get; set; }
 
     public DateTime? ProcessedAt { get; set; }
