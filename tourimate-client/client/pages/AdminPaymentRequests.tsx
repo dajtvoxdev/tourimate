@@ -362,7 +362,7 @@ export default function AdminPaymentRequests() {
                   {/* Actions */}
                   <div className="flex items-center gap-2">
                     {/* Primary action button for Pending requests */}
-                    {request.status === "Pending" && (
+                    {normalizeStatus(request.status) === "pending" && (
                       <Button
                         onClick={() => {
                           setRequestToProcess(request);
@@ -388,7 +388,7 @@ export default function AdminPaymentRequests() {
                           <Eye className="w-4 h-4 mr-2" />
                           Xem chi tiết
                         </DropdownMenuItem>
-                        {request.status === "Pending" && (
+                        {normalizeStatus(request.status) === "pending" && (
                           <DropdownMenuItem 
                             onClick={() => {
                               setRequestToProcess(request);
