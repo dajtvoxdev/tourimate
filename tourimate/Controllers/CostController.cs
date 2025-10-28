@@ -147,6 +147,7 @@ public class CostController : ControllerBase
             var cost = await _db.Costs
                 .Include(c => c.Payer)
                 .Include(c => c.Recipient)
+                    .ThenInclude(u => u.Profile)
                 .Include(c => c.Creator)
                 .Include(c => c.Updater)
                 .FirstOrDefaultAsync(c => c.Id == id);
@@ -170,6 +171,10 @@ public class CostController : ControllerBase
                 PayerName = $"{cost.Payer.FirstName} {cost.Payer.LastName}",
                 RecipientId = cost.RecipientId,
                 RecipientName = $"{cost.Recipient.FirstName} {cost.Recipient.LastName}",
+                RecipientBankCode = cost.Recipient.Profile?.BankCode,
+                RecipientBankName = cost.Recipient.Profile?.BankName,
+                RecipientBankAccount = cost.Recipient.Profile?.BankAccount,
+                RecipientBankAccountName = cost.Recipient.Profile?.BankAccountName,
                 RelatedEntityId = cost.RelatedEntityId,
                 RelatedEntityType = cost.RelatedEntityType,
                 ReferenceNumber = cost.ReferenceNumber,
