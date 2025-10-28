@@ -1,0 +1,26 @@
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  },
+  "ConnectionStrings": {
+    "DefaultConnection": "Server=localhost;Database=TouriMate;Trusted_Connection=true;TrustServerCertificate=true;"
+  },
+  "ExternalServices": {
+    "SendGrid": {
+      "ApiKey": "YOUR_SENDGRID_API_KEY_HERE",
+      "FromEmail": "noreply@tourimate.site",
+      "FromName": "TouriMate"
+    }
+  },
+  "Admin": {
+    "Email": "admin@tourimate.site"
+  },
+  "Email": {
+    "FromEmail": "noreply@tourimate.site",
+    "FromName": "TouriMate"
+  },
+  "AllowedHosts": "*"
+}

@@ -203,5 +203,9 @@ config.local.*
 uploads/
 public/uploads/
 storage/
+
+# Configuration files with secrets
 /tourimate/appsettings.json
 /tourimate/appsettings.production.json
+tourimate/appsettings.production.json
+**/appsettings.production.json
