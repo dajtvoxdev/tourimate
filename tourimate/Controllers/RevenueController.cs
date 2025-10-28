@@ -44,8 +44,6 @@ public class RevenueController : ControllerBase
             if (userRole == "TourGuide")
             {
                 var costQuery = _context.Costs
-                    .Include(c => c.Payer)
-                    .Include(c => c.Recipient)
                     .Where(c => c.RecipientId == userGuid && c.Type == Entities.Models.CostType.TourGuidePayment);
 
                 // Apply filters
@@ -76,11 +74,10 @@ public class RevenueController : ControllerBase
                     .Where(c => c.Status == Entities.Models.CostStatus.Paid)
                     .SumAsync(c => (decimal?)c.Amount) ?? 0;
 
-                var revenues = await costQuery
-                    .OrderByDescending(c => c.CreatedAt)
-                    .Skip((page - 1) * pageSize)
-                    .Take(pageSize)
-                    .Select(c => new
+                var revenues = await (from c in costQuery
+                    join payer in _context.Users on c.PayerId equals payer.Id
+                    orderby c.CreatedAt descending
+                    select new
                     {
                         Id = c.Id,
                         BookingNumber = c.CostCode,
@@ -103,12 +100,14 @@ public class RevenueController : ControllerBase
                         },
                         Customer = new
                         {
-                            Id = c.PayerId,
-                            FirstName = c.Payer.FirstName,
-                            LastName = c.Payer.LastName,
-                            Email = c.Payer.Email
+                            Id = payer.Id,
+                            FirstName = payer.FirstName,
+                            LastName = payer.LastName,
+                            Email = payer.Email
                         }
                     })
+                    .Skip((page - 1) * pageSize)
+                    .Take(pageSize)
                     .ToListAsync();
 
                 return Ok(new
