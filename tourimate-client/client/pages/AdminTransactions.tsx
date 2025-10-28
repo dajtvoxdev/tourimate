@@ -83,13 +83,22 @@ export default function AdminTransactions() {
   const isMineView = searchParams.get('mine') === '1';
 
   useEffect(() => {
-    fetchTransactions();
-    fetchStats();
-  }, [currentPage, statusFilter, typeFilter, searchTerm]);
+    if (user) { // Only fetch when user is available
+      fetchTransactions();
+      fetchStats();
+    }
+  }, [currentPage, statusFilter, typeFilter, searchTerm, user, isMineView]);
 
   const fetchTransactions = async () => {
     try {
       setLoading(true);
+      
+      // Check if user is authenticated
+      if (!user) {
+        console.log("AdminTransactions - No user, skipping fetch");
+        return;
+      }
+      
       const params = new URLSearchParams({
         page: currentPage.toString(),
         pageSize: "20"
@@ -113,6 +122,14 @@ export default function AdminTransactions() {
         apiEndpoint = `${getApiBase()}/api/transactions/tour-guide`;
       }
 
+      console.log("AdminTransactions - API Debug:", {
+        isMineView,
+        userRole: user?.role,
+        apiEndpoint,
+        userId: user?.id,
+        hasToken: !!localStorage.getItem("accessToken")
+      });
+
       const response = await httpJson<TransactionsResponse>(
         `${apiEndpoint}?${params.toString()}`
       );
@@ -130,11 +147,24 @@ export default function AdminTransactions() {
 
   const fetchStats = async () => {
     try {
+      // Check if user is authenticated
+      if (!user) {
+        console.log("AdminTransactions - No user for stats, skipping fetch");
+        return;
+      }
+      
       // Use different API endpoint based on user role and view
       let apiEndpoint = `${getApiBase()}/api/transactions/statistics`;
       if (isMineView && user?.role === "TourGuide") {
         apiEndpoint = `${getApiBase()}/api/transactions/tour-guide/statistics`;
       }
+      
+      console.log("AdminTransactions - Stats API Debug:", {
+        isMineView,
+        userRole: user?.role,
+        statsApiEndpoint: apiEndpoint,
+        hasToken: !!localStorage.getItem("accessToken")
+      });
       
       const response = await httpJson<TransactionStats>(apiEndpoint);
       setStats(response);
