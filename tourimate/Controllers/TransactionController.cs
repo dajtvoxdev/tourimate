@@ -245,6 +245,7 @@ public class TransactionController : ControllerBase
     /// <param name="search">Search term</param>
     /// <returns>List of transactions for tour guide's tours</returns>
     [HttpGet("tour-guide")]
+    [Authorize]
     public async Task<IActionResult> GetTransactionsForTourGuide(
         int page = 1,
         int pageSize = 20,
@@ -358,6 +359,7 @@ public class TransactionController : ControllerBase
     /// </summary>
     /// <returns>Transaction statistics for tour guide's tours</returns>
     [HttpGet("tour-guide/statistics")]
+    [Authorize]
     public async Task<IActionResult> GetTransactionStatisticsForTourGuide()
     {
         try
