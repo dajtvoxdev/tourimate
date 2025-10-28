@@ -219,10 +219,28 @@ function Build-Frontend {
         $distPath = Join-Path $Config.FrontendPath "dist"
         if (Test-Path $distPath) {
             Write-Log "Copying frontend build to publish directory..."
-            Copy-Item -Path "$distPath\*" -Destination $Config.FrontendBuildPath -Recurse -Force
+            
+            # Create spa subdirectory
+            $spaPath = Join-Path $Config.FrontendBuildPath "spa"
+            if (!(Test-Path $spaPath)) {
+                New-Item -ItemType Directory -Path $spaPath -Force | Out-Null
+            }
+            
+            Copy-Item -Path "$distPath\*" -Destination $spaPath -Recurse -Force
             Write-Log "Frontend build copied successfully"
         } else {
             Handle-Error "Frontend build output not found: $distPath"
+        }
+        
+        # Copy web.config for URL rewriting (API proxy)
+        $webConfigSource = Join-Path $Config.FrontendPath "public\web.config"
+        if (Test-Path $webConfigSource) {
+            Write-Log "Copying web.config for URL rewriting..."
+            $spaPath = Join-Path $Config.FrontendBuildPath "spa"
+            Copy-Item -Path $webConfigSource -Destination "$spaPath\web.config" -Force
+            Write-Log "web.config copied successfully"
+        } else {
+            Write-Log "web.config not found, skipping..." "WARNING"
         }
         
         Write-Log "Frontend build completed successfully"
@@ -253,6 +271,27 @@ Stop-WebAppPool -Name "DefaultAppPool" -ErrorAction SilentlyContinue
 # Wait for application pool to fully stop
 Write-Host "Waiting for application pool to stop..."
 Start-Sleep -Seconds 5
+
+# Backup web.config files before cleaning
+Write-Host "Backing up configuration files..."
+`$backupDir = 'C:\inetpub\wwwroot\backup-temp'
+if (!(Test-Path `$backupDir)) {
+    New-Item -ItemType Directory -Path `$backupDir -Force | Out-Null
+}
+
+# Backup frontend web.config if exists
+`$frontendWebConfig = 'C:\inetpub\wwwroot\tourimate-frontend-production\spa\web.config'
+if (Test-Path `$frontendWebConfig) {
+    Write-Host "Backing up frontend web.config..."
+    Copy-Item -Path `$frontendWebConfig -Destination "`$backupDir\frontend-web.config" -Force
+}
+
+# Backup backend web.config if exists
+`$backendWebConfig = 'C:\inetpub\wwwroot\tourimate-production\web.config'
+if (Test-Path `$backendWebConfig) {
+    Write-Host "Backing up backend web.config..."
+    Copy-Item -Path `$backendWebConfig -Destination "`$backupDir\backend-web.config" -Force
+}
 
 # Clean deployment directories (keep directory structure)
 Write-Host "Cleaning backend deployment directory..."
@@ -296,18 +335,45 @@ scp -P $($Config.VpsPort) -r `"$($Config.FrontendBuildPath)\*`" $($Config.VpsUse
             Handle-Error "Failed to transfer frontend files"
         }
         
-        # Start IIS application pools
-        Write-Log "Starting IIS application pools..."
-        $startScript = @"
+        # Restore web.config files and start IIS
+        Write-Log "Restoring configuration files and starting IIS..."
+        $restoreScript = @"
+# Restore web.config files from backup
+Write-Host "Restoring configuration files..."
+`$backupDir = 'C:\inetpub\wwwroot\backup-temp'
+
+# Restore frontend web.config if backup exists
+if (Test-Path "`$backupDir\frontend-web.config") {
+    Write-Host "Restoring frontend web.config..."
+    `$targetDir = 'C:\inetpub\wwwroot\tourimate-frontend-production\spa'
+    if (!(Test-Path `$targetDir)) {
+        New-Item -ItemType Directory -Path `$targetDir -Force | Out-Null
+    }
+    Copy-Item -Path "`$backupDir\frontend-web.config" -Destination "`$targetDir\web.config" -Force
+    Write-Host "Frontend web.config restored"
+}
+
+# Restore backend web.config if backup exists  
+if (Test-Path "`$backupDir\backend-web.config") {
+    Write-Host "Restoring backend web.config..."
+    Copy-Item -Path "`$backupDir\backend-web.config" -Destination 'C:\inetpub\wwwroot\tourimate-production\web.config' -Force
+    Write-Host "Backend web.config restored"
+}
+
+# Clean up backup directory
+Remove-Item -Path `$backupDir -Recurse -Force -ErrorAction SilentlyContinue
+
+# Start IIS application pools
+Write-Host "Starting IIS application pools..."
 Import-Module WebAdministration -ErrorAction SilentlyContinue
 Start-WebAppPool -Name "DefaultAppPool" -ErrorAction SilentlyContinue
 Write-Host "IIS application pools started successfully"
 "@
         
-        $startScript | ssh -p $Config.VpsPort $sshConnection "powershell -Command -"
+        $restoreScript | ssh -p $Config.VpsPort $sshConnection "powershell -Command -"
         
         if ($LASTEXITCODE -ne 0) {
-            Handle-Error "Failed to start IIS application pools"
+            Handle-Error "Failed to restore configs and start IIS application pools"
         }
         
         Write-Log "Deployment to VPS completed successfully"
