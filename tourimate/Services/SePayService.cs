@@ -60,8 +60,6 @@ public class SePayService : ISePayService
 
             // Find existing Transaction by payment code (booking number)
             var existingTransaction = await _db.Transactions
-                .Include(t => t.Booking)
-                .ThenInclude(b => b.Tour)
                 .FirstOrDefaultAsync(t => t.TransactionId == paymentCode);
 
             if (existingTransaction == null)
@@ -77,6 +75,17 @@ public class SePayService : ISePayService
             _logger.LogInformation("Transaction found: {TransactionId}, Status: {Status}", 
                 existingTransaction.TransactionId, existingTransaction.Status);
 
+            // Attempt to load related booking explicitly (navigation may not be mapped)
+            Booking? relatedBooking = null;
+            if (existingTransaction.EntityType == "Booking" && existingTransaction.EntityId.HasValue)
+            {
+                relatedBooking = await _db.Bookings
+                    .Include(b => b.Tour)
+                    .Include(b => b.TourAvailability)
+                    .Include(b => b.Customer)
+                    .FirstOrDefaultAsync(b => b.Id == existingTransaction.EntityId.Value);
+            }
+
             // Check if already processed
             if (existingTransaction.Status == "completed")
             {
@@ -86,7 +95,7 @@ public class SePayService : ISePayService
                     Success = true,
                     Message = "Transaction already processed",
                     TransactionId = existingTransaction.Id.ToString(),
-                    BookingId = existingTransaction.Booking?.Id.ToString(),
+                    BookingId = relatedBooking?.Id.ToString(),
                     ProcessedAt = existingTransaction.UpdatedAt
                 };
             }
@@ -98,17 +107,17 @@ public class SePayService : ISePayService
             existingTransaction.UpdatedAt = DateTime.UtcNow;
 
             // Update Booking status
-            if (existingTransaction.Booking != null)
+            if (relatedBooking != null)
             {
-                existingTransaction.Booking.Status = BookingStatus.Confirmed;
-                existingTransaction.Booking.PaymentStatus = PaymentStatus.Paid;
-                existingTransaction.Booking.UpdatedAt = DateTime.UtcNow;
+                relatedBooking.Status = BookingStatus.Confirmed;
+                relatedBooking.PaymentStatus = PaymentStatus.Paid;
+                relatedBooking.UpdatedAt = DateTime.UtcNow;
             }
 
             await _db.SaveChangesAsync();
 
             // Create Revenue record
-            if (existingTransaction.Booking?.Tour?.TourGuideId != null)
+            if (relatedBooking?.Tour?.TourGuideId != null)
             {
                 var existingRevenue = await _db.Revenues
                     .FirstOrDefaultAsync(r => r.TransactionId == existingTransaction.Id);
@@ -123,8 +132,8 @@ public class SePayService : ISePayService
                     var revenue = new Revenue
                     {
                         TransactionId = existingTransaction.Id,
-                        UserId = existingTransaction.Booking.Tour.TourGuideId,
-                        EntityId = existingTransaction.Booking.TourId,
+                        UserId = relatedBooking.Tour.TourGuideId,
+                        EntityId = relatedBooking.TourId,
                         EntityType = "Tour",
                         GrossAmount = grossAmount,
                         CommissionRate = commissionRate,
@@ -145,27 +154,27 @@ public class SePayService : ISePayService
             // Send confirmation email
             try
             {
-                if (existingTransaction.Booking != null)
+                if (relatedBooking != null)
                 {
                     var contactInfo = new { Name = "", Email = "" };
                     try
                     {
-                        if (!string.IsNullOrEmpty(existingTransaction.Booking.ContactInfo))
-                            contactInfo = JsonSerializer.Deserialize<dynamic>(existingTransaction.Booking.ContactInfo) ?? contactInfo;
+                        if (!string.IsNullOrEmpty(relatedBooking.ContactInfo))
+                            contactInfo = JsonSerializer.Deserialize<dynamic>(relatedBooking.ContactInfo) ?? contactInfo;
                     }
                     catch { }
 
-                    var customerName = (string?)contactInfo?.Name ?? existingTransaction.Booking.Customer?.FirstName ?? "Khách hàng";
-                    var customerEmail = (string?)contactInfo?.Email ?? existingTransaction.Booking.Customer?.Email ?? string.Empty;
+                    var customerName = (string?)contactInfo?.Name ?? relatedBooking.Customer?.FirstName ?? "Khách hàng";
+                    var customerEmail = (string?)contactInfo?.Email ?? relatedBooking.Customer?.Email ?? string.Empty;
 
-                    if (!string.IsNullOrWhiteSpace(customerEmail) && existingTransaction.Booking.Tour != null)
+                    if (!string.IsNullOrWhiteSpace(customerEmail) && relatedBooking.Tour != null)
                     {
-                        var tourDate = existingTransaction.Booking.TourAvailability?.Date ?? DateTime.UtcNow;
+                        var tourDate = relatedBooking.TourAvailability?.Date ?? DateTime.UtcNow;
                         await _emailService.SendBookingConfirmationEmailAsync(
                             customerEmail,
                             customerName,
-                            existingTransaction.Booking.BookingNumber,
-                            existingTransaction.Booking.Tour.Title,
+                            relatedBooking.BookingNumber,
+                            relatedBooking.Tour.Title,
                             tourDate,
                             existingTransaction.Amount
                         );
@@ -184,7 +193,7 @@ public class SePayService : ISePayService
                 Success = true,
                 Message = "Transaction processed successfully",
                 TransactionId = existingTransaction.Id.ToString(),
-                BookingId = existingTransaction.Booking?.Id.ToString(),
+                BookingId = relatedBooking?.Id.ToString(),
                 ProcessedAt = DateTime.UtcNow
             };
         }

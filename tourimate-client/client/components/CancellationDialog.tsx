@@ -2,7 +2,6 @@ import React, { useState, useEffect } from "react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { SearchableSelect } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { EmojiTextarea } from "@/components/ui/emoji-textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -32,12 +31,14 @@ interface CancellationDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   bookingId: string;
+  isPaid?: boolean;
   onCancelSuccess: () => void;
 }
 
-export function CancellationDialog({ open, onOpenChange, bookingId, onCancelSuccess }: CancellationDialogProps) {
+export function CancellationDialog({ open, onOpenChange, bookingId, isPaid = false, onCancelSuccess }: CancellationDialogProps) {
   const [cancellationReason, setCancellationReason] = useState("");
   const [refundBankName, setRefundBankName] = useState("");
+  const [refundBankCode, setRefundBankCode] = useState(""); // shortName from API
   const [refundBankAccount, setRefundBankAccount] = useState("");
   const [refundAccountName, setRefundAccountName] = useState("");
   const [banks, setBanks] = useState<BankInfo[]>([]);
@@ -45,7 +46,7 @@ export function CancellationDialog({ open, onOpenChange, bookingId, onCancelSucc
   const [loading, setLoading] = useState(false);
   const [calculating, setCalculating] = useState(false);
 
-  // Load banks data
+  // Load banks data when dialog opens for paid bookings
   useEffect(() => {
     const loadBanks = async () => {
       try {
@@ -56,29 +57,29 @@ export function CancellationDialog({ open, onOpenChange, bookingId, onCancelSucc
         toast.error("Không thể tải danh sách ngân hàng");
       }
     };
-
-    if (open) {
+    if (open && isPaid) {
       loadBanks();
     }
-  }, [open]);
+  }, [open, isPaid]);
 
-  // Calculate refund when reason changes
+  // Calculate refund when reason changes - debounce and only when isPaid
   useEffect(() => {
-    if (cancellationReason.trim() && bookingId) {
+    if (!isPaid) return;
+    if (!cancellationReason.trim() || !bookingId) return;
+    const t = setTimeout(() => {
       calculateRefund();
-    }
-  }, [cancellationReason, bookingId]);
+    }, 400);
+    return () => clearTimeout(t);
+  }, [cancellationReason, bookingId, isPaid]);
 
   const calculateRefund = async () => {
-    if (!cancellationReason.trim()) return;
-
     try {
       setCalculating(true);
       const response = await httpJson<RefundCalculation>(
         `${getApiBase()}/api/bookings/${bookingId}/calculate-refund`,
         {
           method: "POST",
-          body: JSON.stringify({ cancellationReason })
+          body: JSON.stringify({ cancellationReason: cancellationReason || "" })
         }
       );
       setRefundCalculation(response);
@@ -90,25 +91,34 @@ export function CancellationDialog({ open, onOpenChange, bookingId, onCancelSucc
     }
   };
 
+  // Pre-calculate refund on open for paid bookings
+  useEffect(() => {
+    if (open && isPaid && bookingId) {
+      calculateRefund();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, isPaid, bookingId]);
+
   const handleCancel = async () => {
     if (!cancellationReason.trim()) {
       toast.error("Vui lòng nhập lý do hủy tour");
       return;
     }
 
-    if (refundCalculation?.canRefund && !refundBankName) {
-      toast.error("Vui lòng chọn ngân hàng hoàn tiền");
-      return;
-    }
-
-    if (refundCalculation?.canRefund && !refundBankAccount.trim()) {
-      toast.error("Vui lòng nhập số tài khoản");
-      return;
-    }
-
-    if (refundCalculation?.canRefund && !refundAccountName.trim()) {
-      toast.error("Vui lòng nhập tên chủ tài khoản");
-      return;
+    // Validate refund info only when paid and refund is applicable
+    if (isPaid && refundCalculation?.canRefund) {
+      if (!refundBankName) {
+        toast.error("Vui lòng chọn ngân hàng hoàn tiền");
+        return;
+      }
+      if (!refundBankAccount.trim()) {
+        toast.error("Vui lòng nhập số tài khoản");
+        return;
+      }
+      if (!refundAccountName.trim()) {
+        toast.error("Vui lòng nhập tên chủ tài khoản");
+        return;
+      }
     }
 
     try {
@@ -119,9 +129,10 @@ export function CancellationDialog({ open, onOpenChange, bookingId, onCancelSucc
           method: "PUT",
           body: JSON.stringify({
             cancellationReason,
-            refundBankName: refundCalculation?.canRefund ? refundBankName : null,
-            refundBankAccount: refundCalculation?.canRefund ? refundBankAccount : null,
-            refundAccountName: refundCalculation?.canRefund ? refundAccountName : null
+            refundBankCode: isPaid && refundCalculation?.canRefund ? refundBankCode : null,
+            refundBankName: isPaid && refundCalculation?.canRefund ? refundBankName : null,
+            refundBankAccount: isPaid && refundCalculation?.canRefund ? refundBankAccount : null,
+            refundAccountName: isPaid && refundCalculation?.canRefund ? refundAccountName : null
           })
         }
       );
@@ -147,7 +158,7 @@ export function CancellationDialog({ open, onOpenChange, bookingId, onCancelSucc
   };
 
   const bankOptions = banks.map(bank => ({
-    value: bank.name,
+    value: bank.shortName, // use shortName as the value (refundBankCode)
     label: `${bank.name} (${bank.shortName})`
   }));
 
@@ -157,7 +168,7 @@ export function CancellationDialog({ open, onOpenChange, bookingId, onCancelSucc
         <AlertDialogHeader>
           <AlertDialogTitle>Hủy tour</AlertDialogTitle>
           <AlertDialogDescription>
-            Vui lòng điền thông tin để hủy tour. Hệ thống sẽ tự động tính toán số tiền hoàn lại theo chính sách.
+            Vui lòng điền thông tin để hủy tour.
           </AlertDialogDescription>
         </AlertDialogHeader>
 
@@ -165,23 +176,25 @@ export function CancellationDialog({ open, onOpenChange, bookingId, onCancelSucc
           {/* Cancellation Reason */}
           <div className="space-y-2">
             <Label htmlFor="reason">Lý do hủy tour *</Label>
-            <EmojiTextarea
+            <Textarea
+              id="reason"
               placeholder="Vui lòng nhập lý do hủy tour..."
               value={cancellationReason}
-              onChange={setCancellationReason}
+              onChange={(e) => setCancellationReason(e.target.value)}
               rows={3}
+              className="resize-none"
             />
           </div>
 
-          {/* Refund Calculation */}
-          {calculating && (
+          {/* Refund Calculation - show only when booking is paid */}
+          {isPaid && calculating && (
             <div className="flex items-center justify-center py-4">
               <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
               <span className="ml-2 text-sm text-gray-600">Đang tính toán hoàn tiền...</span>
             </div>
           )}
 
-          {refundCalculation && !calculating && (
+          {isPaid && refundCalculation && !calculating && (
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -243,8 +256,8 @@ export function CancellationDialog({ open, onOpenChange, bookingId, onCancelSucc
             </Card>
           )}
 
-          {/* Refund Bank Information */}
-          {refundCalculation?.canRefund && (
+          {/* Refund Bank Information - show only when booking is paid and can refund */}
+          {isPaid && refundCalculation?.canRefund && (
             <Card>
               <CardHeader>
                 <CardTitle>Thông tin ngân hàng hoàn tiền</CardTitle>
@@ -256,8 +269,12 @@ export function CancellationDialog({ open, onOpenChange, bookingId, onCancelSucc
                 <div className="space-y-2">
                   <Label htmlFor="bank">Ngân hàng *</Label>
                   <SearchableSelect
-                    value={refundBankName}
-                    onValueChange={setRefundBankName}
+                    value={refundBankCode}
+                    onValueChange={(val) => {
+                      setRefundBankCode(val);
+                      const found = banks.find(b => b.shortName === val);
+                      setRefundBankName(found?.name || "");
+                    }}
                     placeholder="Chọn ngân hàng..."
                     searchPlaceholder="Tìm kiếm ngân hàng..."
                     options={bankOptions}

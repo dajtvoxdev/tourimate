@@ -68,6 +68,12 @@ public sealed class UserProfileDto
     public int? ProvinceCode { get; set; }
     public int? WardCode { get; set; }
     public DateTime? LastLoginAt { get; set; }
+    
+    // Bank info for payouts (TourGuide only)
+    public string? BankCode { get; set; }
+    public string? BankName { get; set; }
+    public string? BankAccountName { get; set; }
+    public string? BankAccount { get; set; }
 }
 
 public sealed class UpdateUserProfileRequest
@@ -89,6 +95,12 @@ public sealed class UpdateUserProfileRequest
     public string? NotificationSettings { get; set; }
     public int? ProvinceCode { get; set; }
     public int? WardCode { get; set; }
+    
+    // Bank info for payouts (TourGuide only)
+    public string? BankCode { get; set; }
+    public string? BankName { get; set; }
+    public string? BankAccountName { get; set; }
+    public string? BankAccount { get; set; }
 }
 
 public sealed class TourGuideApplicationRequest
@@ -143,6 +155,12 @@ public sealed class AdminUserDetailDto
     public string? NotificationSettings { get; set; }
     public int? ProvinceCode { get; set; }
     public int? WardCode { get; set; }
+    
+    // Bank info for payouts (TourGuide only)
+    public string? BankCode { get; set; }
+    public string? BankName { get; set; }
+    public string? BankAccountName { get; set; }
+    public string? BankAccount { get; set; }
 }
 
 public sealed class CreateUserRequest

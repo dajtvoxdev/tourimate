@@ -39,7 +39,7 @@ interface PaymentRequest {
   description: string;
   amount: number;
   currency: string;
-  status: string;
+  status: string | number;
   dueDate: string;
   paidDate?: string;
   paymentMethod?: string;
@@ -235,8 +235,17 @@ export default function TourGuidePaymentRequests() {
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status.toLowerCase()) {
+  const normalizeStatus = (s: string | number): string => {
+    if (typeof s === 'number') {
+      // Map numeric codes to strings: 1=pending, 2=paid, 3=cancelled (fallback pending)
+      return s === 2 ? 'paid' : s === 3 ? 'cancelled' : 'pending';
+    }
+    return s.toLowerCase();
+  };
+
+  const getStatusBadge = (status: string | number) => {
+    const normalized = normalizeStatus(status);
+    switch (normalized) {
       case "pending":
         return <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200">
           <Clock className="w-3 h-3 mr-1" />
@@ -253,7 +262,7 @@ export default function TourGuidePaymentRequests() {
           Đã hủy
         </Badge>;
       default:
-        return <Badge variant="secondary">{status}</Badge>;
+        return <Badge variant="secondary">{String(status)}</Badge>;
     }
   };
 
@@ -476,7 +485,7 @@ export default function TourGuidePaymentRequests() {
                     {bookings.map((booking) => (
                       <SelectItem key={booking.id} value={booking.id}>
                         <div className="flex flex-col">
-                          <span className="font-medium">{booking.tourTitle}</span>
+                          <span className="font-medium">{booking.tour.title}</span>
                           <span className="text-sm text-gray-500">
                             {booking.bookingNumber} - {formatCurrency(booking.totalAmount)}
                           </span>

@@ -7,6 +7,7 @@ using System.Text;
 using System.Security.Claims;
 using System.Text.Json;
 using TouriMate.Services;
+using Microsoft.AspNetCore.Authorization;
 
 namespace TouriMate.Controllers;
 
@@ -372,6 +373,69 @@ public class BookingController : ControllerBase
         }
     }
 
+    /// <summary>
+    /// Update booking status (Admin or owning TourGuide only)
+    /// </summary>
+    [HttpPut("{bookingId}/status")]
+    [Authorize]
+    public async Task<IActionResult> UpdateBookingStatus(Guid bookingId, [FromBody] StatusUpdateRequest request)
+    {
+        try
+        {
+            var userId = GetCurrentUserId();
+            if (userId == null)
+            {
+                return Unauthorized("User not authenticated");
+            }
+
+            var booking = await _context.Bookings
+                .Include(b => b.Tour)
+                .FirstOrDefaultAsync(b => b.Id == bookingId);
+
+            if (booking == null)
+            {
+                return NotFound("Không tìm thấy tour đã đặt");
+            }
+
+            // Role checks: Admin can update; TourGuide can update only if owns the tour
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId.Value);
+            var isAdmin = user?.Role == UserRole.Admin;
+            var isTourGuideOwner = user?.Role == UserRole.TourGuide && booking.Tour.TourGuideId == userId.Value;
+
+            if (!isAdmin && !isTourGuideOwner)
+            {
+                return Forbid("Not allowed to update this booking");
+            }
+
+            if (!Enum.TryParse<BookingStatus>(request.Status, true, out var newStatus))
+            {
+                return BadRequest("Invalid status");
+            }
+
+            // Enforce workflow: PendingPayment -> Confirmed -> Completed; allow Cancelled anytime
+            var current = booking.Status;
+            var valid = (newStatus == BookingStatus.Cancelled)
+                        || (current == BookingStatus.PendingPayment && newStatus == BookingStatus.Confirmed)
+                        || (current == BookingStatus.Confirmed && newStatus == BookingStatus.Completed);
+
+            if (!valid)
+            {
+                return BadRequest("Invalid status transition");
+            }
+
+            booking.Status = newStatus;
+            booking.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+
+            return Ok(new { message = "Cập nhật trạng thái thành công" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating booking status {BookingId}", bookingId);
+            return StatusCode(500, "Internal server error");
+        }
+    }
+
 
     private Guid? GetCurrentUserId()
     {
@@ -429,6 +493,7 @@ public class BookingController : ControllerBase
             var success = await _refundService.CancelBookingAsync(
                 bookingId, 
                 request.CancellationReason, 
+                request.RefundBankCode,
                 request.RefundBankName, 
                 request.RefundBankAccount, 
                 request.RefundAccountName
@@ -711,9 +776,15 @@ public class CreateBookingRequest
     public decimal TotalAmount { get; set; }
 }
 
+public class StatusUpdateRequest
+{
+    public string Status { get; set; } = string.Empty;
+}
+
 public class CancellationRequest
 {
     public string CancellationReason { get; set; } = string.Empty;
+    public string? RefundBankCode { get; set; }
     public string? RefundBankName { get; set; }
     public string? RefundBankAccount { get; set; }
     public string? RefundAccountName { get; set; }

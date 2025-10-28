@@ -37,7 +37,7 @@ interface PaymentRequest {
   description: string;
   amount: number;
   currency: string;
-  status: string;
+  status: string | number;
   dueDate: string;
   paidDate?: string;
   paymentMethod?: string;
@@ -126,9 +126,7 @@ export default function AdminPaymentRequests() {
     try {
       setActionLoading(requestId);
       
-      await httpJson(`${getApiBase()}/api/paymentrequest/${requestId}/process`, {
-        method: "POST"
-      });
+      await httpJson(`${getApiBase()}/api/cost/confirm-payment/${requestId}`, { method: "POST" });
 
       toast.success("Xử lý thanh toán thành công", {
         description: "Tour guide đã nhận được thông báo về việc thanh toán."
@@ -139,14 +137,32 @@ export default function AdminPaymentRequests() {
       fetchPaymentRequests();
     } catch (error: any) {
       console.error("Error processing payment:", error);
-      toast.error(error.message || "Không thể xử lý thanh toán");
+      
+      // Check if error is due to missing bank info
+      if (error.missingBankInfo) {
+        toast.error("Không thể xử lý thanh toán", {
+          description: `${error.tourGuideName || "Hướng dẫn viên"} chưa cấu hình thông tin ngân hàng. Vui lòng yêu cầu họ cập nhật trong phần cài đặt tài khoản.`,
+          duration: 8000
+        });
+      } else {
+        toast.error(error.message || "Không thể xử lý thanh toán");
+      }
     } finally {
       setActionLoading(null);
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status.toLowerCase()) {
+  const normalizeStatus = (s: string | number): string => {
+    if (typeof s === 'number') {
+      // Map numeric codes from API to strings
+      return s === 2 ? 'paid' : s === 3 ? 'cancelled' : 'pending';
+    }
+    return s.toLowerCase();
+  };
+
+  const getStatusBadge = (status: string | number) => {
+    const normalized = normalizeStatus(status);
+    switch (normalized) {
       case "pending":
         return <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200">
           <Clock className="w-3 h-3 mr-1" />
@@ -163,7 +179,7 @@ export default function AdminPaymentRequests() {
           Đã hủy
         </Badge>;
       default:
-        return <Badge variant="secondary">{status}</Badge>;
+        return <Badge variant="secondary">{String(status)}</Badge>;
     }
   };
 
@@ -195,10 +211,8 @@ export default function AdminPaymentRequests() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Quản lý yêu cầu thanh toán</h1>
-            <p className="text-gray-600">Xử lý các yêu cầu thanh toán commission cho tour guide</p>
-            <div className="mt-2 text-sm text-gray-500">
-              <p>💡 <strong>Luồng:</strong> Tour guide tạo yêu cầu → Admin xem xét → Xử lý thanh toán → Tour guide nhận tiền</p>
-            </div>
+            <p className="text-gray-600">Xử lý các yêu cầu thanh toán chi phí cho hưỡng dẫn viên</p>
+           
           </div>
           <div className="text-sm text-gray-500">
             Tổng cộng: {totalCount} yêu cầu

@@ -280,7 +280,11 @@ public sealed class AuthController : ControllerBase
                 NotificationSettings = user.Profile?.NotificationSettings,
                 ProvinceCode = user.Profile?.ProvinceCode,
                 WardCode = user.Profile?.WardCode,
-                LastLoginAt = user.LastLoginAt
+                LastLoginAt = user.LastLoginAt,
+                BankCode = user.Profile?.BankCode,
+                BankName = user.Profile?.BankName,
+                BankAccountName = user.Profile?.BankAccountName,
+                BankAccount = user.Profile?.BankAccount
             };
             return Ok(dto);
         }
@@ -326,6 +330,10 @@ public sealed class AuthController : ControllerBase
             user.Profile.NotificationSettings = request.NotificationSettings;
             user.Profile.ProvinceCode = request.ProvinceCode;
             user.Profile.WardCode = request.WardCode;
+            user.Profile.BankCode = request.BankCode;
+            user.Profile.BankName = request.BankName;
+            user.Profile.BankAccountName = request.BankAccountName;
+            user.Profile.BankAccount = request.BankAccount;
 
             await _db.SaveChangesAsync();
             return NoContent();
@@ -845,13 +853,17 @@ public sealed class AuthController : ControllerBase
             DateOfBirth = user.Profile?.DateOfBirth,
             Bio = user.Profile?.Bio,
             Gender = user.Profile?.Gender,
-            Website = user.Profile?.Website,
-            SocialMedia = user.Profile?.SocialMedia,
-            NotificationSettings = user.Profile?.NotificationSettings,
-            ProvinceCode = user.Profile?.ProvinceCode,
-            WardCode = user.Profile?.WardCode
-        };
-        return Ok(dto);
+                Website = user.Profile?.Website,
+                SocialMedia = user.Profile?.SocialMedia,
+                NotificationSettings = user.Profile?.NotificationSettings,
+                ProvinceCode = user.Profile?.ProvinceCode,
+                WardCode = user.Profile?.WardCode,
+                BankCode = user.Profile?.BankCode,
+                BankName = user.Profile?.BankName,
+                BankAccountName = user.Profile?.BankAccountName,
+                BankAccount = user.Profile?.BankAccount
+            };
+            return Ok(dto);
     }
 
     [HttpPost("users")]

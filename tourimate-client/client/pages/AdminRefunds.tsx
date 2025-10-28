@@ -726,6 +726,16 @@ export default function AdminRefunds() {
                         <label className="text-gray-500">Tên tài khoản</label>
                         <p>{selectedRefund.refundAccountName}</p>
                       </div>
+                      {/* SePay QR for refund transfer */}
+                      {selectedRefund.refundBankAccount && (
+                        <div className="pt-2 text-center mx-auto">
+                            <img
+                              alt="QR chuyển khoản SePay"
+                              className="w-48 h-48 object-contain mx-auto"
+                              src={`https://qr.sepay.vn/img?acc=${encodeURIComponent(selectedRefund.refundBankAccount)}&bank=${encodeURIComponent(selectedRefund.refundBankCode  || '')}&amount=${encodeURIComponent(String(selectedRefund.refundAmount || 0))}&des=${encodeURIComponent('Hoan tien ' + (selectedRefund.booking?.bookingNumber || ''))}&template=compact&download=0`}
+                            />
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}

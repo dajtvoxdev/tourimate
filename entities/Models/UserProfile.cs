@@ -36,6 +36,19 @@ public class UserProfile : BaseEntity
     public int? ProvinceCode { get; set; }
     public int? WardCode { get; set; }
 
+    // Bank info for payouts (TourGuide)
+    [MaxLength(50)]
+    public string? BankCode { get; set; } // shortName
+
+    [MaxLength(100)]
+    public string? BankName { get; set; }
+
+    [MaxLength(100)]
+    public string? BankAccountName { get; set; }
+
+    [MaxLength(50)]
+    public string? BankAccount { get; set; }
+
     // Navigation properties
     [ForeignKey("UserId")]
     public virtual User User { get; set; } = null!;

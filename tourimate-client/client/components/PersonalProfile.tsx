@@ -39,6 +39,7 @@ import { CancellationDialog } from "./CancellationDialog";
 import { format } from "date-fns";
 import { vi } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://localhost:7181";
 
@@ -53,6 +54,12 @@ interface BookedTour {
   contactInfo: string; // JSON string
   specialRequests?: string;
   createdAt: string;
+  // Refund info (optional, returned when cancelled with refund)
+  refundAmount?: number;
+  refundBankName?: string;
+  refundBankAccount?: string;
+  refundAccountName?: string;
+  refundedAt?: string;
   tour: {
     id: string;
     title: string;
@@ -101,6 +108,7 @@ export default function PersonalProfile() {
     acceptEmailMarketing: false,
     lastLoginAt: "",
     provinceCode: null as number | null,
+    role: "",
     socialMedia: {
       facebook: "",
       instagram: "",
@@ -114,12 +122,18 @@ export default function PersonalProfile() {
       smsNotifications: false,
       pushNotifications: true,
       marketingEmails: false
-    }
+    },
+    // Bank info for TourGuide payouts
+    bankCode: "",
+    bankName: "",
+    bankAccount: "",
+    bankAccountName: ""
   });
 
   const [editedProfile, setEditedProfile] = useState(profile);
   const [loading, setLoading] = useState(false);
   const [provinces, setProvinces] = useState<any[]>([]);
+  const [banks, setBanks] = useState<any[]>([]);
   const [calendarOpen, setCalendarOpen] = useState(false);
 
   const formatDob = (d: string) => {
@@ -137,6 +151,16 @@ export default function PersonalProfile() {
       setProvinces(provinces.map((d: any) => ({ code: d.code ?? d.Code, name: d.name ?? d.Name })));
     } catch (e) {
       console.error("Failed to load provinces:", e);
+    }
+  };
+
+  // Load banks
+  const loadBanks = async () => {
+    try {
+      const data = await httpJson<any[]>(`${getApiBase()}/api/banks`, { skipAuth: true });
+      setBanks(data || []);
+    } catch (e) {
+      console.error("Failed to load banks:", e);
     }
   };
 
@@ -168,6 +192,7 @@ export default function PersonalProfile() {
           acceptEmailMarketing: data.acceptEmailMarketing ?? false,
           lastLoginAt: data.lastLoginAt ? new Date(data.lastLoginAt).toLocaleString("vi-VN") : "",
           provinceCode: data.provinceCode ?? null,
+          role: data.role ?? "",
           socialMedia: data.socialMedia ? JSON.parse(data.socialMedia) : {
             facebook: "",
             instagram: "",
@@ -183,7 +208,11 @@ export default function PersonalProfile() {
               smsNotifications: false,
               pushNotifications: true,
               marketingEmails: false
-            })
+            }),
+          bankCode: data.bankCode ?? "",
+          bankName: data.bankName ?? "",
+          bankAccount: data.bankAccount ?? "",
+          bankAccountName: data.bankAccountName ?? ""
         };
         setProfile(next);
         setEditedProfile(next);
@@ -194,6 +223,7 @@ export default function PersonalProfile() {
     };
     load();
     loadProvinces();
+    loadBanks();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -219,8 +249,10 @@ export default function PersonalProfile() {
   }, [activeTab]);
 
   // Open cancel booking dialog
-  const openCancelDialog = (bookingId: string) => {
-    setSelectedBookingId(bookingId);
+  const openCancelDialog = (booking: BookedTour) => {
+    setSelectedBookingId(booking.id);
+    const isPaid = booking.status === "Confirmed" || booking.status === "Completed";
+    setSelectedBookingPaid(isPaid);
     setShowCancellationDialog(true);
   };
 
@@ -336,6 +368,10 @@ export default function PersonalProfile() {
       provinceCode: editedProfile.provinceCode,
       socialMedia: JSON.stringify(editedProfile.socialMedia),
       notificationSettings: JSON.stringify(editedProfile.notificationSettings),
+      bankCode: editedProfile.bankCode || null,
+      bankName: editedProfile.bankName || null,
+      bankAccount: editedProfile.bankAccount || null,
+      bankAccountName: editedProfile.bankAccountName || null
     } as any;
 
     setLoading(true);
@@ -432,6 +468,7 @@ export default function PersonalProfile() {
   const [bookingsLoading, setBookingsLoading] = useState(false);
   const [showCancellationDialog, setShowCancellationDialog] = useState(false);
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
+  const [selectedBookingPaid, setSelectedBookingPaid] = useState<boolean>(false);
 
   // Mock data for favorite tours
   const favoriteTours: FavoriteTour[] = [
@@ -836,6 +873,82 @@ export default function PersonalProfile() {
                     )}
                   </div>
 
+                  {/* Bank Account Section (Tour Guide Only) */}
+                  {profile.role === "TourGuide" && (
+                    <div className="bg-gray-50 p-6 rounded-xl">
+                      <h4 className="font-nunito text-lg font-bold text-gray-900 mb-6 flex items-center">
+                        <CreditCard className="w-5 h-5 mr-2" />
+                        Thông tin ngân hàng (để nhận thanh toán)
+                      </h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-2">
+                          <Label htmlFor="bankCode" className="text-sm font-medium">Ngân hàng *</Label>
+                          {isEditing ? (
+                            <SearchableSelect
+                              value={editedProfile.bankCode}
+                              onValueChange={(value) => {
+                                const selectedBank = banks.find(b => b.shortName === value);
+                                setEditedProfile({
+                                  ...editedProfile,
+                                  bankCode: value,
+                                  bankName: selectedBank ? selectedBank.name : ""
+                                });
+                              }}
+                              placeholder="Chọn ngân hàng..."
+                              searchPlaceholder="Tìm kiếm ngân hàng..."
+                              options={banks.map(bank => ({
+                                value: bank.shortName,
+                                label: `${bank.name} (${bank.shortName})`
+                              }))}
+                            />
+                          ) : (
+                            <div className="flex items-center space-x-3 p-3 bg-white rounded-lg border">
+                              <CreditCard className="w-5 h-5 text-gray-500" />
+                              <span className="text-sm">{profile.bankName || "-"}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="bankAccount" className="text-sm font-medium">Số tài khoản *</Label>
+                          {isEditing ? (
+                            <Input
+                              id="bankAccount"
+                              value={editedProfile.bankAccount}
+                              onChange={(e) => setEditedProfile({ ...editedProfile, bankAccount: e.target.value })}
+                              placeholder="Nhập số tài khoản..."
+                            />
+                          ) : (
+                            <div className="flex items-center space-x-3 p-3 bg-white rounded-lg border">
+                              <CreditCard className="w-5 h-5 text-gray-500" />
+                              <span className="text-sm">{profile.bankAccount || "-"}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="md:col-span-2 space-y-2">
+                          <Label htmlFor="bankAccountName" className="text-sm font-medium">Tên chủ tài khoản *</Label>
+                          {isEditing ? (
+                            <Input
+                              id="bankAccountName"
+                              value={editedProfile.bankAccountName}
+                              onChange={(e) => setEditedProfile({ ...editedProfile, bankAccountName: e.target.value })}
+                              placeholder="Nhập tên chủ tài khoản..."
+                            />
+                          ) : (
+                            <div className="flex items-center space-x-3 p-3 bg-white rounded-lg border">
+                              <User className="w-5 h-5 text-gray-500" />
+                              <span className="text-sm">{profile.bankAccountName || "-"}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-4">
+                        * Thông tin ngân hàng là bắt buộc để nhận thanh toán từ tour đã hoàn thành.
+                      </p>
+                    </div>
+                  )}
+
                   {/* Social Media Section */}
                   <div className="bg-gray-50 p-6 rounded-xl">
                     <h4 className="font-nunito text-lg font-bold text-gray-900 mb-6 flex items-center">
@@ -1166,6 +1279,38 @@ export default function PersonalProfile() {
                                 </p>
                               </div>
                             )}
+
+                          {/* Refund Information (read-only) */}
+                          {booking.status === "Cancelled" && (typeof booking.refundAmount === "number") && booking.refundAmount > 0 && (
+                            <div className="bg-green-50 p-4 rounded-lg mb-4 border border-green-200">
+                              <h5 className="font-medium text-green-900 mb-2">Thông tin hoàn tiền</h5>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-green-800">
+                                <div>
+                                  <span className="font-medium">Số tiền hoàn:</span> {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(booking.refundAmount)}
+                                </div>
+                                {booking.refundedAt && (
+                                  <div>
+                                    <span className="font-medium">Ngày chuyển:</span> {new Date(booking.refundedAt).toLocaleString('vi-VN')}
+                                  </div>
+                                )}
+                                {booking.refundBankName && (
+                                  <div>
+                                    <span className="font-medium">Ngân hàng:</span> {booking.refundBankName}
+                                  </div>
+                                )}
+                                {booking.refundBankAccount && (
+                                  <div>
+                                    <span className="font-medium">Số tài khoản:</span> {booking.refundBankAccount}
+                                  </div>
+                                )}
+                                {booking.refundAccountName && (
+                                  <div className="md:col-span-2">
+                                    <span className="font-medium">Chủ tài khoản:</span> {booking.refundAccountName}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
                           </div>
                           
                           <div className="flex flex-col space-y-2 min-w-[140px]">
@@ -1189,7 +1334,7 @@ export default function PersonalProfile() {
                             
                             {(booking.status === "PendingPayment" || booking.status === "Confirmed") && (
                               <button
-                                onClick={() => openCancelDialog(booking.id)}
+                                onClick={() => openCancelDialog(booking)}
                                 className="flex items-center justify-center space-x-2 bg-red-100 hover:bg-red-200 text-red-800 px-4 py-2 rounded-lg transition-colors duration-200"
                               >
                                 <Trash2 className="w-4 h-4" />
@@ -1447,6 +1592,7 @@ export default function PersonalProfile() {
           open={showCancellationDialog}
           onOpenChange={setShowCancellationDialog}
           bookingId={selectedBookingId}
+          isPaid={selectedBookingPaid}
           onCancelSuccess={handleCancellationSuccess}
         />
       )}

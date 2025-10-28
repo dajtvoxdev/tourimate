@@ -4,6 +4,7 @@ using tourimate.Contracts.Costs;
 using tourimate.Contracts.Common;
 using TouriMate.Data;
 using Entities.Models;
+using Entities.Enums;
 
 namespace tourimate.Controllers;
 
@@ -411,6 +412,125 @@ public class CostController : ControllerBase
             };
 
             return Ok(statistics);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, $"Lỗi phía ứng dụng: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Confirm payment request (admin): mark cost Paid, create transactions, add revenue
+    /// </summary>
+    [HttpPost("confirm-payment/{id}")]
+    public async Task<IActionResult> ConfirmPayment(Guid id)
+    {
+        try
+        {
+            var userId = GetCurrentUserId();
+            if (!userId.HasValue)
+            {
+                return Unauthorized("Không có quyền truy cập");
+            }
+
+            var currentUser = await _db.Users.FirstOrDefaultAsync(u => u.Id == userId.Value);
+            if (currentUser == null || currentUser.Role != UserRole.Admin)
+            {
+                return Forbid("Chỉ admin mới được xác nhận thanh toán");
+            }
+
+            var cost = await _db.Costs
+                .Include(c => c.Recipient)
+                .ThenInclude(u => u.Profile)
+                .FirstOrDefaultAsync(c => c.Id == id);
+            
+            if (cost == null)
+            {
+                return NotFound("Không tìm thấy chi phí");
+            }
+
+            if (cost.Type != CostType.TourGuidePayment)
+            {
+                return BadRequest("Chỉ xác nhận các chi phí thanh toán cho hướng dẫn viên");
+            }
+
+            // Check if tour guide has bank info
+            var tourGuideProfile = cost.Recipient?.Profile;
+            if (tourGuideProfile == null || 
+                string.IsNullOrWhiteSpace(tourGuideProfile.BankCode) || 
+                string.IsNullOrWhiteSpace(tourGuideProfile.BankAccount) || 
+                string.IsNullOrWhiteSpace(tourGuideProfile.BankAccountName))
+            {
+                return BadRequest(new { 
+                    message = "Hướng dẫn viên chưa cấu hình thông tin ngân hàng",
+                    missingBankInfo = true,
+                    tourGuideName = $"{cost.Recipient?.FirstName} {cost.Recipient?.LastName}".Trim()
+                });
+            }
+
+            // Update cost to Paid
+            cost.Status = CostStatus.Paid;
+            cost.PaidDate = DateTime.UtcNow;
+            cost.UpdatedAt = DateTime.UtcNow;
+
+            // Create Admin OUT transaction
+            var adminTx = new Transaction
+            {
+                TransactionId = $"COST_OUT_{cost.CostCode}",
+                UserId = currentUser.Id,
+                Type = "payout",
+                EntityId = cost.Id,
+                EntityType = "Cost",
+                Amount = cost.Amount,
+                Currency = cost.Currency,
+                Status = "completed",
+                TransactionDirection = "out",
+                PaymentMethod = cost.PaymentMethod ?? "Bank Transfer",
+                Description = $"Thanh toán chi phí cho hướng dẫn viên - {cost.CostName}",
+                CreatedBy = userId,
+                UpdatedBy = userId
+            };
+
+            // Create Tour Guide IN transaction
+            var guideTx = new Transaction
+            {
+                TransactionId = $"COST_IN_{cost.CostCode}",
+                UserId = cost.RecipientId,
+                Type = "payout",
+                EntityId = cost.Id,
+                EntityType = "Cost",
+                Amount = cost.Amount,
+                Currency = cost.Currency,
+                Status = "completed",
+                TransactionDirection = "in",
+                PaymentMethod = cost.PaymentMethod ?? "Bank Transfer",
+                Description = $"Nhận thanh toán chi phí - {cost.CostName}",
+                CreatedBy = userId,
+                UpdatedBy = userId
+            };
+
+            _db.Transactions.Add(adminTx);
+            _db.Transactions.Add(guideTx);
+
+            // Revenue for tour guide
+            var revenue = new Revenue
+            {
+                TransactionId = guideTx.Id,
+                UserId = cost.RecipientId,
+                EntityId = cost.RelatedEntityId,
+                EntityType = cost.RelatedEntityType ?? "Tour",
+                GrossAmount = cost.Amount,
+                CommissionRate = 0m,
+                CommissionAmount = 0m,
+                NetAmount = cost.Amount,
+                Currency = cost.Currency,
+                PayoutStatus = "paid",
+                PayoutDate = DateTime.UtcNow
+            };
+            _db.Revenues.Add(revenue);
+
+            await _db.SaveChangesAsync();
+            return Ok(new { message = "Xác nhận thanh toán thành công" });
         }
         catch (Exception ex)
         {

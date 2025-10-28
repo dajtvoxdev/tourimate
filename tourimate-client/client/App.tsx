@@ -11,6 +11,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { Navigate } from "react-router-dom";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import TourHomepage from "./components/TourHomepage";
@@ -159,6 +160,9 @@ const App = () => (
               </AdminProtectedRoute>
             } 
           />
+          {/* Friendly shortcuts for filtered bookings */}
+          <Route path="/admin/bookings/pending" element={<Navigate to="/admin/bookings?status=pendingpayment" replace />} />
+          <Route path="/admin/bookings/confirmed" element={<Navigate to="/admin/bookings?status=confirmed" replace />} />
           <Route 
             path="/admin/revenue" 
             element={

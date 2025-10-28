@@ -149,8 +149,6 @@ public class TourAvailabilityController : ControllerBase
                 .Where(ta => ta.TourId == tourId)
                 .OrderBy(ta => ta.Date);
             
-            _logger.LogInformation("GetTourAvailabilitiesByTour Query: {Query}", query.ToQueryString());
-            _logger.LogInformation("GetTourAvailabilitiesByTour Parameters: TourId={TourId}", tourId);
             
             var tourAvailabilities = await query.ToListAsync();
             

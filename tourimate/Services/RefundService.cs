@@ -9,7 +9,7 @@ public interface IRefundService
 {
     Task<RefundCalculationResult> CalculateRefundAsync(Guid bookingId, string cancellationReason);
     Task<Refund> ProcessRefundAsync(Guid bookingId, string cancellationReason, string? refundBankName, string? refundBankAccount, string? refundAccountName);
-    Task<bool> CancelBookingAsync(Guid bookingId, string cancellationReason, string? refundBankName, string? refundBankAccount, string? refundAccountName);
+    Task<bool> CancelBookingAsync(Guid bookingId, string cancellationReason, string? refundBankCode, string? refundBankName, string? refundBankAccount, string? refundAccountName);
 }
 
 public class RefundCalculationResult
@@ -130,87 +130,92 @@ public class RefundService : IRefundService
         return refund;
     }
 
-    public async Task<bool> CancelBookingAsync(Guid bookingId, string cancellationReason, string? refundBankName, string? refundBankAccount, string? refundAccountName)
+    public async Task<bool> CancelBookingAsync(Guid bookingId, string cancellationReason, string? refundBankCode, string? refundBankName, string? refundBankAccount, string? refundAccountName)
     {
-        using var transaction = await _db.Database.BeginTransactionAsync();
-        
-        try
+        var strategy = _db.Database.CreateExecutionStrategy();
+        var success = false;
+
+        await strategy.ExecuteAsync(async () =>
         {
-            var booking = await _db.Bookings
-                .Include(b => b.TourAvailability)
-                .FirstOrDefaultAsync(b => b.Id == bookingId);
-
-            if (booking == null)
+            await using var transaction = await _db.Database.BeginTransactionAsync();
+            try
             {
-                throw new ArgumentException("Booking not found");
-            }
+                var booking = await _db.Bookings
+                    .Include(b => b.TourAvailability)
+                    .FirstOrDefaultAsync(b => b.Id == bookingId);
 
-            if (booking.Status == BookingStatus.Cancelled)
-            {
-                throw new InvalidOperationException("Booking is already cancelled");
-            }
-
-            // Calculate refund
-            var calculation = await CalculateRefundAsync(bookingId, cancellationReason);
-
-            // Update booking status
-            booking.Status = BookingStatus.Cancelled;
-            booking.CancellationReason = cancellationReason;
-            booking.CancelledAt = DateTime.UtcNow;
-            booking.UpdatedAt = DateTime.UtcNow;
-
-            // Update refund information if applicable
-            if (calculation.CanRefund)
-            {
-                booking.RefundAmount = calculation.RefundAmount;
-                booking.RefundBankName = refundBankName;
-                booking.RefundBankAccount = refundBankAccount;
-                booking.RefundAccountName = refundAccountName;
-                booking.RefundedAt = DateTime.UtcNow;
-
-                // Create refund record
-                var refund = new Refund
+                if (booking == null)
                 {
-                    BookingId = bookingId,
-                    RefundAmount = calculation.RefundAmount,
-                    Currency = "VND",
-                    RefundStatus = "Pending",
-                    RefundBankName = refundBankName,
-                    RefundBankAccount = refundBankAccount,
-                    RefundAccountName = refundAccountName,
-                    RefundReason = cancellationReason,
-                    DaysBeforeTour = calculation.DaysBeforeTour,
-                    RefundPercentage = calculation.RefundPercentage,
-                    OriginalAmount = calculation.OriginalAmount,
-                    RefundNotes = $"Booking cancelled. Policy: {calculation.RefundPolicy}",
-                    CreatedBy = Guid.NewGuid(), // TODO: Get from current user context
-                    UpdatedBy = Guid.NewGuid()  // TODO: Get from current user context
-                };
+                    throw new ArgumentException("Booking not found");
+                }
 
-                _db.Refunds.Add(refund);
+                if (booking.Status == BookingStatus.Cancelled)
+                {
+                    throw new InvalidOperationException("Booking is already cancelled");
+                }
+
+                // Calculate refund
+                var calculation = await CalculateRefundAsync(bookingId, cancellationReason);
+
+                // Update booking status
+                booking.Status = BookingStatus.Cancelled;
+                booking.CancellationReason = cancellationReason;
+                booking.CancelledAt = DateTime.UtcNow;
+                booking.UpdatedAt = DateTime.UtcNow;
+
+                // Update refund information if applicable
+                if (calculation.CanRefund)
+                {
+                    booking.RefundAmount = calculation.RefundAmount;
+                    // Persist minimal info on booking if needed (bank code not stored on booking)
+                    booking.RefundBankName = refundBankName;
+                    booking.RefundBankAccount = refundBankAccount;
+                    booking.RefundAccountName = refundAccountName;
+                    booking.RefundBankCode = refundBankCode;
+                    // Create refund record
+                    var refund = new Refund
+                    {
+                        BookingId = bookingId,
+                        RefundAmount = calculation.RefundAmount,
+                        Currency = "VND",
+                        RefundStatus = "Pending",
+                        RefundBankCode = refundBankCode,
+                        RefundBankName = refundBankName,
+                        RefundBankAccount = refundBankAccount,
+                        RefundAccountName = refundAccountName,
+                        RefundReason = cancellationReason,
+                        DaysBeforeTour = calculation.DaysBeforeTour,
+                        RefundPercentage = calculation.RefundPercentage,
+                        OriginalAmount = calculation.OriginalAmount,
+                        RefundNotes = $"Booking cancelled. Policy: {calculation.RefundPolicy}",
+                        CreatedBy = Guid.NewGuid(), // TODO: Get from current user context
+                        UpdatedBy = Guid.NewGuid()  // TODO: Get from current user context
+                    };
+
+                    _db.Refunds.Add(refund);
+                }
+
+                // Update tour availability - reduce booked participants
+                if (booking.TourAvailability != null)
+                {
+                    booking.TourAvailability.BookedParticipants = Math.Max(0, booking.TourAvailability.BookedParticipants - booking.Participants);
+                    booking.TourAvailability.UpdatedAt = DateTime.UtcNow;
+                }
+
+                await _db.SaveChangesAsync();
+                await transaction.CommitAsync();
+
+                _logger.LogInformation("Booking {BookingId} cancelled successfully.", bookingId);
+                success = true;
             }
-
-            // Update tour availability - reduce booked participants
-            if (booking.TourAvailability != null)
+            catch (Exception)
             {
-                booking.TourAvailability.BookedParticipants = Math.Max(0, booking.TourAvailability.BookedParticipants - booking.Participants);
-                booking.TourAvailability.UpdatedAt = DateTime.UtcNow;
+                await transaction.RollbackAsync();
+                throw;
             }
+        });
 
-            await _db.SaveChangesAsync();
-            await transaction.CommitAsync();
-
-            _logger.LogInformation("Booking {BookingId} cancelled successfully. Refund: {RefundAmount} VND", 
-                bookingId, calculation.RefundAmount);
-
-            return true;
-        }
-        catch (Exception ex)
-        {
-            await transaction.RollbackAsync();
-            _logger.LogError(ex, "Error cancelling booking {BookingId}", bookingId);
-            throw;
-        }
+        return success;
     }
 }
 

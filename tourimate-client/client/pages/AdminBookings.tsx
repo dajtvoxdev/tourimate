@@ -85,6 +85,16 @@ export default function AdminBookings() {
   // Check if this is "mine" view for tour guide
   const isMineView = searchParams.get('mine') === '1';
 
+  // Initialize status filter from URL query (?status=...)
+  useEffect(() => {
+    const qs = (searchParams.get('status') || '').toLowerCase();
+    if (qs === 'pendingpayment' || qs === 'confirmed' || qs === 'cancelled' || qs === 'completed') {
+      setStatusFilter(qs);
+      setCurrentPage(1);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     fetchBookings();
   }, [currentPage, statusFilter, searchTerm]);
@@ -129,7 +139,7 @@ export default function AdminBookings() {
   const handleStatusChange = async (bookingId: string, newStatus: string) => {
     try {
       setActionLoading(bookingId);
-      await httpJson(`${getApiBase()}/api/bookings/${bookingId}`, {
+      await httpJson(`${getApiBase()}/api/bookings/${bookingId}/status`, {
         method: "PUT",
         body: JSON.stringify({ status: newStatus })
       });
