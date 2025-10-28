@@ -327,13 +327,13 @@ namespace TouriMate.Services
             return status.ToLower() switch
             {
                 "approved" => @"<div style='text-align: center;'>
-                    <a href='https://localhost:8080/create-tour' class='action-button'>🚀 Tạo Tour Đầu Tiên</a>
+                    <a href='https://tourimate.site/admin/tour/create' class='action-button'>🚀 Tạo Tour Đầu Tiên</a>
                 </div>",
                 "rejected" => @"<div style='text-align: center;'>
-                    <a href='https://localhost:8080/tour-guide-registration' class='action-button'>📝 Nộp Lại Đơn Đăng Ký</a>
+                    <a href='https://tourimate.site/tour-guide-registration' class='action-button'>📝 Nộp Lại Đơn Đăng Ký</a>
                 </div>",
                 "allow_edit" => @"<div style='text-align: center;'>
-                    <a href='https://localhost:8080/tour-guide-registration' class='action-button'>✏️ Chỉnh Sửa Đơn Đăng Ký</a>
+                    <a href='https://tourimate.site/tour-guide-registration' class='action-button'>✏️ Chỉnh Sửa Đơn Đăng Ký</a>
                 </div>",
                 _ => ""
             };

@@ -196,7 +196,17 @@ const AdminTourManagement = () => {
       }
       
       await tourApi.updateTour(selectedTour.id, updateData);
-      toast.success("Cập nhật tour thành công");
+      
+      // Show different message for tour guide vs admin
+      if (isTourGuide) {
+        toast.success("Tour đã được cập nhật và gửi lại cho admin xác nhận", {
+          description: "Tour của bạn sẽ được admin kiểm tra và phê duyệt trước khi hiển thị công khai.",
+          duration: 5000
+        });
+      } else {
+        toast.success("Cập nhật tour thành công");
+      }
+      
       setIsEditDialogOpen(false);
       resetForm();
       loadTours();
@@ -326,7 +336,9 @@ const AdminTourManagement = () => {
       case 'approved':
         return <Badge variant="default">Đã duyệt</Badge>;
       case 'pendingapproval':
-        return <Badge variant="secondary">Chờ duyệt</Badge>;
+        return <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 border-yellow-200">
+          {isTourGuide ? "Chờ admin xác nhận" : "Chờ duyệt"}
+        </Badge>;
       case 'rejected':
         return <Badge variant="destructive">Từ chối</Badge>;
       default:
@@ -715,7 +727,17 @@ const AdminTourManagement = () => {
                     const updateData: any = { ...payload };
                     delete updateData.images;
                     await tourApi.updateTour(selectedTour.id, updateData);
-                    toast.success("Cập nhật tour thành công");
+                    
+                    // Show different message for tour guide vs admin
+                    if (isTourGuide) {
+                      toast.success("Tour đã được cập nhật và gửi lại cho admin xác nhận", {
+                        description: "Tour của bạn sẽ được admin kiểm tra và phê duyệt trước khi hiển thị công khai.",
+                        duration: 5000
+                      });
+                    } else {
+                      toast.success("Cập nhật tour thành công");
+                    }
+                    
                     setIsEditDialogOpen(false);
                     setEditDetail(null);
                     loadTours();

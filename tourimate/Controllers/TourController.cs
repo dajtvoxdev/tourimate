@@ -18,11 +18,13 @@ public sealed class TourController : ControllerBase
 {
     private readonly TouriMateDbContext _db;
     private readonly IEmailService _emailService;
+    private readonly ILogger<TourController> _logger;
 
-    public TourController(TouriMateDbContext db, IEmailService emailService)
+    public TourController(TouriMateDbContext db, IEmailService emailService, ILogger<TourController> logger)
     {
         _db = db;
         _emailService = emailService;
+        _logger = logger;
     }
 
     private Guid? GetCurrentUserId()
@@ -520,12 +522,45 @@ public sealed class TourController : ControllerBase
                 tour.IsActive = request.IsActive.Value;
             if (request.IsFeatured.HasValue)
                 tour.IsFeatured = request.IsFeatured.Value;
-            //if (request.Status.HasValue && isAdmin)
-            //    tour.Status = request.Status.Value;
+            
+            // If tour guide edits tour, reset status to PendingApproval for admin review
+            if (!isAdmin && tour.TourGuideId == userId)
+            {
+                tour.Status = TourStatus.PendingApproval;
+            }
+            // Admin can set status directly
+            else if (isAdmin && request.Status.HasValue)
+            {
+                tour.Status = request.Status.Value;
+            }
 
             tour.UpdatedBy = userId;
 
             await _db.SaveChangesAsync();
+
+            // Send notification to admin when tour guide edits tour
+            if (!isAdmin && tour.TourGuideId == userId)
+            {
+                try
+                {
+                    var guide = await _db.Users.FirstOrDefaultAsync(u => u.Id == userId);
+                    var subject = "Tour đã được chỉnh sửa - Cần xác nhận lại";
+                    var htmlContent = $@"
+                        <h3>Tour đã được chỉnh sửa</h3>
+                        <p><strong>Tour:</strong> {tour.Title}</p>
+                        <p><strong>Hướng dẫn viên:</strong> {guide?.FirstName} {guide?.LastName}</p>
+                        <p><strong>Trạng thái:</strong> Đang chờ xác nhận</p>
+                        <p>Vui lòng kiểm tra và phê duyệt tour này.</p>
+                        <a href='https://tourimate.site/admin/tours' style='background-color: #2563eb; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;'>Xem chi tiết</a>
+                    ";
+                    await _emailService.SendAdminNotificationAsync(subject, htmlContent);
+                }
+                catch (Exception ex)
+                {
+                    // Log error but don't fail the update
+                    _logger.LogError(ex, "Failed to send admin notification for tour edit");
+                }
+            }
 
             // Reload with navigation properties
             var updatedTour = await _db.Tours

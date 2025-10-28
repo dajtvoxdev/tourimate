@@ -1,0 +1,36 @@
+{
+  "ciCd": {
+    "projectRoot": "D:\\tourimate",
+    "backendPath": "D:\\tourimate\\tourimate",
+    "frontendPath": "D:\\tourimate\\tourimate-client",
+    "buildPaths": {
+      "backend": "D:\\tourimate\\publish\\backend",
+      "frontend": "D:\\tourimate\\publish\\frontend"
+    },
+    "vps": {
+      "host": "103.161.180.247",
+      "user": "Administrator",
+      "port": 22,
+      "paths": {
+        "backend": "C:\\inetpub\\wwwroot\\tourimate-production",
+        "frontend": "C:\\inetpub\\wwwroot\\tourimate-frontend-production"
+      }
+    },
+    "environments": {
+      "production": {
+        "backend": {
+          "configFile": "appsettings.Production.json",
+          "apiUrl": "https://tourimate.site:5000"
+        },
+        "frontend": {
+          "envFile": ".env.production",
+          "apiUrl": "https://tourimate.site:5000"
+        }
+      }
+    },
+    "logging": {
+      "logFile": "D:\\tourimate\\deployment\\ci-cd.log",
+      "verbose": false
+    }
+  }
+}
