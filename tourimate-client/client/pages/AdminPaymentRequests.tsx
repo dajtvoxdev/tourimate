@@ -361,6 +361,22 @@ export default function AdminPaymentRequests() {
 
                   {/* Actions */}
                   <div className="flex items-center gap-2">
+                    {/* Primary action button for Pending requests */}
+                    {request.status === "Pending" && (
+                      <Button
+                        onClick={() => {
+                          setRequestToProcess(request);
+                          setShowProcessDialog(true);
+                        }}
+                        disabled={actionLoading === request.id}
+                        className="bg-green-600 hover:bg-green-700"
+                        size="sm"
+                      >
+                        <Check className="w-4 h-4 mr-2" />
+                        {actionLoading === request.id ? "Đang xử lý..." : "Xác nhận thanh toán"}
+                      </Button>
+                    )}
+                    
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="ghost" size="sm">
