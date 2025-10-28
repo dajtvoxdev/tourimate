@@ -224,10 +224,11 @@ public class DashboardController : ControllerBase
                 return Forbid("Only tour guides can access this endpoint");
             }
 
-            // Total Revenue (from completed bookings for tour guide's tours only)
-            var totalRevenue = await _context.Bookings
-                .Where(b => b.Status == BookingStatus.Completed && b.Tour.TourGuideId == userId.Value)
-                .SumAsync(b => b.TotalAmount);
+            // Total Revenue (from payments received by tour guide, not from bookings)
+            // Tour guide revenue comes from Cost records where they are the recipient
+            var totalRevenue = await _context.Costs
+                .Where(c => c.RecipientId == userId.Value && c.Status == CostStatus.Paid)
+                .SumAsync(c => c.Amount);
 
             // Total Users (customers who booked tour guide's tours)
             var totalUsers = await _context.Bookings
@@ -236,9 +237,9 @@ public class DashboardController : ControllerBase
                 .Distinct()
                 .CountAsync();
 
-            // Total Transactions (bookings for tour guide's tours only)
-            var totalTransactions = await _context.Bookings
-                .Where(b => b.Tour.TourGuideId == userId.Value)
+            // Total Transactions (payments received by tour guide)
+            var totalTransactions = await _context.Costs
+                .Where(c => c.RecipientId == userId.Value && c.Status == CostStatus.Paid)
                 .CountAsync();
 
             // Total Reviews (reviews for tour guide's tours only)
@@ -247,12 +248,12 @@ public class DashboardController : ControllerBase
                            _context.Tours.Any(t => t.Id == r.EntityId && t.TourGuideId == userId.Value))
                 .CountAsync();
 
-            // Recent activity (last 30 days)
+            // Recent activity (last 30 days) - payments received
             var thirtyDaysAgo = DateTime.UtcNow.AddDays(-30);
             
-            var recentRevenue = await _context.Bookings
-                .Where(b => b.Status == BookingStatus.Completed && b.CreatedAt >= thirtyDaysAgo && b.Tour.TourGuideId == userId.Value)
-                .SumAsync(b => b.TotalAmount);
+            var recentRevenue = await _context.Costs
+                .Where(c => c.RecipientId == userId.Value && c.Status == CostStatus.Paid && c.PaidDate >= thirtyDaysAgo)
+                .SumAsync(c => c.Amount);
 
             var recentUsers = await _context.Bookings
                 .Where(b => b.CreatedAt >= thirtyDaysAgo && b.Tour.TourGuideId == userId.Value)
@@ -260,8 +261,8 @@ public class DashboardController : ControllerBase
                 .Distinct()
                 .CountAsync();
 
-            var recentTransactions = await _context.Bookings
-                .Where(b => b.CreatedAt >= thirtyDaysAgo && b.Tour.TourGuideId == userId.Value)
+            var recentTransactions = await _context.Costs
+                .Where(c => c.RecipientId == userId.Value && c.Status == CostStatus.Paid && c.PaidDate >= thirtyDaysAgo)
                 .CountAsync();
 
             var recentReviews = await _context.Reviews
@@ -288,16 +289,22 @@ public class DashboardController : ControllerBase
                 .Select(g => new { Status = g.Key.ToString(), Count = g.Count() })
                 .ToListAsync();
 
-            // Top tours by bookings (tour guide's tours only)
-            var topTours = await _context.Bookings
-                .Include(b => b.Tour)
-                .Where(b => b.Status == BookingStatus.Completed && b.Tour.TourGuideId == userId.Value)
-                .GroupBy(b => new { b.TourId, b.Tour.Title })
+            // Top tours by payments received (not by bookings)
+            var topTours = await _context.Costs
+                .Where(c => c.RecipientId == userId.Value && 
+                           c.Status == CostStatus.Paid && 
+                           c.Type == CostType.TourGuidePayment &&
+                           c.RelatedEntityType == "Tour")
+                .Join(_context.Tours, 
+                      c => c.RelatedEntityId, 
+                      t => t.Id, 
+                      (c, t) => new { Cost = c, Tour = t })
+                .GroupBy(x => new { x.Tour.Id, x.Tour.Title })
                 .Select(g => new { 
-                    TourId = g.Key.TourId, 
+                    TourId = g.Key.Id, 
                     TourTitle = g.Key.Title, 
                     BookingCount = g.Count(),
-                    Revenue = g.Sum(b => b.TotalAmount)
+                    Revenue = g.Sum(x => x.Cost.Amount)
                 })
                 .OrderByDescending(x => x.BookingCount)
                 .Take(5)
@@ -356,14 +363,17 @@ public class DashboardController : ControllerBase
 
             var twelveMonthsAgo = DateTime.UtcNow.AddMonths(-12);
             
-            var monthlyRevenue = await _context.Bookings
-                .Where(b => b.Status == BookingStatus.Completed && b.CreatedAt >= twelveMonthsAgo && b.Tour.TourGuideId == userId.Value)
-                .GroupBy(b => new { b.CreatedAt.Year, b.CreatedAt.Month })
+            // Monthly revenue from payments received (not from bookings)
+            var monthlyRevenue = await _context.Costs
+                .Where(c => c.RecipientId == userId.Value && 
+                           c.Status == CostStatus.Paid && 
+                           c.PaidDate >= twelveMonthsAgo)
+                .GroupBy(c => new { c.PaidDate.Value.Year, c.PaidDate.Value.Month })
                 .Select(g => new
                 {
                     Year = g.Key.Year,
                     Month = g.Key.Month,
-                    Revenue = g.Sum(b => b.TotalAmount)
+                    Revenue = g.Sum(c => c.Amount)
                 })
                 .OrderBy(x => x.Year)
                 .ThenBy(x => x.Month)

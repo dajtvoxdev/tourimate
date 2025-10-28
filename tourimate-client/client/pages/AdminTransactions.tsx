@@ -84,21 +84,10 @@ export default function AdminTransactions() {
 
   useEffect(() => {
     if (user) { // Only fetch when user is available
-      testAuth(); // Test authentication first
       fetchTransactions();
       fetchStats();
     }
   }, [currentPage, statusFilter, typeFilter, searchTerm, user, isMineView]);
-
-  const testAuth = async () => {
-    try {
-      console.log("Testing authentication...");
-      const response = await httpJson(`${getApiBase()}/api/transactions/test-auth`);
-      console.log("Auth test result:", response);
-    } catch (error) {
-      console.error("Auth test failed:", error);
-    }
-  };
 
   const fetchTransactions = async () => {
     try {

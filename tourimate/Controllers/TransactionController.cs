@@ -1,10 +1,12 @@
+using Entities.Enums;
+using Entities.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using TouriMate.Data;
-using Entities.Models;
-using Entities.Enums;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 using System.Text.Json;
-using Microsoft.AspNetCore.Authorization;
+using TouriMate.Data;
 using TouriMate.Services;
 
 namespace TouriMate.Controllers;
@@ -345,8 +347,55 @@ public class TransactionController : ControllerBase
                 transactions.AddRange(bookings);
             }
 
-            // Note: Orders are not filtered by tour guide since they're not tour-specific
-            // Tour guides can only see bookings for their tours
+            // Get payments received by tour guide (from Cost records)
+            if (string.IsNullOrEmpty(type) || type.ToLower() == "payment")
+            {
+                var paymentQuery = _context.Costs
+                    .Include(c => c.Payer)
+                    .Where(c => c.RecipientId == userId.Value && c.Type == CostType.TourGuidePayment)
+                    .AsQueryable();
+
+                if (!string.IsNullOrEmpty(status) && Enum.TryParse<CostStatus>(status, true, out var costStatus))
+                {
+                    paymentQuery = paymentQuery.Where(c => c.Status == costStatus);
+                }
+
+                if (!string.IsNullOrEmpty(search))
+                {
+                    paymentQuery = paymentQuery.Where(c =>
+                        c.CostCode.Contains(search) ||
+                        c.CostName.Contains(search) ||
+                        c.ReferenceNumber.Contains(search));
+                }
+
+                var paymentCount = await paymentQuery.CountAsync();
+                totalCount += paymentCount;
+
+                var payments = await paymentQuery
+                    .OrderByDescending(c => c.CreatedAt)
+                    .Skip((page - 1) * pageSize)
+                    .Take(pageSize)
+                    .Select(c => new
+                    {
+                        Id = c.Id,
+                        TransactionNumber = c.CostCode,
+                        Type = "Payment",
+                        Status = c.Status.ToString(),
+                        Amount = c.Amount,
+                        CustomerName = c.Payer.FirstName + " " + c.Payer.LastName,
+                        CustomerEmail = c.Payer.Email,
+                        TourTitle = c.CostName,
+                        TourDate = c.PaidDate ?? c.DueDate,
+                        Participants = 1, // Payment is per booking
+                        CreatedAt = c.CreatedAt,
+                        UpdatedAt = c.UpdatedAt,
+                        PaymentStatus = c.Status.ToString(),
+                        ContactInfo = c.PaymentMethod ?? "Bank Transfer"
+                    })
+                    .ToListAsync();
+
+                transactions.AddRange(payments);
+            }
 
             // Sort combined results by creation date
             var sortedTransactions = transactions
@@ -742,12 +791,8 @@ public class TransactionController : ControllerBase
 
     private Guid? GetCurrentUserId()
     {
-        var userIdClaim = User.FindFirst("userId");
-        if (userIdClaim != null && Guid.TryParse(userIdClaim.Value, out var userId))
-        {
-            return userId;
-        }
-        return null;
+        var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue(JwtRegisteredClaimNames.Sub);
+        return string.IsNullOrEmpty(userIdClaim) ? null : Guid.Parse(userIdClaim);
     }
 }
 
