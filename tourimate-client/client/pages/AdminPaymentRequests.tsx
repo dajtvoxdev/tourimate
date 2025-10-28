@@ -101,7 +101,8 @@ export default function AdminPaymentRequests() {
       setLoading(true);
       const params = new URLSearchParams({
         page: currentPage.toString(),
-        pageSize: "20"
+        pageSize: "20",
+        type: "TourGuidePayment" // Only get tour guide payment requests
       });
       
       if (statusFilter !== "all") {
@@ -109,14 +110,14 @@ export default function AdminPaymentRequests() {
       }
       
       if (searchTerm.trim()) {
-        params.append("search", searchTerm.trim());
+        params.append("searchTerm", searchTerm.trim());
       }
 
-      const response = await httpJson<PaymentRequestsResponse>(
-        `${getApiBase()}/api/paymentrequest/admin?${params.toString()}`
+      const response = await httpJson<any>(
+        `${getApiBase()}/api/cost?${params.toString()}`
       );
       
-      setPaymentRequests(response.paymentRequests);
+      setPaymentRequests(response.costs || []);
       setTotalPages(response.pagination.totalPages);
       setTotalCount(response.pagination.totalCount);
     } catch (error) {
