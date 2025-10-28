@@ -18,10 +18,10 @@ public class SePayTransaction : BaseEntity, IAuditableEntity
     public DateTime TransactionDate { get; set; } // Thời gian xảy ra giao dịch
 
     [Required]
-    [MaxLength(20)]
+    [MaxLength(50)]
     public string AccountNumber { get; set; } = string.Empty; // Số tài khoản ngân hàng
 
-    [MaxLength(50)]
+    [MaxLength(100)]
     public string? Code { get; set; } // Mã code thanh toán
 
     [Required]
@@ -40,10 +40,10 @@ public class SePayTransaction : BaseEntity, IAuditableEntity
     [Column(TypeName = "decimal(18,2)")]
     public decimal Accumulated { get; set; } // Số dư tài khoản (lũy kế)
 
-    [MaxLength(20)]
+    [MaxLength(50)]
     public string? SubAccount { get; set; } // Tài khoản ngân hàng phụ
 
-    [MaxLength(100)]
+    [MaxLength(200)]
     public string? ReferenceCode { get; set; } // Mã tham chiếu của tin nhắn SMS
 
     [Column(TypeName = "nvarchar(max)")]

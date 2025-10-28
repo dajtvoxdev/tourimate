@@ -73,41 +73,24 @@ public class SePayService : ISePayService
                     _logger.LogInformation("Reprocessing SePay transaction ID: {TransactionId} with status: {Status}", 
                         webhookData.Id, existingTransaction.ProcessingStatus);
                     
-                    // Update existing transaction record with new webhook data and length validation
-                    existingTransaction.Gateway = TruncateString(webhookData.Gateway, 100);
+                    // Update existing transaction record with new webhook data
+                    existingTransaction.Gateway = webhookData.Gateway;
                     existingTransaction.TransactionDate = DateTime.Parse(webhookData.TransactionDate);
-                    existingTransaction.AccountNumber = TruncateString(webhookData.AccountNumber, 20);
-                    existingTransaction.Code = TruncateString(webhookData.Code, 50);
-                    existingTransaction.Content = webhookData.Content; // nvarchar(max) - no truncation needed
-                    existingTransaction.TransferType = TruncateString(webhookData.TransferType, 10);
+                    existingTransaction.AccountNumber = webhookData.AccountNumber;
+                    existingTransaction.Code = webhookData.Code;
+                    existingTransaction.Content = webhookData.Content;
+                    existingTransaction.TransferType = webhookData.TransferType;
                     existingTransaction.TransferAmount = webhookData.TransferAmount;
                     existingTransaction.Accumulated = webhookData.Accumulated;
-                    existingTransaction.SubAccount = TruncateString(webhookData.SubAccount, 20);
-                    existingTransaction.ReferenceCode = TruncateString(webhookData.ReferenceCode, 100);
-                    existingTransaction.Description = webhookData.Description; // nvarchar(max) - no truncation needed
+                    existingTransaction.SubAccount = webhookData.SubAccount;
+                    existingTransaction.ReferenceCode = webhookData.ReferenceCode;
+                    existingTransaction.Description = webhookData.Description;
                     existingTransaction.ProcessingStatus = "pending";
                     existingTransaction.ProcessingNotes = null;
                     existingTransaction.ProcessedAt = null;
                     existingTransaction.UpdatedAt = DateTime.UtcNow;
                     
-                    try
-                    {
-                        await _db.SaveChangesAsync();
-                    }
-                    catch (Microsoft.EntityFrameworkCore.DbUpdateException ex) when (ex.InnerException is Microsoft.Data.SqlClient.SqlException sqlEx && sqlEx.Message.Contains("truncated"))
-                    {
-                        _logger.LogError(ex, "Data truncation error updating SePay transaction ID: {TransactionId}. Gateway: {Gateway}, AccountNumber: {AccountNumber}, Code: {Code}", 
-                            webhookData.Id, webhookData.Gateway, webhookData.AccountNumber, webhookData.Code);
-                        
-                        // Try to save with more aggressive truncation
-                        existingTransaction.Gateway = TruncateString(webhookData.Gateway, 50);
-                        existingTransaction.AccountNumber = TruncateString(webhookData.AccountNumber, 15);
-                        existingTransaction.Code = TruncateString(webhookData.Code, 30);
-                        existingTransaction.ReferenceCode = TruncateString(webhookData.ReferenceCode, 50);
-                        
-                        await _db.SaveChangesAsync();
-                        _logger.LogInformation("Successfully updated SePay transaction ID: {TransactionId} after aggressive truncation", webhookData.Id);
-                    }
+                    await _db.SaveChangesAsync();
                     
                     // Use the existing transaction for further processing
                     sePayTransaction = existingTransaction;
@@ -128,44 +111,26 @@ public class SePayService : ISePayService
             }
             else
             {
-                // Create new SePay transaction record with length validation
+                // Create new SePay transaction record
                 sePayTransaction = new SePayTransaction
                 {
                     SePayTransactionId = webhookData.Id,
-                    Gateway = TruncateString(webhookData.Gateway, 100),
+                    Gateway = webhookData.Gateway,
                     TransactionDate = DateTime.Parse(webhookData.TransactionDate),
-                    AccountNumber = TruncateString(webhookData.AccountNumber, 20),
-                    Code = TruncateString(webhookData.Code, 50),
-                    Content = webhookData.Content, // nvarchar(max) - no truncation needed
-                    TransferType = TruncateString(webhookData.TransferType, 10),
+                    AccountNumber = webhookData.AccountNumber,
+                    Code = webhookData.Code,
+                    Content = webhookData.Content,
+                    TransferType = webhookData.TransferType,
                     TransferAmount = webhookData.TransferAmount,
                     Accumulated = webhookData.Accumulated,
-                    SubAccount = TruncateString(webhookData.SubAccount, 20),
-                    ReferenceCode = TruncateString(webhookData.ReferenceCode, 100),
-                    Description = webhookData.Description, // nvarchar(max) - no truncation needed
+                    SubAccount = webhookData.SubAccount,
+                    ReferenceCode = webhookData.ReferenceCode,
+                    Description = webhookData.Description,
                     ProcessingStatus = "pending"
                 };
 
                 _db.SePayTransactions.Add(sePayTransaction);
-                
-                try
-                {
-                    await _db.SaveChangesAsync();
-                }
-                catch (Microsoft.EntityFrameworkCore.DbUpdateException ex) when (ex.InnerException is Microsoft.Data.SqlClient.SqlException sqlEx && sqlEx.Message.Contains("truncated"))
-                {
-                    _logger.LogError(ex, "Data truncation error for SePay transaction ID: {TransactionId}. Gateway: {Gateway}, AccountNumber: {AccountNumber}, Code: {Code}", 
-                        webhookData.Id, webhookData.Gateway, webhookData.AccountNumber, webhookData.Code);
-                    
-                    // Try to save with more aggressive truncation
-                    sePayTransaction.Gateway = TruncateString(webhookData.Gateway, 50);
-                    sePayTransaction.AccountNumber = TruncateString(webhookData.AccountNumber, 15);
-                    sePayTransaction.Code = TruncateString(webhookData.Code, 30);
-                    sePayTransaction.ReferenceCode = TruncateString(webhookData.ReferenceCode, 50);
-                    
-                    await _db.SaveChangesAsync();
-                    _logger.LogInformation("Successfully saved SePay transaction ID: {TransactionId} after aggressive truncation", webhookData.Id);
-                }
+                await _db.SaveChangesAsync();
             }
 
             // Only process money-in transactions
