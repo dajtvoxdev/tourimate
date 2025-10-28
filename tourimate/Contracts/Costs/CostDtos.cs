@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using tourimate.Contracts.Common;
 
 namespace tourimate.Contracts.Costs;
 
@@ -170,11 +171,4 @@ public class CostStatusSummary
     public int Count { get; set; }
 }
 
-public class PaginationInfo
-{
-    public int Page { get; set; }
-    public int PageSize { get; set; }
-    public int TotalCount { get; set; }
-    public int TotalPages { get; set; }
-}
 

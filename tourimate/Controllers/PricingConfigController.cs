@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using tourimate.Contracts.Pricing;
+using tourimate.Contracts.Common;
 using TouriMate.Data;
 using Entities.Models;
 
