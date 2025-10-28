@@ -73,24 +73,41 @@ public class SePayService : ISePayService
                     _logger.LogInformation("Reprocessing SePay transaction ID: {TransactionId} with status: {Status}", 
                         webhookData.Id, existingTransaction.ProcessingStatus);
                     
-                    // Update existing transaction record with new webhook data
-                    existingTransaction.Gateway = webhookData.Gateway;
+                    // Update existing transaction record with new webhook data and length validation
+                    existingTransaction.Gateway = TruncateString(webhookData.Gateway, 100);
                     existingTransaction.TransactionDate = DateTime.Parse(webhookData.TransactionDate);
-                    existingTransaction.AccountNumber = webhookData.AccountNumber;
-                    existingTransaction.Code = webhookData.Code;
-                    existingTransaction.Content = webhookData.Content;
-                    existingTransaction.TransferType = webhookData.TransferType;
+                    existingTransaction.AccountNumber = TruncateString(webhookData.AccountNumber, 20);
+                    existingTransaction.Code = TruncateString(webhookData.Code, 50);
+                    existingTransaction.Content = webhookData.Content; // nvarchar(max) - no truncation needed
+                    existingTransaction.TransferType = TruncateString(webhookData.TransferType, 10);
                     existingTransaction.TransferAmount = webhookData.TransferAmount;
                     existingTransaction.Accumulated = webhookData.Accumulated;
-                    existingTransaction.SubAccount = webhookData.SubAccount;
-                    existingTransaction.ReferenceCode = webhookData.ReferenceCode;
-                    existingTransaction.Description = webhookData.Description;
+                    existingTransaction.SubAccount = TruncateString(webhookData.SubAccount, 20);
+                    existingTransaction.ReferenceCode = TruncateString(webhookData.ReferenceCode, 100);
+                    existingTransaction.Description = webhookData.Description; // nvarchar(max) - no truncation needed
                     existingTransaction.ProcessingStatus = "pending";
                     existingTransaction.ProcessingNotes = null;
                     existingTransaction.ProcessedAt = null;
                     existingTransaction.UpdatedAt = DateTime.UtcNow;
                     
-                    await _db.SaveChangesAsync();
+                    try
+                    {
+                        await _db.SaveChangesAsync();
+                    }
+                    catch (Microsoft.EntityFrameworkCore.DbUpdateException ex) when (ex.InnerException is Microsoft.Data.SqlClient.SqlException sqlEx && sqlEx.Message.Contains("truncated"))
+                    {
+                        _logger.LogError(ex, "Data truncation error updating SePay transaction ID: {TransactionId}. Gateway: {Gateway}, AccountNumber: {AccountNumber}, Code: {Code}", 
+                            webhookData.Id, webhookData.Gateway, webhookData.AccountNumber, webhookData.Code);
+                        
+                        // Try to save with more aggressive truncation
+                        existingTransaction.Gateway = TruncateString(webhookData.Gateway, 50);
+                        existingTransaction.AccountNumber = TruncateString(webhookData.AccountNumber, 15);
+                        existingTransaction.Code = TruncateString(webhookData.Code, 30);
+                        existingTransaction.ReferenceCode = TruncateString(webhookData.ReferenceCode, 50);
+                        
+                        await _db.SaveChangesAsync();
+                        _logger.LogInformation("Successfully updated SePay transaction ID: {TransactionId} after aggressive truncation", webhookData.Id);
+                    }
                     
                     // Use the existing transaction for further processing
                     sePayTransaction = existingTransaction;
@@ -111,26 +128,44 @@ public class SePayService : ISePayService
             }
             else
             {
-                // Create new SePay transaction record
+                // Create new SePay transaction record with length validation
                 sePayTransaction = new SePayTransaction
                 {
                     SePayTransactionId = webhookData.Id,
-                    Gateway = webhookData.Gateway,
+                    Gateway = TruncateString(webhookData.Gateway, 100),
                     TransactionDate = DateTime.Parse(webhookData.TransactionDate),
-                    AccountNumber = webhookData.AccountNumber,
-                    Code = webhookData.Code,
-                    Content = webhookData.Content,
-                    TransferType = webhookData.TransferType,
+                    AccountNumber = TruncateString(webhookData.AccountNumber, 20),
+                    Code = TruncateString(webhookData.Code, 50),
+                    Content = webhookData.Content, // nvarchar(max) - no truncation needed
+                    TransferType = TruncateString(webhookData.TransferType, 10),
                     TransferAmount = webhookData.TransferAmount,
                     Accumulated = webhookData.Accumulated,
-                    SubAccount = webhookData.SubAccount,
-                    ReferenceCode = webhookData.ReferenceCode,
-                    Description = webhookData.Description,
+                    SubAccount = TruncateString(webhookData.SubAccount, 20),
+                    ReferenceCode = TruncateString(webhookData.ReferenceCode, 100),
+                    Description = webhookData.Description, // nvarchar(max) - no truncation needed
                     ProcessingStatus = "pending"
                 };
 
                 _db.SePayTransactions.Add(sePayTransaction);
-                await _db.SaveChangesAsync();
+                
+                try
+                {
+                    await _db.SaveChangesAsync();
+                }
+                catch (Microsoft.EntityFrameworkCore.DbUpdateException ex) when (ex.InnerException is Microsoft.Data.SqlClient.SqlException sqlEx && sqlEx.Message.Contains("truncated"))
+                {
+                    _logger.LogError(ex, "Data truncation error for SePay transaction ID: {TransactionId}. Gateway: {Gateway}, AccountNumber: {AccountNumber}, Code: {Code}", 
+                        webhookData.Id, webhookData.Gateway, webhookData.AccountNumber, webhookData.Code);
+                    
+                    // Try to save with more aggressive truncation
+                    sePayTransaction.Gateway = TruncateString(webhookData.Gateway, 50);
+                    sePayTransaction.AccountNumber = TruncateString(webhookData.AccountNumber, 15);
+                    sePayTransaction.Code = TruncateString(webhookData.Code, 30);
+                    sePayTransaction.ReferenceCode = TruncateString(webhookData.ReferenceCode, 50);
+                    
+                    await _db.SaveChangesAsync();
+                    _logger.LogInformation("Successfully saved SePay transaction ID: {TransactionId} after aggressive truncation", webhookData.Id);
+                }
             }
 
             // Only process money-in transactions
@@ -550,5 +585,25 @@ public class SePayService : ISePayService
             _logger.LogError(ex, "Error processing payment for order {OrderId}", orderId);
             return false;
         }
+    }
+
+    /// <summary>
+    /// Truncates a string to the specified maximum length
+    /// </summary>
+    /// <param name="value">The string to truncate</param>
+    /// <param name="maxLength">Maximum length allowed</param>
+    /// <returns>Truncated string</returns>
+    private static string TruncateString(string? value, int maxLength)
+    {
+        if (string.IsNullOrEmpty(value))
+            return string.Empty;
+            
+        if (value.Length <= maxLength)
+            return value;
+            
+        // Log warning when truncation occurs
+        Console.WriteLine($"WARNING: String truncated from {value.Length} to {maxLength} characters. Original: {value}");
+        
+        return value.Substring(0, maxLength);
     }
 }
