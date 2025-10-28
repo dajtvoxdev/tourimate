@@ -86,7 +86,7 @@ public class RevenueController : ControllerBase
                         Id = c.Id,
                         BookingNumber = c.CostCode,
                         TotalAmount = c.Amount,
-                        PaymentStatus = c.Status == Entities.Models.CostStatus.Paid ? PaymentStatus.Paid : PaymentStatus.PendingPayment,
+                        PaymentStatus = c.Status == Entities.Models.CostStatus.Paid ? PaymentStatus.Paid : PaymentStatus.Pending,
                         Status = (int)BookingStatus.Confirmed,
                         CreatedAt = c.CreatedAt,
                         UpdatedAt = c.UpdatedAt,
@@ -297,7 +297,7 @@ public class RevenueController : ControllerBase
                     .GroupBy(c => c.Status)
                     .Select(g => new
                     {
-                        status = g.Key == Entities.Models.CostStatus.Paid ? (int)BookingStatus.Confirmed : (int)BookingStatus.PendingConfirmation,
+                        status = g.Key == Entities.Models.CostStatus.Paid ? (int)BookingStatus.Confirmed : (int)BookingStatus.PendingPayment,
                         revenue = g.Sum(c => c.Amount),
                         bookings = g.Count()
                     })
