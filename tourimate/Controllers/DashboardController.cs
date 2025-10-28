@@ -243,7 +243,8 @@ public class DashboardController : ControllerBase
 
             // Total Reviews (reviews for tour guide's tours only)
             var totalReviews = await _context.Reviews
-                .Where(r => r.Tour.TourGuideId == userId.Value)
+                .Where(r => r.EntityType == "Tour" && 
+                           _context.Tours.Any(t => t.Id == r.EntityId && t.TourGuideId == userId.Value))
                 .CountAsync();
 
             // Recent activity (last 30 days)
@@ -264,7 +265,9 @@ public class DashboardController : ControllerBase
                 .CountAsync();
 
             var recentReviews = await _context.Reviews
-                .Where(r => r.CreatedAt >= thirtyDaysAgo && r.Tour.TourGuideId == userId.Value)
+                .Where(r => r.CreatedAt >= thirtyDaysAgo && 
+                           r.EntityType == "Tour" && 
+                           _context.Tours.Any(t => t.Id == r.EntityId && t.TourGuideId == userId.Value))
                 .CountAsync();
 
             // Booking status distribution for tour guide's tours
@@ -279,7 +282,8 @@ public class DashboardController : ControllerBase
 
             // Review status distribution for tour guide's tours
             var reviewStats = await _context.Reviews
-                .Where(r => r.Tour.TourGuideId == userId.Value)
+                .Where(r => r.EntityType == "Tour" && 
+                           _context.Tours.Any(t => t.Id == r.EntityId && t.TourGuideId == userId.Value))
                 .GroupBy(r => r.Status)
                 .Select(g => new { Status = g.Key.ToString(), Count = g.Count() })
                 .ToListAsync();
