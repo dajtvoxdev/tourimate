@@ -100,11 +100,9 @@ export default function TourAvailabilityPage() {
       // Load provinces using the same method as CreateTourForm
       const loadDivisions = async () => {
         try {
-          const data = await httpJson<any[]>(`${getApiBase()}/api/divisions`, { skipAuth: true });
+          const data = await httpJson<any[]>(`${getApiBase()}/api/divisions/provinces`, { skipAuth: true });
           
-          const provinces = (data || []).filter((d: any) => ((d.parentCode ?? d.ParentCode) == null));
-          
-          const mappedDivisions = provinces.map((d: any) => ({ 
+          const mappedDivisions = (data || []).map((d: any) => ({ 
             id: (d.id?.toString() || d.Id?.toString() || ''), 
             code: (d.code ?? d.Code), 
             name: (d.name ?? d.Name),
