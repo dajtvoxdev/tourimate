@@ -486,7 +486,7 @@ export default function AdminPaymentRequests() {
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                     <div className="flex items-start mb-3">
                       <CreditCard className="w-5 h-5 text-blue-600 mr-2 mt-0.5" />
-                      <div>
+                      <div className="flex-1">
                         <p className="text-sm font-semibold text-blue-900 mb-2">Thông tin tài khoản nhận</p>
                         <div className="space-y-2 text-sm">
                           <div className="grid grid-cols-3 gap-2">
@@ -504,6 +504,23 @@ export default function AdminPaymentRequests() {
                         </div>
                       </div>
                     </div>
+                    
+                    {/* QR Code for Bank Transfer */}
+                    {requestToProcess.recipientBankCode && requestToProcess.recipientBankAccount && (
+                      <div className="mt-4 pt-4 border-t border-blue-200">
+                        <p className="text-sm font-semibold text-blue-900 mb-3">Quét mã QR để chuyển khoản</p>
+                        <div className="flex justify-center">
+                          <img
+                            src={`https://img.vietqr.io/image/${requestToProcess.recipientBankCode}-${requestToProcess.recipientBankAccount}-compact2.jpg?amount=${requestToProcess.amount}&addInfo=${encodeURIComponent(`Thanh toan ${requestToProcess.costCode}`)}&accountName=${encodeURIComponent(requestToProcess.recipientBankAccountName)}`}
+                            alt="QR Code chuyển khoản"
+                            className="w-64 h-64 object-contain rounded-lg border border-blue-300"
+                          />
+                        </div>
+                        <p className="text-xs text-blue-700 text-center mt-2">
+                          Quét mã QR bằng app ngân hàng để chuyển khoản tự động
+                        </p>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="bg-red-50 border border-red-200 rounded-lg p-4">
