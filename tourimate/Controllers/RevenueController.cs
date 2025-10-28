@@ -289,7 +289,18 @@ public class RevenueController : ControllerBase
                     costQuery = costQuery.Where(c => c.CreatedAt <= dateTo.Value);
                 }
 
-                var costs = await costQuery.ToListAsync();
+                var costs = await costQuery
+                    .Select(c => new
+                    {
+                        c.Id,
+                        c.Amount,
+                        c.Status,
+                        c.CreatedAt,
+                        c.RelatedEntityId,
+                        c.RelatedEntityType,
+                        c.CostName
+                    })
+                    .ToListAsync();
 
                 // Calculate statistics
                 var totalRevenue = costs.Where(c => c.Status == Entities.Models.CostStatus.Paid).Sum(c => c.Amount);
@@ -311,14 +322,37 @@ public class RevenueController : ControllerBase
                     .ThenBy(x => x.month)
                     .ToList();
 
-                // Revenue by payment type (all are TourGuidePayment)
-                var revenueByTour = costs
-                    .Where(c => c.Status == Entities.Models.CostStatus.Paid)
-                    .GroupBy(c => c.CostName)
+                // Revenue by tour - need to trace back through bookings
+                var paidCosts = costs.Where(c => c.Status == Entities.Models.CostStatus.Paid).ToList();
+                var relatedBookingIds = paidCosts
+                    .Where(c => c.RelatedEntityId.HasValue && c.RelatedEntityType == "Booking")
+                    .Select(c => c.RelatedEntityId!.Value)
+                    .Distinct()
+                    .ToList();
+
+                var bookingsWithTours = await _context.Bookings
+                    .Where(b => relatedBookingIds.Contains(b.Id))
+                    .Select(b => new
+                    {
+                        b.Id,
+                        TourId = b.Tour.Id,
+                        TourTitle = b.Tour.Title
+                    })
+                    .ToListAsync();
+
+                var bookingTourMap = bookingsWithTours.ToDictionary(b => b.Id, b => new { b.TourId, b.TourTitle });
+
+                var revenueByTour = paidCosts
+                    .Where(c => c.RelatedEntityId.HasValue && bookingTourMap.ContainsKey(c.RelatedEntityId.Value))
+                    .GroupBy(c =>
+                    {
+                        var tour = bookingTourMap[c.RelatedEntityId!.Value];
+                        return new { tour.TourId, tour.TourTitle };
+                    })
                     .Select(g => new
                     {
-                        tourId = Guid.Empty,
-                        tourTitle = g.Key,
+                        tourId = g.Key.TourId,
+                        tourTitle = g.Key.TourTitle,
                         revenue = g.Sum(c => c.Amount),
                         bookings = g.Count()
                     })
