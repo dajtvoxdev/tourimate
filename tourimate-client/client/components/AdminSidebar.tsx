@@ -177,6 +177,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) => {
       icon: CreditCard,
       children: [
         { id: "transactions", label: "Giao dịch của tôi", icon: CreditCard, path: "/admin/transactions?mine=1" },
+        { id: "payment-requests", label: "Yêu cầu thanh toán", icon: DollarSign, path: "/admin/my-payment-requests" },
         { id: "revenue", label: "Doanh thu", icon: DollarSign, path: "/admin/revenue?mine=1" },
         { id: "cost-management", label: "Chi phí của tôi", icon: TrendingDown, path: "/admin/cost-management?mine=1" }
       ]
@@ -186,6 +187,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) => {
       icon: CreditCard,
       children: [
         { id: "transactions", label: "Giao dịch", icon: CreditCard, path: "/admin/transactions" },
+        { id: "payment-requests", label: "Yêu cầu thanh toán", icon: DollarSign, path: "/admin/payment-requests" },
         { id: "revenue", label: "Doanh thu", icon: DollarSign, path: "/admin/revenue" },
         { id: "refunds", label: "Hoàn tiền", icon: RotateCcw, path: "/admin/refunds" },
         { id: "cost-management", label: "Chi phí", icon: TrendingDown, path: "/admin/cost-management" }

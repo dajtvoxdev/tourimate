@@ -40,6 +40,8 @@ import AdminCostManagement from "./pages/AdminCostManagement";
 import TourGuideCostManagement from "./pages/TourGuideCostManagement";
 import TourGuideProductManagement from "./pages/TourGuideProductManagement";
 import ProductForm from "./pages/ProductForm";
+import TourGuidePaymentRequests from "./pages/TourGuidePaymentRequests";
+import AdminPaymentRequests from "./pages/AdminPaymentRequests";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AdminProtectedRoute from "./components/AdminProtectedRoute";
 import NonAdminProtectedRoute from "./components/NonAdminProtectedRoute";
@@ -187,6 +189,22 @@ const App = () => (
               <AdminProtectedRoute>
                 <AdminCostManagement />
               </AdminProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/admin/payment-requests" 
+            element={
+              <AdminProtectedRoute>
+                <AdminPaymentRequests />
+              </AdminProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/admin/my-payment-requests" 
+            element={
+              <ProtectedRoute>
+                <TourGuidePaymentRequests />
+              </ProtectedRoute>
             } 
           />
           <Route 

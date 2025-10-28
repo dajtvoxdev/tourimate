@@ -216,6 +216,8 @@ export default function AdminTransactions() {
     switch (type.toLowerCase()) {
       case "booking":
         return <Badge className="bg-blue-100 text-blue-800">Đặt tour</Badge>;
+      case "payment":
+        return <Badge className="bg-green-100 text-green-800">Thanh toán</Badge>;
       case "order":
         return <Badge className="bg-purple-100 text-purple-800">Đơn hàng</Badge>;
       default:
@@ -352,18 +354,19 @@ export default function AdminTransactions() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="w-full sm:w-48">
-                <Select value={typeFilter} onValueChange={setTypeFilter}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Loại giao dịch" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Tất cả</SelectItem>
-                    <SelectItem value="booking">Đặt tour</SelectItem>
-                    <SelectItem value="order">Đơn hàng</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+                      <div className="w-full sm:w-48">
+                        <Select value={typeFilter} onValueChange={setTypeFilter}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Loại giao dịch" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">Tất cả</SelectItem>
+                            <SelectItem value="booking">Đặt tour</SelectItem>
+                            <SelectItem value="payment">Thanh toán</SelectItem>
+                            <SelectItem value="order">Đơn hàng</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
             </div>
           </CardContent>
         </Card>
@@ -402,7 +405,11 @@ export default function AdminTransactions() {
                         {/* Transaction Info */}
                         <div className="flex items-center gap-4 text-sm text-gray-600">
                           <div className="flex items-center gap-1">
-                            <CreditCard className="w-4 h-4" />
+                            {transaction.type === "Payment" ? (
+                              <DollarSign className="w-4 h-4 text-green-600" />
+                            ) : (
+                              <CreditCard className="w-4 h-4" />
+                            )}
                             <span>{transaction.transactionNumber}</span>
                           </div>
                           <div className="flex items-center gap-1">
