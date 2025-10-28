@@ -74,10 +74,43 @@ public class RevenueController : ControllerBase
                     .Where(c => c.Status == Entities.Models.CostStatus.Paid)
                     .SumAsync(c => (decimal?)c.Amount) ?? 0;
 
-                var revenues = await (from c in costQuery
-                    join payer in _context.Users on c.PayerId equals payer.Id
-                    orderby c.CreatedAt descending
-                    select new
+                var costsWithPayer = await costQuery
+                    .OrderByDescending(c => c.CreatedAt)
+                    .Skip((page - 1) * pageSize)
+                    .Take(pageSize)
+                    .Select(c => new
+                    {
+                        c.Id,
+                        c.CostCode,
+                        c.CostName,
+                        c.Amount,
+                        c.Status,
+                        c.CreatedAt,
+                        c.UpdatedAt,
+                        c.PaidDate,
+                        c.RecipientId,
+                        c.PayerId
+                    })
+                    .ToListAsync();
+
+                var payerIds = costsWithPayer.Select(c => c.PayerId).Distinct().ToList();
+                var payers = await _context.Users
+                    .Where(u => payerIds.Contains(u.Id))
+                    .Select(u => new
+                    {
+                        u.Id,
+                        u.FirstName,
+                        u.LastName,
+                        u.Email
+                    })
+                    .ToListAsync();
+
+                var payerDict = payers.ToDictionary(p => p.Id);
+
+                var revenues = costsWithPayer.Select(c =>
+                {
+                    var payer = payerDict.GetValueOrDefault(c.PayerId);
+                    return new
                     {
                         Id = c.Id,
                         BookingNumber = c.CostCode,
@@ -98,17 +131,21 @@ public class RevenueController : ControllerBase
                             AdultPrice = 0m,
                             ChildPrice = 0m
                         },
-                        Customer = new
+                        Customer = payer != null ? new
                         {
                             Id = payer.Id,
                             FirstName = payer.FirstName,
                             LastName = payer.LastName,
                             Email = payer.Email
+                        } : new
+                        {
+                            Id = c.PayerId,
+                            FirstName = "Unknown",
+                            LastName = "",
+                            Email = ""
                         }
-                    })
-                    .Skip((page - 1) * pageSize)
-                    .Take(pageSize)
-                    .ToListAsync();
+                    };
+                }).ToList();
 
                 return Ok(new
                 {
