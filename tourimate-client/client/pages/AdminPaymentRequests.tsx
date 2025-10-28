@@ -160,8 +160,16 @@ export default function AdminPaymentRequests() {
 
   const normalizeStatus = (s: string | number): string => {
     if (typeof s === 'number') {
-      // Map numeric codes from API to strings
-      return s === 2 ? 'paid' : s === 3 ? 'cancelled' : 'pending';
+      // Map numeric codes from CostStatus enum to strings
+      // 1 = Pending, 2 = Approved, 3 = Paid, 4 = Cancelled, 5 = Overdue
+      switch (s) {
+        case 1: return 'pending';
+        case 2: return 'approved';
+        case 3: return 'paid';
+        case 4: return 'cancelled';
+        case 5: return 'overdue';
+        default: return 'pending';
+      }
     }
     return s.toLowerCase();
   };
@@ -174,6 +182,11 @@ export default function AdminPaymentRequests() {
           <Clock className="w-3 h-3 mr-1" />
           Chờ xử lý
         </Badge>;
+      case "approved":
+        return <Badge className="bg-blue-100 text-blue-800 border-blue-200">
+          <CheckCircle className="w-3 h-3 mr-1" />
+          Đã duyệt
+        </Badge>;
       case "paid":
         return <Badge className="bg-green-100 text-green-800 border-green-200">
           <CheckCircle className="w-3 h-3 mr-1" />
@@ -183,6 +196,11 @@ export default function AdminPaymentRequests() {
         return <Badge className="bg-red-100 text-red-800 border-red-200">
           <XCircle className="w-3 h-3 mr-1" />
           Đã hủy
+        </Badge>;
+      case "overdue":
+        return <Badge className="bg-red-100 text-red-800 border-red-200">
+          <AlertTriangle className="w-3 h-3 mr-1" />
+          Quá hạn
         </Badge>;
       default:
         return <Badge variant="secondary">{String(status)}</Badge>;
