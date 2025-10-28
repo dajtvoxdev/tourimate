@@ -242,7 +242,7 @@ function Deploy-ToVps {
         
         # Create deployment script for VPS
         $deployScript = @"
-# VPS Deployment Script - Simple file copy only
+# VPS Deployment Script - Stop services and clean directories
 Write-Host "Starting deployment on VPS..."
 
 # Stop IIS application pools
@@ -250,8 +250,16 @@ Write-Host "Stopping IIS application pools..."
 Import-Module WebAdministration -ErrorAction SilentlyContinue
 Stop-WebAppPool -Name "DefaultAppPool" -ErrorAction SilentlyContinue
 
-# Wait a moment
-Start-Sleep -Seconds 2
+# Wait for application pool to fully stop
+Write-Host "Waiting for application pool to stop..."
+Start-Sleep -Seconds 5
+
+# Clean deployment directories (keep directory structure)
+Write-Host "Cleaning backend deployment directory..."
+Get-ChildItem -Path 'C:\inetpub\wwwroot\tourimate-production' -Recurse -ErrorAction SilentlyContinue | Remove-Item -Force -Recurse -ErrorAction SilentlyContinue
+
+Write-Host "Cleaning frontend deployment directory..."
+Get-ChildItem -Path 'C:\inetpub\wwwroot\tourimate-frontend-production' -Recurse -ErrorAction SilentlyContinue | Remove-Item -Force -Recurse -ErrorAction SilentlyContinue
 
 Write-Host "VPS preparation completed. Ready for file transfer."
 "@
