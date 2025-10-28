@@ -3,6 +3,8 @@ using Microsoft.EntityFrameworkCore;
 using TouriMate.Data;
 using Entities.Models;
 using Entities.Enums;
+using System.Security.Claims;
+using System.IdentityModel.Tokens.Jwt;
 
 namespace TouriMate.Controllers;
 
@@ -17,6 +19,12 @@ public class DashboardController : ControllerBase
     {
         _context = context;
         _logger = logger;
+    }
+
+    private Guid? GetCurrentUserId()
+    {
+        var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue(JwtRegisteredClaimNames.Sub);
+        return string.IsNullOrEmpty(userIdClaim) ? null : Guid.Parse(userIdClaim);
     }
 
     /// <summary>
@@ -190,6 +198,192 @@ public class DashboardController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error getting revenue chart data");
+            return StatusCode(500, "Internal server error");
+        }
+    }
+
+    /// <summary>
+    /// Get dashboard metrics for tour guide (only their own tours)
+    /// </summary>
+    /// <returns>Dashboard metrics for tour guide's tours</returns>
+    [HttpGet("tour-guide/metrics")]
+    public async Task<IActionResult> GetTourGuideDashboardMetrics()
+    {
+        try
+        {
+            var userId = GetCurrentUserId();
+            if (!userId.HasValue)
+            {
+                return Unauthorized("User not authenticated");
+            }
+
+            // Check if user is tour guide
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId.Value);
+            if (user == null || user.Role != UserRole.TourGuide)
+            {
+                return Forbid("Only tour guides can access this endpoint");
+            }
+
+            // Total Revenue (from completed bookings for tour guide's tours only)
+            var totalRevenue = await _context.Bookings
+                .Where(b => b.Status == BookingStatus.Completed && b.Tour.TourGuideId == userId.Value)
+                .SumAsync(b => b.TotalAmount);
+
+            // Total Users (customers who booked tour guide's tours)
+            var totalUsers = await _context.Bookings
+                .Where(b => b.Tour.TourGuideId == userId.Value)
+                .Select(b => b.CustomerId)
+                .Distinct()
+                .CountAsync();
+
+            // Total Transactions (bookings for tour guide's tours only)
+            var totalTransactions = await _context.Bookings
+                .Where(b => b.Tour.TourGuideId == userId.Value)
+                .CountAsync();
+
+            // Total Reviews (reviews for tour guide's tours only)
+            var totalReviews = await _context.Reviews
+                .Where(r => r.Tour.TourGuideId == userId.Value)
+                .CountAsync();
+
+            // Recent activity (last 30 days)
+            var thirtyDaysAgo = DateTime.UtcNow.AddDays(-30);
+            
+            var recentRevenue = await _context.Bookings
+                .Where(b => b.Status == BookingStatus.Completed && b.CreatedAt >= thirtyDaysAgo && b.Tour.TourGuideId == userId.Value)
+                .SumAsync(b => b.TotalAmount);
+
+            var recentUsers = await _context.Bookings
+                .Where(b => b.CreatedAt >= thirtyDaysAgo && b.Tour.TourGuideId == userId.Value)
+                .Select(b => b.CustomerId)
+                .Distinct()
+                .CountAsync();
+
+            var recentTransactions = await _context.Bookings
+                .Where(b => b.CreatedAt >= thirtyDaysAgo && b.Tour.TourGuideId == userId.Value)
+                .CountAsync();
+
+            var recentReviews = await _context.Reviews
+                .Where(r => r.CreatedAt >= thirtyDaysAgo && r.Tour.TourGuideId == userId.Value)
+                .CountAsync();
+
+            // Booking status distribution for tour guide's tours
+            var bookingStats = await _context.Bookings
+                .Where(b => b.Tour.TourGuideId == userId.Value)
+                .GroupBy(b => b.Status)
+                .Select(g => new { Status = g.Key.ToString(), Count = g.Count() })
+                .ToListAsync();
+
+            // Orders are not tour-specific, so no order stats for tour guide
+            var orderStats = new List<object>();
+
+            // Review status distribution for tour guide's tours
+            var reviewStats = await _context.Reviews
+                .Where(r => r.Tour.TourGuideId == userId.Value)
+                .GroupBy(r => r.Status)
+                .Select(g => new { Status = g.Key.ToString(), Count = g.Count() })
+                .ToListAsync();
+
+            // Top tours by bookings (tour guide's tours only)
+            var topTours = await _context.Bookings
+                .Include(b => b.Tour)
+                .Where(b => b.Status == BookingStatus.Completed && b.Tour.TourGuideId == userId.Value)
+                .GroupBy(b => new { b.TourId, b.Tour.Title })
+                .Select(g => new { 
+                    TourId = g.Key.TourId, 
+                    TourTitle = g.Key.Title, 
+                    BookingCount = g.Count(),
+                    Revenue = g.Sum(b => b.TotalAmount)
+                })
+                .OrderByDescending(x => x.BookingCount)
+                .Take(5)
+                .ToListAsync();
+
+            return Ok(new
+            {
+                totalRevenue,
+                totalUsers,
+                totalTransactions,
+                totalReviews,
+                recent = new
+                {
+                    revenue = recentRevenue,
+                    users = recentUsers,
+                    transactions = recentTransactions,
+                    reviews = recentReviews
+                },
+                statistics = new
+                {
+                    bookings = bookingStats,
+                    orders = orderStats,
+                    reviews = reviewStats
+                },
+                topTours
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting tour guide dashboard metrics");
+            return StatusCode(500, "Internal server error");
+        }
+    }
+
+    /// <summary>
+    /// Get revenue chart data for tour guide (only their own tours)
+    /// </summary>
+    /// <returns>Monthly revenue data for tour guide's tours</returns>
+    [HttpGet("tour-guide/revenue-chart")]
+    public async Task<IActionResult> GetTourGuideRevenueChart()
+    {
+        try
+        {
+            var userId = GetCurrentUserId();
+            if (!userId.HasValue)
+            {
+                return Unauthorized("User not authenticated");
+            }
+
+            // Check if user is tour guide
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId.Value);
+            if (user == null || user.Role != UserRole.TourGuide)
+            {
+                return Forbid("Only tour guides can access this endpoint");
+            }
+
+            var twelveMonthsAgo = DateTime.UtcNow.AddMonths(-12);
+            
+            var monthlyRevenue = await _context.Bookings
+                .Where(b => b.Status == BookingStatus.Completed && b.CreatedAt >= twelveMonthsAgo && b.Tour.TourGuideId == userId.Value)
+                .GroupBy(b => new { b.CreatedAt.Year, b.CreatedAt.Month })
+                .Select(g => new
+                {
+                    Year = g.Key.Year,
+                    Month = g.Key.Month,
+                    Revenue = g.Sum(b => b.TotalAmount)
+                })
+                .OrderBy(x => x.Year)
+                .ThenBy(x => x.Month)
+                .ToListAsync();
+
+            // Orders are not tour-specific, so no order revenue for tour guide
+
+            var combinedRevenue = monthlyRevenue
+                .Select(x => new
+                {
+                    Year = x.Year,
+                    Month = x.Month,
+                    Revenue = x.Revenue,
+                    MonthName = new DateTime(x.Year, x.Month, 1).ToString("MMM yyyy")
+                })
+                .OrderBy(x => x.Year)
+                .ThenBy(x => x.Month)
+                .ToList();
+
+            return Ok(combinedRevenue);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting tour guide revenue chart data");
             return StatusCode(500, "Internal server error");
         }
     }

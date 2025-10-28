@@ -67,9 +67,19 @@ export default function AdminDashboard() {
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
+      
+      // Use different API endpoints based on user role
+      let metricsEndpoint = `${getApiBase()}/api/dashboard/metrics`;
+      let chartEndpoint = `${getApiBase()}/api/dashboard/revenue-chart`;
+      
+      if (user?.role === "TourGuide") {
+        metricsEndpoint = `${getApiBase()}/api/dashboard/tour-guide/metrics`;
+        chartEndpoint = `${getApiBase()}/api/dashboard/tour-guide/revenue-chart`;
+      }
+      
       const [metricsResponse, chartResponse] = await Promise.all([
-        httpJson<DashboardMetrics>(`${getApiBase()}/api/dashboard/metrics`),
-        httpJson<RevenueChartData[]>(`${getApiBase()}/api/dashboard/revenue-chart`)
+        httpJson<DashboardMetrics>(metricsEndpoint),
+        httpJson<RevenueChartData[]>(chartEndpoint)
       ]);
       
       setMetrics(metricsResponse);
@@ -144,12 +154,12 @@ export default function AdminDashboard() {
     }
   };
 
-  if (!user || user.role !== "Admin") {
+  if (!user || (user.role !== "Admin" && user.role !== "TourGuide")) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <h2 className="text-xl font-semibold text-gray-900 mb-2">Không có quyền truy cập</h2>
-          <p className="text-gray-600">Bạn cần quyền quản trị để truy cập trang này.</p>
+          <p className="text-gray-600">Bạn cần quyền quản trị hoặc hướng dẫn viên để truy cập trang này.</p>
         </div>
       </div>
     );
