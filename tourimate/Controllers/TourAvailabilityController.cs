@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using tourimate.Contracts.Tours;
 using TouriMate.Data;
 using Entities.Models;
+using Microsoft.Extensions.Logging;
 
 namespace tourimate.Controllers;
 
@@ -11,10 +12,12 @@ namespace tourimate.Controllers;
 public class TourAvailabilityController : ControllerBase
 {
     private readonly TouriMateDbContext _db;
+    private readonly ILogger<TourAvailabilityController> _logger;
 
-    public TourAvailabilityController(TouriMateDbContext db)
+    public TourAvailabilityController(TouriMateDbContext db, ILogger<TourAvailabilityController> logger)
     {
         _db = db;
+        _logger = logger;
     }
 
     // GET: api/touravailability
@@ -69,12 +72,19 @@ public class TourAvailabilityController : ControllerBase
 
             // Apply pagination
             var skip = (request.Page - 1) * request.PageSize;
-            var tourAvailabilities = await query
+            
+            // Log the query for performance analysis
+            var finalQuery = query
                 .Skip(skip)
                 .Take(request.PageSize)
                 .Include(ta => ta.Tour)
-                .Include(ta => ta.DepartureDivision)
-                .ToListAsync();
+                .Include(ta => ta.DepartureDivision);
+            
+            _logger.LogInformation("TourAvailability Query: {Query}", finalQuery.ToQueryString());
+            _logger.LogInformation("TourAvailability Parameters: TourId={TourId}, Page={Page}, PageSize={PageSize}, Skip={Skip}", 
+                request.TourId, request.Page, request.PageSize, skip);
+            
+            var tourAvailabilities = await finalQuery.ToListAsync();
 
             var totalPages = (int)Math.Ceiling((double)totalCount / request.PageSize);
 
@@ -125,12 +135,16 @@ public class TourAvailabilityController : ControllerBase
     {
         try
         {
-            var tourAvailabilities = await _db.TourAvailabilities
+            var query = _db.TourAvailabilities
                 .Where(ta => ta.TourId == tourId)
                 .OrderBy(ta => ta.Date)
                 .Include(ta => ta.Tour)
-                .Include(ta => ta.DepartureDivision)
-                .ToListAsync();
+                .Include(ta => ta.DepartureDivision);
+            
+            _logger.LogInformation("GetTourAvailabilitiesByTour Query: {Query}", query.ToQueryString());
+            _logger.LogInformation("GetTourAvailabilitiesByTour Parameters: TourId={TourId}", tourId);
+            
+            var tourAvailabilities = await query.ToListAsync();
 
             return Ok(tourAvailabilities.Select(MapToDto).ToList());
         }
