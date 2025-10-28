@@ -232,7 +232,7 @@ function Build-Frontend {
             Handle-Error "Frontend build output not found: $distPath"
         }
         
-        # Copy web.config for URL rewriting (API proxy)
+        # Copy web.config for URL rewriting (API proxy) to spa folder
         $webConfigSource = Join-Path $Config.FrontendPath "public\web.config"
         if (Test-Path $webConfigSource) {
             Write-Log "Copying web.config for URL rewriting..."
@@ -279,7 +279,7 @@ if (!(Test-Path `$backupDir)) {
     New-Item -ItemType Directory -Path `$backupDir -Force | Out-Null
 }
 
-# Backup frontend web.config if exists
+# Backup frontend web.config if exists (inside spa folder - IIS physical path)
 `$frontendWebConfig = 'C:\inetpub\wwwroot\tourimate-frontend-production\spa\web.config'
 if (Test-Path `$frontendWebConfig) {
     Write-Host "Backing up frontend web.config..."
@@ -342,14 +342,10 @@ scp -P $($Config.VpsPort) -r `"$($Config.FrontendBuildPath)\*`" $($Config.VpsUse
 Write-Host "Restoring configuration files..."
 `$backupDir = 'C:\inetpub\wwwroot\backup-temp'
 
-# Restore frontend web.config if backup exists
+# Restore frontend web.config if backup exists (to spa folder - IIS physical path)
 if (Test-Path "`$backupDir\frontend-web.config") {
     Write-Host "Restoring frontend web.config..."
-    `$targetDir = 'C:\inetpub\wwwroot\tourimate-frontend-production\spa'
-    if (!(Test-Path `$targetDir)) {
-        New-Item -ItemType Directory -Path `$targetDir -Force | Out-Null
-    }
-    Copy-Item -Path "`$backupDir\frontend-web.config" -Destination "`$targetDir\web.config" -Force
+    Copy-Item -Path "`$backupDir\frontend-web.config" -Destination 'C:\inetpub\wwwroot\tourimate-frontend-production\spa\web.config' -Force
     Write-Host "Frontend web.config restored"
 }
 
