@@ -16,12 +16,12 @@ public class Transaction : BaseEntity, IAuditableEntity
     public Guid UserId { get; set; }
 
     [Required]
-    [MaxLength(20)]
+    [MaxLength(50)]
     public string Type { get; set; } = string.Empty; // booking_payment, order_payment, promotion_payment, refund, payout
 
     public Guid? EntityId { get; set; } // Booking, Order, or Promotion ID
 
-    [MaxLength(20)]
+    [MaxLength(50)]
     public string? EntityType { get; set; } // Booking, Order, Promotion
 
     [Required]
@@ -33,7 +33,7 @@ public class Transaction : BaseEntity, IAuditableEntity
     public string Currency { get; set; } = "VND";
 
     [Required]
-    [MaxLength(20)]
+    [MaxLength(50)]
     public string Status { get; set; } = "pending"; // pending, completed, failed, cancelled, refunded
 
     [MaxLength(50)]
@@ -48,7 +48,7 @@ public class Transaction : BaseEntity, IAuditableEntity
     [Column(TypeName = "nvarchar(max)")]
     public string? GatewayResponse { get; set; } // JSON
 
-    [MaxLength(500)]
+    [MaxLength(1000)]
     public string? Description { get; set; }
 
     // IAuditableEntity properties
