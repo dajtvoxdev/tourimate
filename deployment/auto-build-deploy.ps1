@@ -242,45 +242,17 @@ function Deploy-ToVps {
         
         # Create deployment script for VPS
         $deployScript = @"
-# VPS Deployment Script
+# VPS Deployment Script - Simple file copy only
 Write-Host "Starting deployment on VPS..."
-
-# Import WebAdministration module
-Import-Module WebAdministration -ErrorAction SilentlyContinue
-
-# Create IIS Application Pools if they don't exist
-Write-Host "Creating IIS application pools if needed..."
-if (!(Get-WebAppPool -Name "tourimate-production" -ErrorAction SilentlyContinue)) {
-    New-WebAppPool -Name "tourimate-production"
-    Write-Host "Created tourimate-production app pool"
-}
-
-if (!(Get-WebAppPool -Name "tourimate-frontend-production" -ErrorAction SilentlyContinue)) {
-    New-WebAppPool -Name "tourimate-frontend-production"
-    Write-Host "Created tourimate-frontend-production app pool"
-}
 
 # Stop IIS application pools
 Write-Host "Stopping IIS application pools..."
+Import-Module WebAdministration -ErrorAction SilentlyContinue
 Stop-WebAppPool -Name "tourimate-production" -ErrorAction SilentlyContinue
 Stop-WebAppPool -Name "tourimate-frontend-production" -ErrorAction SilentlyContinue
 
 # Wait a moment
-Start-Sleep -Seconds 3
-
-# Backup existing files (optional)
-Write-Host "Backing up existing files..."
-if (Test-Path "$($Config.VpsBackendPath)") {
-    Rename-Item -Path "$($Config.VpsBackendPath)" -NewName "tourimate-production-backup-`$(Get-Date -Format 'yyyyMMdd-HHmmss')" -ErrorAction SilentlyContinue
-}
-if (Test-Path "$($Config.VpsFrontendPath)") {
-    Rename-Item -Path "$($Config.VpsFrontendPath)" -NewName "tourimate-frontend-production-backup-`$(Get-Date -Format 'yyyyMMdd-HHmmss')" -ErrorAction SilentlyContinue
-}
-
-# Create directories
-Write-Host "Creating deployment directories..."
-New-Item -ItemType Directory -Path "$($Config.VpsBackendPath)" -Force | Out-Null
-New-Item -ItemType Directory -Path "$($Config.VpsFrontendPath)" -Force | Out-Null
+Start-Sleep -Seconds 2
 
 Write-Host "VPS preparation completed. Ready for file transfer."
 "@
@@ -295,9 +267,7 @@ Write-Host "VPS preparation completed. Ready for file transfer."
         
         # Transfer backend files
         Write-Log "Transferring backend files..."
-        $backendPathEscaped = $Config.BackendBuildPath.Replace('\', '/').Replace(':', '')
-        $vpsBackendPathEscaped = $Config.VpsBackendPath.Replace('\', '/').Replace(':', '')
-        $scpBackendCmd = "scp -P $($Config.VpsPort) -r `"$backendPathEscaped/*`" `"$sshConnection`":`"/$vpsBackendPathEscaped/`""
+        $scpBackendCmd = "scp -P $($Config.VpsPort) -r `"$($Config.BackendBuildPath)\*`" `"$sshConnection`":/inetpub/wwwroot/tourimate-production/"
         Write-Log "SCP Command: $scpBackendCmd"
         Invoke-Expression $scpBackendCmd
         
@@ -307,9 +277,7 @@ Write-Host "VPS preparation completed. Ready for file transfer."
         
         # Transfer frontend files
         Write-Log "Transferring frontend files..."
-        $frontendPathEscaped = $Config.FrontendBuildPath.Replace('\', '/').Replace(':', '')
-        $vpsFrontendPathEscaped = $Config.VpsFrontendPath.Replace('\', '/').Replace(':', '')
-        $scpFrontendCmd = "scp -P $($Config.VpsPort) -r `"$frontendPathEscaped/*`" `"$sshConnection`":`"/$vpsFrontendPathEscaped/`""
+        $scpFrontendCmd = "scp -P $($Config.VpsPort) -r `"$($Config.FrontendBuildPath)\*`" `"$sshConnection`":/inetpub/wwwroot/tourimate-frontend-production/"
         Write-Log "SCP Command: $scpFrontendCmd"
         Invoke-Expression $scpFrontendCmd
         
