@@ -147,15 +147,15 @@ export default function AdminBookings() {
   const getStatusBadge = (status: number) => {
     switch (status) {
       case 1: // PendingPayment
-        return <Badge className="bg-yellow-100 text-yellow-800">Chờ thanh toán</Badge>;
+        return <Badge className="bg-orange-100 text-orange-800 border-orange-200">Chờ xác nhận tour</Badge>;
       case 2: // Confirmed
-        return <Badge className="bg-blue-100 text-blue-800">Đã xác nhận</Badge>;
+        return <Badge className="bg-blue-100 text-blue-800 border-blue-200">Tour đã xác nhận</Badge>;
       case 3: // Cancelled
-        return <Badge className="bg-red-100 text-red-800">Đã hủy</Badge>;
+        return <Badge className="bg-red-100 text-red-800 border-red-200">Tour đã hủy</Badge>;
       case 4: // Completed
-        return <Badge className="bg-green-100 text-green-800">Hoàn thành</Badge>;
+        return <Badge className="bg-green-100 text-green-800 border-green-200">Tour hoàn thành</Badge>;
       case 5: // Refunded
-        return <Badge className="bg-purple-100 text-purple-800">Đã hoàn tiền</Badge>;
+        return <Badge className="bg-purple-100 text-purple-800 border-purple-200">Tour đã hoàn tiền</Badge>;
       default:
         return <Badge variant="secondary">Unknown</Badge>;
     }
@@ -164,13 +164,13 @@ export default function AdminBookings() {
   const getPaymentStatusBadge = (status: number) => {
     switch (status) {
       case 1: // Pending
-        return <Badge className="bg-yellow-100 text-yellow-800">Chờ thanh toán</Badge>;
+        return <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200">Chờ thanh toán</Badge>;
       case 2: // Paid
-        return <Badge className="bg-green-100 text-green-800">Đã thanh toán</Badge>;
+        return <Badge className="bg-green-100 text-green-800 border-green-200">Đã thanh toán</Badge>;
       case 3: // Failed
-        return <Badge className="bg-red-100 text-red-800">Thanh toán thất bại</Badge>;
+        return <Badge className="bg-red-100 text-red-800 border-red-200">Thanh toán thất bại</Badge>;
       case 4: // Refunded
-        return <Badge className="bg-purple-100 text-purple-800">Đã hoàn tiền</Badge>;
+        return <Badge className="bg-purple-100 text-purple-800 border-purple-200">Đã hoàn tiền</Badge>;
       default:
         return <Badge variant="secondary">Unknown</Badge>;
     }
@@ -228,6 +228,9 @@ export default function AdminBookings() {
             <p className="text-gray-600">
               {isMineView ? "Xem các tour đã được đặt từ tour của bạn" : "Quản lý tất cả đặt tour của khách hàng"}
             </p>
+            <div className="mt-2 text-sm text-gray-500">
+              <p>💡 <strong>Luồng xử lý:</strong> Xác nhận thanh toán → Quản lý giao dịch → Đối chiếu với tour</p>
+            </div>
           </div>
           <div className="text-sm text-gray-500">
             Tổng cộng: {totalCount} đặt tour
@@ -256,10 +259,10 @@ export default function AdminBookings() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Tất cả</SelectItem>
-                    <SelectItem value="completed">Hoàn thành</SelectItem>
-                    <SelectItem value="pendingpayment">Chờ thanh toán</SelectItem>
-                    <SelectItem value="confirmed">Đã xác nhận</SelectItem>
-                    <SelectItem value="cancelled">Đã hủy</SelectItem>
+                    <SelectItem value="completed">Tour hoàn thành</SelectItem>
+                    <SelectItem value="pendingpayment">Chờ xác nhận tour</SelectItem>
+                    <SelectItem value="confirmed">Tour đã xác nhận</SelectItem>
+                    <SelectItem value="cancelled">Tour đã hủy</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -373,13 +376,14 @@ export default function AdminBookings() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
+                              {/* Tour Status Actions - Payment confirmation is handled in Transactions */}
                               {booking.status !== 3 && (
                                 <DropdownMenuItem
                                   onClick={() => handleStatusChange(booking.id, "Completed")}
                                   disabled={actionLoading === booking.id}
                                 >
                                   <Check className="w-4 h-4 mr-2" />
-                                  Hoàn thành
+                                  Hoàn thành tour
                                 </DropdownMenuItem>
                               )}
                               {booking.status !== 2 && booking.status !== 3 && (
@@ -388,7 +392,7 @@ export default function AdminBookings() {
                                   disabled={actionLoading === booking.id}
                                 >
                                   <Check className="w-4 h-4 mr-2" />
-                                  Xác nhận
+                                  Xác nhận tour
                                 </DropdownMenuItem>
                               )}
                               {booking.status !== 4 && (
@@ -397,7 +401,7 @@ export default function AdminBookings() {
                                   disabled={actionLoading === booking.id}
                                 >
                                   <X className="w-4 h-4 mr-2" />
-                                  Hủy
+                                  Hủy tour
                                 </DropdownMenuItem>
                               )}
                             </DropdownMenuContent>
