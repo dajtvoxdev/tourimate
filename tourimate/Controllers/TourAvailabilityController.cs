@@ -76,15 +76,29 @@ public class TourAvailabilityController : ControllerBase
             // Log the query for performance analysis
             var finalQuery = query
                 .Skip(skip)
-                .Take(request.PageSize)
-                .Include(ta => ta.Tour)
-                .Include(ta => ta.DepartureDivision);
+                .Take(request.PageSize);
             
             _logger.LogInformation("TourAvailability Query: {Query}", finalQuery.ToQueryString());
             _logger.LogInformation("TourAvailability Parameters: TourId={TourId}, Page={Page}, PageSize={PageSize}, Skip={Skip}", 
                 request.TourId, request.Page, request.PageSize, skip);
             
             var tourAvailabilities = await finalQuery.ToListAsync();
+            
+            // Load related data separately for better performance
+            var tourIds = tourAvailabilities.Select(ta => ta.TourId).Distinct().ToList();
+            var divisionCodes = tourAvailabilities.Select(ta => ta.DepartureDivisionCode).Where(code => code != 0).Distinct().ToList();
+            
+            var tours = await _db.Tours.Where(t => tourIds.Contains(t.Id)).ToDictionaryAsync(t => t.Id, t => t);
+            var divisions = await _db.Divisions.Where(d => divisionCodes.Contains(d.Code)).ToDictionaryAsync(d => d.Code, d => d);
+            
+            // Manually populate navigation properties
+            foreach (var ta in tourAvailabilities)
+            {
+                if (tours.TryGetValue(ta.TourId, out var tour))
+                    ta.Tour = tour;
+                if (ta.DepartureDivisionCode != 0 && divisions.TryGetValue(ta.DepartureDivisionCode, out var division))
+                    ta.DepartureDivision = division;
+            }
 
             var totalPages = (int)Math.Ceiling((double)totalCount / request.PageSize);
 
@@ -137,14 +151,25 @@ public class TourAvailabilityController : ControllerBase
         {
             var query = _db.TourAvailabilities
                 .Where(ta => ta.TourId == tourId)
-                .OrderBy(ta => ta.Date)
-                .Include(ta => ta.Tour)
-                .Include(ta => ta.DepartureDivision);
+                .OrderBy(ta => ta.Date);
             
             _logger.LogInformation("GetTourAvailabilitiesByTour Query: {Query}", query.ToQueryString());
             _logger.LogInformation("GetTourAvailabilitiesByTour Parameters: TourId={TourId}", tourId);
             
             var tourAvailabilities = await query.ToListAsync();
+            
+            // Load related data separately for better performance
+            var divisionCodes = tourAvailabilities.Select(ta => ta.DepartureDivisionCode).Where(code => code != 0).Distinct().ToList();
+            var tour = await _db.Tours.FirstOrDefaultAsync(t => t.Id == tourId);
+            var divisions = await _db.Divisions.Where(d => divisionCodes.Contains(d.Code)).ToDictionaryAsync(d => d.Code, d => d);
+            
+            // Manually populate navigation properties
+            foreach (var ta in tourAvailabilities)
+            {
+                ta.Tour = tour;
+                if (ta.DepartureDivisionCode != 0 && divisions.TryGetValue(ta.DepartureDivisionCode, out var division))
+                    ta.DepartureDivision = division;
+            }
 
             return Ok(tourAvailabilities.Select(MapToDto).ToList());
         }
