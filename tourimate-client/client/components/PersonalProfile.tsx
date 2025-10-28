@@ -39,7 +39,7 @@ import { CancellationDialog } from "./CancellationDialog";
 import { format } from "date-fns";
 import { vi } from "date-fns/locale";
 import { cn } from "@/lib/utils";
-import { SearchableSelect } from "@/components/ui/searchable-select";
+import { SearchableSelect } from "@/components/ui/select";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://localhost:7181";
 
