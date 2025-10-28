@@ -45,6 +45,11 @@ interface PaymentRequest {
   createdAt: string;
   updatedAt: string;
   recipientName: string;
+  recipientId?: string;
+  recipientBankCode?: string;
+  recipientBankName?: string;
+  recipientBankAccount?: string;
+  recipientBankAccountName?: string;
   relatedBooking?: {
     id: string;
     bookingNumber: string;
@@ -475,6 +480,45 @@ export default function AdminPaymentRequests() {
                     <p className="text-lg font-semibold">{requestToProcess.costName}</p>
                   </div>
                 </div>
+
+                {/* Bank Account Information */}
+                {requestToProcess.recipientBankAccount && requestToProcess.recipientBankAccountName ? (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <div className="flex items-start mb-3">
+                      <CreditCard className="w-5 h-5 text-blue-600 mr-2 mt-0.5" />
+                      <div>
+                        <p className="text-sm font-semibold text-blue-900 mb-2">Thông tin tài khoản nhận</p>
+                        <div className="space-y-2 text-sm">
+                          <div className="grid grid-cols-3 gap-2">
+                            <span className="text-blue-700 font-medium">Ngân hàng:</span>
+                            <span className="col-span-2 text-blue-900">{requestToProcess.recipientBankName || requestToProcess.recipientBankCode || "-"}</span>
+                          </div>
+                          <div className="grid grid-cols-3 gap-2">
+                            <span className="text-blue-700 font-medium">Số tài khoản:</span>
+                            <span className="col-span-2 text-blue-900 font-mono">{requestToProcess.recipientBankAccount}</span>
+                          </div>
+                          <div className="grid grid-cols-3 gap-2">
+                            <span className="text-blue-700 font-medium">Chủ tài khoản:</span>
+                            <span className="col-span-2 text-blue-900">{requestToProcess.recipientBankAccountName}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                    <div className="flex items-start">
+                      <AlertTriangle className="w-5 h-5 text-red-600 mr-2 mt-0.5" />
+                      <div>
+                        <p className="text-sm font-semibold text-red-900 mb-1">Chưa có thông tin tài khoản</p>
+                        <p className="text-sm text-red-800">
+                          Tour guide <strong>{requestToProcess.recipientName}</strong> chưa cấu hình thông tin ngân hàng. 
+                          Vui lòng yêu cầu họ cập nhật trong phần cài đặt tài khoản trước khi thanh toán.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
                   <div className="flex items-center">

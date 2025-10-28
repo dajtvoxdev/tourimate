@@ -27,6 +27,7 @@ public class CostController : ControllerBase
             var query = _db.Costs
                 .Include(c => c.Payer)
                 .Include(c => c.Recipient)
+                    .ThenInclude(u => u.Profile)
                 .Include(c => c.Creator)
                 .Include(c => c.Updater)
                 .AsQueryable();
@@ -99,6 +100,10 @@ public class CostController : ControllerBase
                     PayerName = $"{c.Payer.FirstName} {c.Payer.LastName}",
                     RecipientId = c.RecipientId,
                     RecipientName = $"{c.Recipient.FirstName} {c.Recipient.LastName}",
+                    RecipientBankCode = c.Recipient.Profile != null ? c.Recipient.Profile.BankCode : null,
+                    RecipientBankName = c.Recipient.Profile != null ? c.Recipient.Profile.BankName : null,
+                    RecipientBankAccount = c.Recipient.Profile != null ? c.Recipient.Profile.BankAccount : null,
+                    RecipientBankAccountName = c.Recipient.Profile != null ? c.Recipient.Profile.BankAccountName : null,
                     RelatedEntityId = c.RelatedEntityId,
                     RelatedEntityType = c.RelatedEntityType,
                     ReferenceNumber = c.ReferenceNumber,

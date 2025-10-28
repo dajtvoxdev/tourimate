@@ -17,6 +17,10 @@ public class CostDto
     public string PayerName { get; set; } = string.Empty;
     public Guid RecipientId { get; set; }
     public string RecipientName { get; set; } = string.Empty;
+    public string? RecipientBankCode { get; set; }
+    public string? RecipientBankName { get; set; }
+    public string? RecipientBankAccount { get; set; }
+    public string? RecipientBankAccountName { get; set; }
     public Guid? RelatedEntityId { get; set; }
     public string? RelatedEntityType { get; set; }
     public string? ReferenceNumber { get; set; }
