@@ -201,7 +201,9 @@ function Build-Frontend {
         
         # Copy production env file
         Write-Log "Using production environment file..."
-        Copy-Item -Path $Config.ProductionEnv -Destination "$($Config.FrontendPath)\.env.production" -Force
+        if ($Config.ProductionEnv -ne "$($Config.FrontendPath)\.env.production") {
+            Copy-Item -Path $Config.ProductionEnv -Destination "$($Config.FrontendPath)\.env.production" -Force
+        }
         
         # Build frontend
         Write-Log "Building frontend for production..."
@@ -373,10 +375,10 @@ function Main {
         }
         
         Write-Log "Auto Build and Deploy completed successfully!"
-        Write-Host "`n🎉 Deployment completed successfully!" -ForegroundColor Green
+        Write-Host "`nDeployment completed successfully!" -ForegroundColor Green
         Write-Host "Backend: https://tourimate.site:5000" -ForegroundColor Cyan
         Write-Host "Frontend: https://tourimate.site" -ForegroundColor Cyan
-        Write-Host "`n📋 Next steps:" -ForegroundColor Yellow
+        Write-Host "`nNext steps:" -ForegroundColor Yellow
         Write-Host "1. Test the application endpoints" -ForegroundColor White
         Write-Host "2. Check IIS logs if there are any issues" -ForegroundColor White
         Write-Host "3. Monitor application performance" -ForegroundColor White
