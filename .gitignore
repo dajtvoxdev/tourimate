@@ -209,3 +209,7 @@ storage/
 /tourimate/appsettings.production.json
 tourimate/appsettings.production.json
 **/appsettings.production.json
+
+# Build/Publish output folders
+publish/
+**/publish/
