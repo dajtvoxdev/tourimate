@@ -236,6 +236,26 @@ public class TransactionController : ControllerBase
     }
 
     /// <summary>
+    /// Test endpoint to verify authentication is working
+    /// </summary>
+    /// <returns>User ID and role if authenticated</returns>
+    [HttpGet("test-auth")]
+    [Authorize]
+    public IActionResult TestAuth()
+    {
+        var userId = GetCurrentUserId();
+        var userRole = User.FindFirst("role")?.Value;
+        
+        return Ok(new
+        {
+            message = "Authentication working",
+            userId = userId?.ToString(),
+            userRole = userRole,
+            isAuthenticated = User.Identity?.IsAuthenticated ?? false
+        });
+    }
+
+    /// <summary>
     /// Get transactions for tour guide (only their own tours)
     /// </summary>
     /// <param name="page">Page number</param>
