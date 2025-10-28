@@ -24,6 +24,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { httpJson, getApiBase } from "@/src/lib/http";
 import { toast } from "sonner";
 import { useAuth } from "@/src/hooks/useAuth";
+import { useSearchParams } from "react-router-dom";
 import AdminLayout from "@/components/AdminLayout";
 
 interface Booking {
@@ -69,6 +70,7 @@ interface BookingsResponse {
 
 export default function AdminBookings() {
   const { user } = useAuth();
+  const [searchParams] = useSearchParams();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -79,6 +81,9 @@ export default function AdminBookings() {
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [showBookingDialog, setShowBookingDialog] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  
+  // Check if this is "mine" view for tour guide
+  const isMineView = searchParams.get('mine') === '1';
 
   useEffect(() => {
     fetchBookings();
@@ -100,8 +105,14 @@ export default function AdminBookings() {
         params.append("search", searchTerm.trim());
       }
 
+      // Use different API endpoint based on user role and view
+      let apiEndpoint = `${getApiBase()}/api/bookings/admin`;
+      if (isMineView && user?.role === "TourGuide") {
+        apiEndpoint = `${getApiBase()}/api/bookings/tour-guide`;
+      }
+
       const response = await httpJson<BookingsResponse>(
-        `${getApiBase()}/api/bookings/admin?${params.toString()}`
+        `${apiEndpoint}?${params.toString()}`
       );
       
       setBookings(response.bookings);
@@ -190,12 +201,16 @@ export default function AdminBookings() {
     }
   };
 
-  if (!user || user.role !== "Admin") {
+  if (!user || (user.role !== "Admin" && !(user.role === "TourGuide" && isMineView))) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <h2 className="text-xl font-semibold text-gray-900 mb-2">Không có quyền truy cập</h2>
-          <p className="text-gray-600">Bạn cần quyền quản trị để truy cập trang này.</p>
+          <p className="text-gray-600">
+            {!user ? "Bạn cần đăng nhập để truy cập trang này." : 
+             user.role !== "Admin" && !isMineView ? "Bạn cần quyền quản trị để truy cập trang này." :
+             "Bạn chỉ có thể xem đặt tour của chính mình."}
+          </p>
         </div>
       </div>
     );
@@ -207,8 +222,12 @@ export default function AdminBookings() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Quản lý đặt tour</h1>
-            <p className="text-gray-600">Quản lý tất cả đặt tour của khách hàng</p>
+            <h1 className="text-2xl font-bold text-gray-900">
+              {isMineView ? "Đặt tour của tôi" : "Quản lý đặt tour"}
+            </h1>
+            <p className="text-gray-600">
+              {isMineView ? "Xem các tour đã được đặt từ tour của bạn" : "Quản lý tất cả đặt tour của khách hàng"}
+            </p>
           </div>
           <div className="text-sm text-gray-500">
             Tổng cộng: {totalCount} đặt tour
