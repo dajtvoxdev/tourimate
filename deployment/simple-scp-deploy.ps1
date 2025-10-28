@@ -227,12 +227,12 @@ function Deploy-ViaSCP {
         
         # Transfer backend files using Windows paths
         Write-Log "Transferring backend files..."
-        $scpBackendCmd = "scp -P $($Config.VpsPort) -r `"$($Config.BackendBuildPath)\*`" `"$sshConnection`":`"C:/inetpub/wwwroot/tourimate-production/`""
+        $scpBackendCmd = "scp -P $($Config.VpsPort) -r `"$($Config.BackendBuildPath)\*`" `"$sshConnection`:'C:\\inetpub\\wwwroot\\tourimate-production\\'"
         Write-Log "SCP Command: $scpBackendCmd"
         
         # Use sshpass or expect for password authentication
         $env:SSHPASS = $Config.VpsPassword
-        $scpBackendCmdWithPass = "sshpass -e scp -P $($Config.VpsPort) -r `"$($Config.BackendBuildPath)\*`" `"$sshConnection`":`"C:/inetpub/wwwroot/tourimate-production/`""
+        $scpBackendCmdWithPass = "sshpass -e scp -P $($Config.VpsPort) -r `"$($Config.BackendBuildPath)\*`" `"$sshConnection`:'C:\\inetpub\\wwwroot\\tourimate-production\\'"
         
         # Try with sshpass first, fallback to regular scp
         try {
@@ -248,10 +248,10 @@ function Deploy-ViaSCP {
         
         # Transfer frontend files
         Write-Log "Transferring frontend files..."
-        $scpFrontendCmd = "scp -P $($Config.VpsPort) -r `"$($Config.FrontendBuildPath)\*`" `"$sshConnection`":`"C:/inetpub/wwwroot/tourimate-frontend-production/`""
+        $scpFrontendCmd = "scp -P $($Config.VpsPort) -r `"$($Config.FrontendBuildPath)\*`" `"$sshConnection`:'C:\\inetpub\\wwwroot\\tourimate-frontend-production\\'"
         Write-Log "SCP Command: $scpFrontendCmd"
         
-        $scpFrontendCmdWithPass = "sshpass -e scp -P $($Config.VpsPort) -r `"$($Config.FrontendBuildPath)\*`" `"$sshConnection`":`"C:/inetpub/wwwroot/tourimate-frontend-production/`""
+        $scpFrontendCmdWithPass = "sshpass -e scp -P $($Config.VpsPort) -r `"$($Config.FrontendBuildPath)\*`" `"$sshConnection`:'C:\\inetpub\\wwwroot\\tourimate-frontend-production\\'"
         
         try {
             Invoke-Expression $scpFrontendCmdWithPass
