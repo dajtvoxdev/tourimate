@@ -228,9 +228,6 @@ export default function AdminBookings() {
             <p className="text-gray-600">
               {isMineView ? "Xem các tour đã được đặt từ tour của bạn" : "Quản lý tất cả đặt tour của khách hàng"}
             </p>
-            <div className="mt-2 text-sm text-gray-500">
-              <p>💡 <strong>Luồng xử lý:</strong> Xác nhận thanh toán → Quản lý giao dịch → Đối chiếu với tour</p>
-            </div>
           </div>
           <div className="text-sm text-gray-500">
             Tổng cộng: {totalCount} đặt tour

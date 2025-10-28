@@ -354,6 +354,74 @@ public class TransactionController : ControllerBase
     }
 
     /// <summary>
+    /// Get transaction statistics for tour guide (only their own tours)
+    /// </summary>
+    /// <returns>Transaction statistics for tour guide's tours</returns>
+    [HttpGet("tour-guide/statistics")]
+    public async Task<IActionResult> GetTransactionStatisticsForTourGuide()
+    {
+        try
+        {
+            var userId = GetCurrentUserId();
+            if (userId == null)
+            {
+                return Unauthorized("User not authenticated");
+            }
+
+            // Check if user is tour guide
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId.Value);
+            if (user == null || user.Role != UserRole.TourGuide)
+            {
+                return Forbid("Only tour guides can access this endpoint");
+            }
+
+            // Get booking stats for tour guide's tours only
+            var bookingStats = await _context.Bookings
+                .Where(b => b.Tour.TourGuideId == userId.Value)
+                .GroupBy(b => b.Status)
+                .Select(g => new { Status = g.Key.ToString(), Count = g.Count() })
+                .ToListAsync();
+
+            // Orders are not tour-specific, so no order stats for tour guide
+            var orderStats = new List<object>();
+
+            // Get payment stats for tour guide's tours only
+            var paymentStats = await _context.Bookings
+                .Where(b => b.Tour.TourGuideId == userId.Value)
+                .GroupBy(b => b.PaymentStatus)
+                .Select(g => new { Status = g.Key.ToString(), Count = g.Count() })
+                .ToListAsync();
+
+            // Orders are not tour-specific, so no order payment stats for tour guide
+            var orderPaymentStats = new List<object>();
+
+            // Calculate revenue for tour guide's tours only
+            var totalRevenue = await _context.Bookings
+                .Where(b => b.Tour.TourGuideId == userId.Value && b.Status == BookingStatus.Completed)
+                .SumAsync(b => b.TotalAmount);
+
+            var pendingRevenue = await _context.Bookings
+                .Where(b => b.Tour.TourGuideId == userId.Value && b.Status == BookingStatus.PendingPayment)
+                .SumAsync(b => b.TotalAmount);
+
+            return Ok(new
+            {
+                bookingStats,
+                orderStats,
+                paymentStats,
+                orderPaymentStats,
+                totalRevenue,
+                pendingRevenue
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting transaction statistics for tour guide");
+            return StatusCode(500, "Internal server error");
+        }
+    }
+
+    /// <summary>
     /// Update transaction status
     /// </summary>
 

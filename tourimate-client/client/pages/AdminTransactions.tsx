@@ -130,7 +130,13 @@ export default function AdminTransactions() {
 
   const fetchStats = async () => {
     try {
-      const response = await httpJson<TransactionStats>(`${getApiBase()}/api/transactions/statistics`);
+      // Use different API endpoint based on user role and view
+      let apiEndpoint = `${getApiBase()}/api/transactions/statistics`;
+      if (isMineView && user?.role === "TourGuide") {
+        apiEndpoint = `${getApiBase()}/api/transactions/tour-guide/statistics`;
+      }
+      
+      const response = await httpJson<TransactionStats>(apiEndpoint);
       setStats(response);
     } catch (error) {
       console.error("Error fetching transaction stats:", error);
