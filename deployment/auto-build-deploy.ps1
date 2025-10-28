@@ -267,7 +267,7 @@ Write-Host "VPS preparation completed. Ready for file transfer."
         
         # Transfer backend files
         Write-Log "Transferring backend files..."
-        $scpBackendCmd = "scp -P $($Config.VpsPort) -r `"$($Config.BackendBuildPath)\*`" `"$sshConnection`":/inetpub/wwwroot/tourimate-production/"
+        $scpBackendCmd = "scp -P $($Config.VpsPort) -r `"$($Config.BackendBuildPath)\*`" `"$sshConnection`":`"C:/inetpub/wwwroot/tourimate-production/`""
         Write-Log "SCP Command: $scpBackendCmd"
         Invoke-Expression $scpBackendCmd
         
@@ -277,7 +277,7 @@ Write-Host "VPS preparation completed. Ready for file transfer."
         
         # Transfer frontend files
         Write-Log "Transferring frontend files..."
-        $scpFrontendCmd = "scp -P $($Config.VpsPort) -r `"$($Config.FrontendBuildPath)\*`" `"$sshConnection`":/inetpub/wwwroot/tourimate-frontend-production/"
+        $scpFrontendCmd = "scp -P $($Config.VpsPort) -r `"$($Config.FrontendBuildPath)\*`" `"$sshConnection`":`"C:/inetpub/wwwroot/tourimate-frontend-production/`""
         Write-Log "SCP Command: $scpFrontendCmd"
         Invoke-Expression $scpFrontendCmd
         
