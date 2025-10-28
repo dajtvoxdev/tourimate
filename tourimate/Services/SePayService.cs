@@ -169,6 +169,9 @@ public class SePayService : ISePayService
             // Search for order and booking sequentially to avoid DbContext concurrency issues
             var orderId = await FindRelatedOrderAsync(paymentCode);
             var bookingId = await FindRelatedBookingAsync(paymentCode);
+            
+            _logger.LogInformation("SePay webhook processing - PaymentCode: {PaymentCode}, OrderId: {OrderId}, BookingId: {BookingId}", 
+                paymentCode, orderId, bookingId);
 
             // Check if both were found (should not happen, but handle gracefully)
             if (orderId.HasValue && bookingId.HasValue)
@@ -227,12 +230,18 @@ public class SePayService : ISePayService
                 var existingTx = await _db.Transactions
                     .FirstOrDefaultAsync(t => t.GatewayTransactionId == webhookData.Id.ToString());
 
+                _logger.LogInformation("SePay webhook - Existing Transaction check: {Exists}, BookingId: {BookingId}", 
+                    existingTx != null, bookingId.Value);
+
                 if (existingTx == null)
                 {
                     // Load booking with tour to resolve revenue owner
                     var bookingForRevenue = await _db.Bookings
                         .Include(b => b.Tour)
                         .FirstOrDefaultAsync(b => b.Id == bookingId.Value);
+
+                    _logger.LogInformation("SePay webhook - Booking loaded: {BookingExists}, TourGuideId: {TourGuideId}", 
+                        bookingForRevenue != null, bookingForRevenue?.Tour?.TourGuideId);
 
                     if (bookingForRevenue != null && bookingForRevenue.Tour?.TourGuideId != null)
                     {
@@ -257,6 +266,9 @@ public class SePayService : ISePayService
 
                         _db.Transactions.Add(tx);
                         await _db.SaveChangesAsync();
+                        
+                        _logger.LogInformation("SePay webhook - Transaction created successfully: {TransactionId}, Amount: {Amount}", 
+                            tx.TransactionId, tx.Amount);
 
                         // Create revenue if not exists for this transaction
                         var existingRevenue = await _db.Revenues
@@ -332,6 +344,7 @@ public class SePayService : ISePayService
             }
 
             // No related order or booking found
+            _logger.LogWarning("SePay webhook - No related order or booking found for payment code: {PaymentCode}", paymentCode);
             sePayTransaction.ProcessingStatus = "failed";
             sePayTransaction.ProcessingNotes = $"No order or booking found for payment code: {paymentCode}";
             sePayTransaction.ProcessedAt = DateTime.UtcNow;
