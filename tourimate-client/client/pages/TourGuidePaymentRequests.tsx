@@ -118,9 +118,13 @@ export default function TourGuidePaymentRequests() {
         params.append("search", searchTerm.trim());
       }
 
+      console.log("Fetching payment requests from:", `${getApiBase()}/api/paymentrequest/tour-guide?${params.toString()}`);
+      
       const response = await httpJson<PaymentRequestsResponse>(
         `${getApiBase()}/api/paymentrequest/tour-guide?${params.toString()}`
       );
+      
+      console.log("Payment requests response:", response);
       
       setPaymentRequests(response.paymentRequests);
       setTotalPages(response.pagination.totalPages);
@@ -128,6 +132,10 @@ export default function TourGuidePaymentRequests() {
     } catch (error) {
       console.error("Error fetching payment requests:", error);
       toast.error("Không thể tải danh sách yêu cầu thanh toán");
+      // Set empty data to prevent crash
+      setPaymentRequests([]);
+      setTotalPages(0);
+      setTotalCount(0);
     } finally {
       setLoading(false);
     }
@@ -135,12 +143,21 @@ export default function TourGuidePaymentRequests() {
 
   const fetchCompletedBookings = async () => {
     try {
-      const response = await httpJson<Booking[]>(
+      console.log("Fetching completed bookings from:", `${getApiBase()}/api/bookings/tour-guide?status=completed&pageSize=100`);
+      
+      const response = await httpJson<any>(
         `${getApiBase()}/api/bookings/tour-guide?status=completed&pageSize=100`
       );
-      setBookings(response);
+      
+      console.log("Completed bookings response:", response);
+      
+      // Extract bookings from response
+      const bookings = response.bookings || [];
+      setBookings(bookings);
     } catch (error) {
       console.error("Error fetching completed bookings:", error);
+      toast.error("Không thể tải danh sách tour đã hoàn thành");
+      setBookings([]);
     }
   };
 
