@@ -201,14 +201,9 @@ public class SePayService : ISePayService
                 };
             }
 
-            // Search for both order and booking simultaneously
-            var orderTask = FindRelatedOrderAsync(paymentCode);
-            var bookingTask = FindRelatedBookingAsync(paymentCode);
-            
-            await Task.WhenAll(orderTask, bookingTask);
-            
-            var orderId = await orderTask;
-            var bookingId = await bookingTask;
+            // Search for order and booking sequentially to avoid DbContext concurrency issues
+            var orderId = await FindRelatedOrderAsync(paymentCode);
+            var bookingId = await FindRelatedBookingAsync(paymentCode);
 
             // Check if both were found (should not happen, but handle gracefully)
             if (orderId.HasValue && bookingId.HasValue)
