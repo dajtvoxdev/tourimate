@@ -16,6 +16,9 @@ public class ProductDto
     public Guid TourGuideId { get; set; }
     public string TourGuideName { get; set; } = string.Empty;
     public string Status { get; set; } = "Draft";
+    public string ApprovalStatus { get; set; } = "PendingApproval";
+    public string? RejectionReason { get; set; }
+    public DateTime? ApprovedAt { get; set; }
     public string? Category { get; set; }
     public string? Brand { get; set; }
     public string? Unit { get; set; }

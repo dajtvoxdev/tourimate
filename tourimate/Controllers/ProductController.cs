@@ -731,9 +731,108 @@ public class ProductController : ControllerBase
         }
     }
 
+    [HttpPost("{id}/approve")]
+    public async Task<IActionResult> ApproveProduct(Guid id)
+    {
+        try
+        {
+            var userId = GetCurrentUserId();
+            if (!userId.HasValue)
+            {
+                return Unauthorized("User not authenticated");
+            }
+
+            // Check if user is admin
+            var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == userId.Value);
+            if (user == null || user.Role != UserRole.Admin)
+            {
+                return Forbid("Only admins can approve products");
+            }
+
+            var product = await _db.Products.FirstOrDefaultAsync(p => p.Id == id);
+            if (product == null)
+            {
+                return NotFound("Product not found");
+            }
+
+            if (product.ApprovalStatus == ProductStatus.Approved)
+            {
+                return BadRequest("Product is already approved");
+            }
+
+            product.ApprovalStatus = ProductStatus.Approved;
+            product.ApprovedBy = userId.Value;
+            product.ApprovedAt = DateTime.UtcNow;
+            product.RejectionReason = null;
+            product.UpdatedAt = DateTime.UtcNow;
+            product.UpdatedBy = userId.Value;
+
+            await _db.SaveChangesAsync();
+
+            return Ok(new { message = "Product approved successfully", productId = product.Id });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error approving product {ProductId}", id);
+            return StatusCode(500, "Internal server error");
+        }
+    }
+
+    [HttpPost("{id}/reject")]
+    public async Task<IActionResult> RejectProduct(Guid id, [FromBody] RejectProductDto request)
+    {
+        try
+        {
+            var userId = GetCurrentUserId();
+            if (!userId.HasValue)
+            {
+                return Unauthorized("User not authenticated");
+            }
+
+            // Check if user is admin
+            var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == userId.Value);
+            if (user == null || user.Role != UserRole.Admin)
+            {
+                return Forbid("Only admins can reject products");
+            }
+
+            var product = await _db.Products.FirstOrDefaultAsync(p => p.Id == id);
+            if (product == null)
+            {
+                return NotFound("Product not found");
+            }
+
+            if (product.ApprovalStatus == ProductStatus.Rejected)
+            {
+                return BadRequest("Product is already rejected");
+            }
+
+            product.ApprovalStatus = ProductStatus.Rejected;
+            product.RejectionReason = request.RejectionReason;
+            product.ApprovedBy = null;
+            product.ApprovedAt = null;
+            product.UpdatedAt = DateTime.UtcNow;
+            product.UpdatedBy = userId.Value;
+
+            await _db.SaveChangesAsync();
+
+            return Ok(new { message = "Product rejected successfully", productId = product.Id });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error rejecting product {ProductId}", id);
+            return StatusCode(500, "Internal server error");
+        }
+    }
+
     private Guid? GetCurrentUserId()
     {
         var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue(JwtRegisteredClaimNames.Sub);
         return string.IsNullOrEmpty(userIdClaim) ? null : Guid.Parse(userIdClaim);
     }
+}
+
+public class RejectProductDto
+{
+    public string? RejectionReason { get; set; }
 }
