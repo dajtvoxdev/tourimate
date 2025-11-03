@@ -53,6 +53,13 @@ public class BookingController : ControllerBase
                 return BadRequest("Tour availability not found");
             }
 
+            // Validate future date (booking only allowed for dates strictly after today)
+            var startOfTodayUtc = DateTime.UtcNow.Date;
+            if (tourAvailability.Date.Date <= startOfTodayUtc)
+            {
+                return BadRequest("Tour date is not available for booking");
+            }
+
             // Validate that the user is not trying to book their own tour
             if (tourAvailability.Tour.TourGuideId == userId.Value)
             {
@@ -308,6 +315,13 @@ public class BookingController : ControllerBase
             if (tourAvailability == null)
             {
                 return BadRequest("Không tìm thấy lịch trình");
+            }
+
+            // Validate future date (booking only allowed for dates strictly after today)
+            var startOfTodayUtc = DateTime.UtcNow.Date;
+            if (tourAvailability.Date.Date <= startOfTodayUtc)
+            {
+                return BadRequest("Ngày khởi hành không còn khả dụng");
             }
 
             // Validate that the user is not trying to book their own tour

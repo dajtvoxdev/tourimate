@@ -53,6 +53,13 @@ public class TourAvailabilityController : ControllerBase
             if (!string.IsNullOrEmpty(request.Vehicle))
                 query = query.Where(ta => ta.Vehicle != null && ta.Vehicle.Contains(request.Vehicle));
 
+            // Optional: only future availabilities (strictly after today UTC)
+            if (Request.Query.ContainsKey("futureOnly") && bool.TryParse(Request.Query["futureOnly"], out var futureOnly) && futureOnly)
+            {
+                var startOfTodayUtc = DateTime.UtcNow.Date;
+                query = query.Where(ta => ta.Date.Date > startOfTodayUtc);
+            }
+
             // Apply sorting
             query = request.SortBy?.ToLower() switch
             {
@@ -146,9 +153,16 @@ public class TourAvailabilityController : ControllerBase
         try
         {
             var query = _db.TourAvailabilities
-                .Where(ta => ta.TourId == tourId)
-                .OrderBy(ta => ta.Date);
+                .Where(ta => ta.TourId == tourId);
             
+            // Optional: only future availabilities (strictly after today UTC)
+            if (Request.Query.ContainsKey("futureOnly") && bool.TryParse(Request.Query["futureOnly"], out var futureOnly) && futureOnly)
+            {
+                var startOfTodayUtc = DateTime.UtcNow.Date;
+                query = query.Where(ta => ta.Date.Date > startOfTodayUtc);
+            }
+
+            query = query.OrderBy(ta => ta.Date);
             
             var tourAvailabilities = await query.ToListAsync();
             
