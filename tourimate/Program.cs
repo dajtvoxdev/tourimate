@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using TouriMate.Services.Media;
+using tourimate.Services.Hubs;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -14,6 +15,9 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
+// Add SignalR
+builder.Services.AddSignalR();
 // Register eSMS OTP service
 builder.Services.Configure<EsmsOptions>(builder.Configuration.GetSection("Esms"));
 builder.Services.AddHttpClient<EsmsOtpService>();
@@ -56,15 +60,21 @@ builder.Services.AddDbContext<TouriMateDbContext>(options =>
                 errorNumbersToAdd: null);
         }));
 
-// Configure CORS
+// Configure CORS (with credentials for SignalR)
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll",
         policy =>
         {
-            policy.AllowAnyOrigin()
-                  .AllowAnyMethod()
-                  .AllowAnyHeader();
+            policy.WithOrigins(
+                "http://localhost:8080", 
+                "http://localhost:5173",
+                "https://tourimate.site",
+                "https://www.tourimate.site"
+            )
+            .AllowAnyMethod()
+            .AllowAnyHeader()
+            .AllowCredentials(); // Required for SignalR
         });
 });
 
@@ -110,6 +120,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapHub<PaymentHub>("/hubs/payment"); // SignalR payment hub endpoint
 
 // Ensure database is created and migrated
 using (var scope = app.Services.CreateScope())

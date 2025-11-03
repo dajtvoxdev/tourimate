@@ -4,6 +4,8 @@ using Entities.Models;
 using Entities.Enums;
 using System.Text.Json;
 using TouriMate.Contracts.Payment;
+using Microsoft.AspNetCore.SignalR;
+using tourimate.Services.Hubs;
 
 namespace TouriMate.Services;
 
@@ -19,12 +21,18 @@ public class SePayService : ISePayService
     private readonly TouriMateDbContext _db;
     private readonly ILogger<SePayService> _logger;
     private readonly IEmailService _emailService;
+    private readonly IHubContext<PaymentHub> _paymentHub;
 
-    public SePayService(TouriMateDbContext db, ILogger<SePayService> logger, IEmailService emailService)
+    public SePayService(
+        TouriMateDbContext db, 
+        ILogger<SePayService> logger, 
+        IEmailService emailService,
+        IHubContext<PaymentHub> paymentHub)
     {
         _db = db;
         _logger = logger;
         _emailService = emailService;
+        _paymentHub = paymentHub;
     }
 
     public async Task<SePayWebhookResponse> ProcessWebhookAsync(SePayWebhookRequest webhookData)
@@ -114,79 +122,104 @@ public class SePayService : ISePayService
                 relatedBooking.UpdatedAt = DateTime.UtcNow;
             }
 
-            await _db.SaveChangesAsync();
+                        await _db.SaveChangesAsync();
 
             // Create Revenue record
             if (relatedBooking?.Tour?.TourGuideId != null)
             {
-                var existingRevenue = await _db.Revenues
+                        var existingRevenue = await _db.Revenues
                     .FirstOrDefaultAsync(r => r.TransactionId == existingTransaction.Id);
 
-                if (existingRevenue == null)
-                {
+                        if (existingRevenue == null)
+                        {
                     var commissionRate = 0.15m; // 15% commission
                     var grossAmount = existingTransaction.Amount;
-                    var commissionAmount = Math.Round(grossAmount * commissionRate, 2);
-                    var netAmount = Math.Round(grossAmount - commissionAmount, 2);
+                            var commissionAmount = Math.Round(grossAmount * commissionRate, 2);
+                            var netAmount = Math.Round(grossAmount - commissionAmount, 2);
 
-                    var revenue = new Revenue
-                    {
+                            var revenue = new Revenue
+                            {
                         TransactionId = existingTransaction.Id,
                         UserId = relatedBooking.Tour.TourGuideId,
                         EntityId = relatedBooking.TourId,
-                        EntityType = "Tour",
-                        GrossAmount = grossAmount,
-                        CommissionRate = commissionRate,
-                        CommissionAmount = commissionAmount,
-                        NetAmount = netAmount,
+                                EntityType = "Tour",
+                                GrossAmount = grossAmount,
+                                CommissionRate = commissionRate,
+                                CommissionAmount = commissionAmount,
+                                NetAmount = netAmount,
                         Currency = existingTransaction.Currency,
-                        PayoutStatus = "pending"
-                    };
+                                PayoutStatus = "pending"
+                            };
 
-                    _db.Revenues.Add(revenue);
-                    await _db.SaveChangesAsync();
+                            _db.Revenues.Add(revenue);
+                            await _db.SaveChangesAsync();
 
                     _logger.LogInformation("Revenue created: {RevenueId}, NetAmount: {NetAmount}", 
                         revenue.Id, revenue.NetAmount);
                 }
-            }
+                        }
 
             // Send confirmation email
-            try
+                        try
             {
                 if (relatedBooking != null)
-                {
-                    var contactInfo = new { Name = "", Email = "" };
-                    try
-                    {
+                        {
+                            var contactInfo = new { Name = "", Email = "" };
+                            try
+                            {
                         if (!string.IsNullOrEmpty(relatedBooking.ContactInfo))
                             contactInfo = JsonSerializer.Deserialize<dynamic>(relatedBooking.ContactInfo) ?? contactInfo;
-                    }
+                            }
                     catch { }
 
                     var customerName = (string?)contactInfo?.Name ?? relatedBooking.Customer?.FirstName ?? "Khách hàng";
                     var customerEmail = (string?)contactInfo?.Email ?? relatedBooking.Customer?.Email ?? string.Empty;
 
                     if (!string.IsNullOrWhiteSpace(customerEmail) && relatedBooking.Tour != null)
-                    {
+                            {
                         var tourDate = relatedBooking.TourAvailability?.Date ?? DateTime.UtcNow;
-                        await _emailService.SendBookingConfirmationEmailAsync(
-                            customerEmail,
-                            customerName,
+                                await _emailService.SendBookingConfirmationEmailAsync(
+                                    customerEmail,
+                                    customerName,
                             relatedBooking.BookingNumber,
                             relatedBooking.Tour.Title,
-                            tourDate,
+                                    tourDate,
                             existingTransaction.Amount
-                        );
+                                );
                     }
-                }
-            }
-            catch (Exception ex)
+                            }
+                        }
+                        catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to send booking confirmation email");
             }
 
             _logger.LogInformation("SePay webhook processed successfully: {TransactionId}", existingTransaction.TransactionId);
+
+            // Broadcast payment success via SignalR
+            try
+            {
+                if (relatedBooking != null)
+                {
+                    await _paymentHub.Clients
+                        .Group($"payment_{relatedBooking.BookingNumber}")
+                        .SendAsync("PaymentSuccess", new
+                        {
+                            bookingNumber = relatedBooking.BookingNumber,
+                            bookingId = relatedBooking.Id,
+                            amount = existingTransaction.Amount,
+                            currency = existingTransaction.Currency,
+                            status = "success",
+                            message = "Thanh toán thành công!"
+                        });
+                    
+                    _logger.LogInformation("SignalR notification sent for booking: {BookingNumber}", relatedBooking.BookingNumber);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to send SignalR notification");
+            }
 
             return new SePayWebhookResponse
             {
