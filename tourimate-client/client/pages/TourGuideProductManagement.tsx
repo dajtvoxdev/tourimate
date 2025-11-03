@@ -300,14 +300,14 @@ export default function TourGuideProductManagement() {
             <div>
               <label className="text-sm font-medium">Trạng thái</label>
               <Select
-                value={searchParams.status || ""}
-                onValueChange={(value) => handleSearch("status", value)}
+                value={searchParams.status ? String(searchParams.status) : "all"}
+                onValueChange={(value) => handleSearch("status", value === "all" ? undefined : value)}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Tất cả trạng thái" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Tất cả trạng thái</SelectItem>
+                  <SelectItem value="all">Tất cả trạng thái</SelectItem>
                   <SelectItem value="Draft">Nháp</SelectItem>
                   <SelectItem value="Active">Hoạt động</SelectItem>
                   <SelectItem value="Inactive">Không hoạt động</SelectItem>
@@ -328,7 +328,7 @@ export default function TourGuideProductManagement() {
             <div>
               <label className="text-sm font-medium">Sắp xếp</label>
               <Select
-                value={searchParams.sortBy || ""}
+                value={searchParams.sortBy ? String(searchParams.sortBy) : "createdAt"}
                 onValueChange={(value) => handleSearch("sortBy", value)}
               >
                 <SelectTrigger>

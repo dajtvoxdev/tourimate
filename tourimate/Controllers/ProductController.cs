@@ -717,6 +717,8 @@ public class ProductController : ControllerBase
 
             var query = _db.Products.Where(p => p.TourGuideId == userId.Value);
 
+            var hasAny = await query.AnyAsync();
+
             var statistics = new ProductStatisticsDto
             {
                 TotalProducts = await query.CountAsync(),
@@ -728,11 +730,11 @@ public class ProductController : ControllerBase
                 NewArrivalProducts = await query.CountAsync(p => p.IsNewArrival),
                 OnSaleProducts = await query.CountAsync(p => p.IsOnSale),
                 DigitalProducts = await query.CountAsync(p => p.IsDigital),
-                TotalValue = await query.SumAsync(p => p.Price * p.StockQuantity),
-                AveragePrice = await query.AverageAsync(p => p.Price),
-                TotalViews = await query.SumAsync(p => p.ViewCount),
-                TotalPurchases = await query.SumAsync(p => p.PurchaseCount),
-                AverageRating = await query.AverageAsync(p => p.Rating ?? 0)
+                TotalValue = await query.Select(p => p.Price * p.StockQuantity).DefaultIfEmpty(0m).SumAsync(),
+                AveragePrice = hasAny ? await query.AverageAsync(p => p.Price) : 0m,
+                TotalViews = await query.Select(p => p.ViewCount).DefaultIfEmpty(0).SumAsync(),
+                TotalPurchases = await query.Select(p => p.PurchaseCount).DefaultIfEmpty(0).SumAsync(),
+                AverageRating = hasAny ? await query.AverageAsync(p => p.Rating.HasValue ? (decimal)p.Rating.Value : 0m) : 0m
             };
 
             return Ok(statistics);
