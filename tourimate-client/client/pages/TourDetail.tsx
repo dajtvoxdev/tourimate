@@ -5,7 +5,6 @@ import {
   Clock, 
   Star, 
   Users, 
-  Eye, 
   Calendar, 
   User, 
   Phone, 
@@ -551,14 +550,6 @@ export default function TourDetail() {
                   <div className="flex justify-between text-sm">
                     <span>Số đánh giá</span>
                     <span className="font-medium">{currentReviewCount}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span>Số lượt đặt</span>
-                    <span className="font-medium">{tour.totalBookings}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span>Lượt xem</span>
-                    <span className="font-medium">{tour.viewCount}</span>
                   </div>
                 </div>
 

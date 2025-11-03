@@ -11,8 +11,6 @@ import {
   MapPin,
   Calendar as CalendarIcon,
   Star,
-  Heart,
-  Eye,
   Save,
   X,
   Globe,
@@ -75,14 +73,6 @@ interface BookedTour {
     vehicle?: string;
     tripTime?: string;
   };
-}
-
-interface FavoriteTour {
-  id: number;
-  title: string;
-  image: string;
-  price: string;
-  location: string;
 }
 
 export default function PersonalProfile() {
@@ -470,25 +460,6 @@ export default function PersonalProfile() {
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
   const [selectedBookingPaid, setSelectedBookingPaid] = useState<boolean>(false);
 
-  // Mock data for favorite tours
-  const favoriteTours: FavoriteTour[] = [
-    {
-      id: 1,
-      title: "Tour guide tại Hạ Long",
-      image:
-        "https://cdn.builder.io/api/v1/image/assets/TEMP/766e14260b99570779920f49b71b00c9bcaf78e4?width=736",
-      price: "3.200.000 VND",
-      location: "Hạ Long, Quảng Ninh",
-    },
-    {
-      id: 2,
-      title: "Tour guide tại Sapa",
-      image:
-        "https://cdn.builder.io/api/v1/image/assets/TEMP/70f355664edb43207aa25e7eb2be8c8bda964238?width=736",
-      price: "2.500.000 VND",
-      location: "Sapa, Lào Cai",
-    },
-  ];
 
   // Mock data for guide's own tours
   const myTours = [
@@ -560,18 +531,6 @@ export default function PersonalProfile() {
                     }`}
                   >
                     <span className="font-nunito font-medium">Tour đã đặt</span>
-                  </button>
-                  <button
-                    onClick={() => setActiveTab("favorites")}
-                    className={`w-full text-left px-4 py-3 rounded-lg transition-colors duration-200 ${
-                      activeTab === "favorites"
-                        ? "bg-tour-light-blue text-tour-blue"
-                        : "hover:bg-gray-100"
-                    }`}
-                  >
-                    <span className="font-nunito font-medium">
-                      Tour yêu thích
-                    </span>
                   </button>
                   <button
                     onClick={() => setActiveTab("notifications")}
@@ -1349,50 +1308,6 @@ export default function PersonalProfile() {
                 )}
               </div>
             )}
-
-            {/* Favorite Tours Tab */}
-            {activeTab === "favorites" && (
-              <div className="bg-white rounded-[20px] p-6 md:p-8 shadow-lg">
-                <h3 className="font-itim text-2xl md:text-3xl text-black mb-8">
-                  Tour yêu thích
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {favoriteTours.map((tour) => (
-                    <div
-                      key={tour.id}
-                      className="border border-gray-200 rounded-[15px] overflow-hidden hover:shadow-lg transition-shadow duration-300 cursor-pointer"
-                      onClick={() => navigate(`/tour/${tour.id}`)}
-                    >
-                      <div className="relative">
-                        <img
-                          src={tour.image}
-                          alt={tour.title}
-                          className="w-full h-48 object-cover"
-                        />
-                        <button className="absolute top-3 right-3 bg-white bg-opacity-80 hover:bg-opacity-100 rounded-full p-2 transition-all duration-200">
-                          <Heart className="w-5 h-5 text-red-500 fill-current" />
-                        </button>
-                      </div>
-                      <div className="p-4">
-                        <h4 className="font-nunito text-lg font-bold text-black mb-2">
-                          {tour.title}
-                        </h4>
-                        <div className="flex items-center space-x-1 mb-3">
-                          <MapPin className="w-4 h-4 text-gray-500" />
-                          <span className="font-nunito text-sm text-gray-600">
-                            {tour.location}
-                          </span>
-                        </div>
-                        <p className="font-nunito text-lg font-bold text-tour-blue">
-                          {tour.price}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
 
             {/* Notification Settings Tab */}
             {activeTab === "notifications" && (

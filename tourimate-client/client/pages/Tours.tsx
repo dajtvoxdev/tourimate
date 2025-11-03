@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Filter, MapPin, Clock, Star, Users, Eye, ChevronDown, ChevronUp, Calendar as CalendarIcon } from "lucide-react";
+import { Search, Filter, MapPin, Clock, Star, ChevronDown, ChevronUp, Calendar as CalendarIcon } from "lucide-react";
 import Header from "../components/Header";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -518,14 +518,6 @@ export default function Tours() {
                           <div className="flex items-center gap-1">
                             <Star className="w-4 h-4 text-yellow-500 fill-current" />
                             <span>{tour.averageRating.toFixed(1)} ({tour.totalReviews})</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <Users className="w-4 h-4" />
-                            <span>{tour.totalBookings}</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <Eye className="w-4 h-4" />
-                            <span>{tour.viewCount}</span>
                           </div>
                         </div>
 

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { ChevronLeft, ChevronRight, Star, MapPin, Clock, Users, Eye } from "lucide-react";
+import { ChevronLeft, ChevronRight, Star, MapPin, Clock } from "lucide-react";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { Card, CardContent } from "./ui/card";
@@ -162,14 +162,6 @@ export default function FeaturedTours({ limit = 6, showTitle = true }: FeaturedT
                     <div className="flex items-center gap-1">
                       <Star className="w-4 h-4 text-yellow-500 fill-current" />
                       <span>{tour.averageRating.toFixed(1)} ({tour.totalReviews})</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Users className="w-4 h-4" />
-                      <span>{tour.totalBookings}</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Eye className="w-4 h-4" />
-                      <span>{tour.viewCount}</span>
                     </div>
                   </div>
 
