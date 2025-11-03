@@ -495,6 +495,19 @@ public class ProductController : ControllerBase
             if (request.Notes != null)
                 product.Notes = request.Notes;
 
+            // Reset approval status when product is updated (requires re-approval)
+            // Only reset if product was previously approved
+            if (product.ApprovalStatus == ProductStatus.Approved)
+            {
+                product.ApprovalStatus = ProductStatus.PendingApproval;
+                product.ApprovedBy = null;
+                product.ApprovedAt = null;
+                product.RejectionReason = null;
+                
+                _logger.LogInformation("Product {ProductId} approval status reset to PendingApproval after update by tour guide {UserId}", 
+                    product.Id, userId.Value);
+            }
+
             product.UpdatedAt = DateTime.UtcNow;
             product.UpdatedBy = userId.Value;
 
