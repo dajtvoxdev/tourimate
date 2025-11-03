@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { HubConnectionBuilder, HubConnectionState, LogLevel } from "@microsoft/signalr";
 import { 
   Search, 
   Filter, 
@@ -81,6 +82,67 @@ export default function AdminTransactions() {
   
   // Check if this is "mine" view for tour guide
   const isMineView = searchParams.get('mine') === '1';
+
+  // SignalR real-time updates
+  useEffect(() => {
+    if (!user) return;
+
+    const API_BASE = getApiBase();
+    const connection = new HubConnectionBuilder()
+      .withUrl(`${API_BASE}/hubs/transaction`, {
+        withCredentials: true,
+      })
+      .withAutomaticReconnect()
+      .configureLogging(LogLevel.Information)
+      .build();
+
+    const startConnection = async () => {
+      try {
+        await connection.start();
+        console.log("SignalR Transaction Hub Connected");
+
+        // Join appropriate group based on user role
+        if (isMineView && user.id) {
+          await connection.invoke("JoinTourGuideGroup", user.id);
+          console.log(`Joined tour guide transaction group: ${user.id}`);
+        } else {
+          await connection.invoke("JoinAdminGroup");
+          console.log("Joined admin transaction group");
+        }
+      } catch (err) {
+        console.error("SignalR Connection Error: ", err);
+        setTimeout(startConnection, 5000); // Retry after 5 seconds
+      }
+    };
+
+    // Listen for transaction updates
+    connection.on("TransactionUpdated", (data) => {
+      console.log("Transaction updated:", data);
+      
+      // Show toast notification
+      toast.success(data.message || "Giao dịch đã được cập nhật", {
+        description: `${data.transactionCode} - ${data.amount?.toLocaleString()} ${data.currency}`,
+      });
+
+      // Refresh transaction list
+      fetchTransactions();
+      fetchStats();
+    });
+
+    startConnection();
+
+    // Cleanup on unmount
+    return () => {
+      if (connection.state === HubConnectionState.Connected) {
+        if (isMineView && user.id) {
+          connection.invoke("LeaveTourGuideGroup", user.id);
+        } else {
+          connection.invoke("LeaveAdminGroup");
+        }
+        connection.stop();
+      }
+    };
+  }, [user, isMineView]);
 
   useEffect(() => {
     if (user) { // Only fetch when user is available

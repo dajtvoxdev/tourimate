@@ -22,17 +22,20 @@ public class SePayService : ISePayService
     private readonly ILogger<SePayService> _logger;
     private readonly IEmailService _emailService;
     private readonly IHubContext<PaymentHub> _paymentHub;
+    private readonly IHubContext<TransactionHub> _transactionHub;
 
     public SePayService(
         TouriMateDbContext db, 
         ILogger<SePayService> logger, 
         IEmailService emailService,
-        IHubContext<PaymentHub> paymentHub)
+        IHubContext<PaymentHub> paymentHub,
+        IHubContext<TransactionHub> transactionHub)
     {
         _db = db;
         _logger = logger;
         _emailService = emailService;
         _paymentHub = paymentHub;
+        _transactionHub = transactionHub;
     }
 
     public async Task<SePayWebhookResponse> ProcessWebhookAsync(SePayWebhookRequest webhookData)
@@ -213,12 +216,60 @@ public class SePayService : ISePayService
                             message = "Thanh toán thành công!"
                         });
                     
-                    _logger.LogInformation("SignalR notification sent for booking: {BookingNumber}", relatedBooking.BookingNumber);
+                    _logger.LogInformation("SignalR payment notification sent for booking: {BookingNumber}", relatedBooking.BookingNumber);
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to send SignalR notification");
+                _logger.LogError(ex, "Failed to send SignalR payment notification");
+            }
+
+            // Broadcast transaction update to admin
+            try
+            {
+                await _transactionHub.Clients
+                    .Group("admin_transactions")
+                    .SendAsync("TransactionUpdated", new
+                    {
+                        transactionId = existingTransaction.Id,
+                        transactionCode = existingTransaction.TransactionId,
+                        status = existingTransaction.Status.ToString(),
+                        amount = existingTransaction.Amount,
+                        currency = existingTransaction.Currency,
+                        bookingNumber = relatedBooking?.BookingNumber,
+                        customerName = relatedBooking?.Customer != null 
+                            ? $"{relatedBooking.Customer.FirstName} {relatedBooking.Customer.LastName}".Trim()
+                            : "N/A",
+                        updatedAt = DateTime.UtcNow,
+                        message = "Giao dịch đã được cập nhật"
+                    });
+
+                // Also broadcast to tour guide if applicable
+                if (relatedBooking?.Tour?.TourGuideId != null)
+                {
+                    await _transactionHub.Clients
+                        .Group($"tourguide_transactions_{relatedBooking.Tour.TourGuideId}")
+                        .SendAsync("TransactionUpdated", new
+                        {
+                            transactionId = existingTransaction.Id,
+                            transactionCode = existingTransaction.TransactionId,
+                            status = existingTransaction.Status.ToString(),
+                            amount = existingTransaction.Amount,
+                            currency = existingTransaction.Currency,
+                            bookingNumber = relatedBooking.BookingNumber,
+                            customerName = relatedBooking.Customer != null 
+                                ? $"{relatedBooking.Customer.FirstName} {relatedBooking.Customer.LastName}".Trim()
+                                : "N/A",
+                            updatedAt = DateTime.UtcNow,
+                            message = "Giao dịch đã được cập nhật"
+                        });
+                }
+                
+                _logger.LogInformation("SignalR transaction notification sent for transaction: {TransactionId}", existingTransaction.TransactionId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to send SignalR transaction notification");
             }
 
             return new SePayWebhookResponse

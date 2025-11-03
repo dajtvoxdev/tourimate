@@ -121,6 +121,7 @@ app.UseAuthorization();
 
 app.MapControllers();
 app.MapHub<PaymentHub>("/hubs/payment"); // SignalR payment hub endpoint
+app.MapHub<TransactionHub>("/hubs/transaction"); // SignalR transaction hub endpoint
 
 // Ensure database is created and migrated
 using (var scope = app.Services.CreateScope())
