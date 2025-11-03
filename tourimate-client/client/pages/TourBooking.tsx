@@ -950,7 +950,7 @@ const TourBooking: React.FC = () => {
               className="flex-1"
               onClick={() => {
                 setShowQRDialog(false);
-                navigate("/");
+                navigate(`/payment-processing?bookingNumber=${createdBooking?.bookingNumber}&bookingId=${createdBooking?.id}`);
               }}
             >
               Hoàn tất

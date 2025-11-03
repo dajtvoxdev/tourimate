@@ -49,6 +49,8 @@ import NonAdminProtectedRoute from "./components/NonAdminProtectedRoute";
 import TourAvailabilityPage from "./pages/TourAvailabilityPage";
 import TourCategoriesPage from "./pages/TourCategoriesPage";
 import TourBooking from "./pages/TourBooking";
+import PaymentProcessing from "./pages/PaymentProcessing";
+import PaymentSuccess from "./pages/PaymentSuccess";
 
 const queryClient = new QueryClient();
 
@@ -68,6 +70,8 @@ const App = () => (
           <Route path="/tour-guides" element={<TourGuides />} />
           <Route path="/tour/:id" element={<TourDetail />} />
           <Route path="/tour/:id/book" element={<TourBooking />} />
+          <Route path="/payment-processing" element={<PaymentProcessing />} />
+          <Route path="/payment-success" element={<PaymentSuccess />} />
           <Route path="/about" element={<AboutUs />} />
           <Route path="/profile" element={<PersonalProfile />} />
           <Route
