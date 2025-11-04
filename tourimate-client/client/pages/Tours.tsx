@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Search, Filter, MapPin, Clock, Star, ChevronDown, ChevronUp, Calendar as CalendarIcon } from "lucide-react";
 import Header from "../components/Header";
+import Footer from "../components/Footer";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SearchableSelect } from "../components/ui/select";
@@ -607,6 +608,7 @@ export default function Tours() {
           </div>
         )}
       </div>
+      <Footer />
     </div>
   );
 }

@@ -16,6 +16,7 @@ import {
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
+import Footer from "./Footer";
 
 interface TourImage {
   id: number;
@@ -595,15 +596,7 @@ export default function TourDetail() {
       </main>
 
       {/* Footer */}
-      <footer className="bg-gray-300 py-12 md:py-20 mt-12">
-        <div className="container mx-auto px-4">
-          <div className="text-center">
-            <p className="font-nunito text-lg md:text-xl text-black">
-              © 2024 Travel Guide Vietnam. All rights reserved.
-            </p>
-          </div>
-        </div>
-      </footer>
+      <Footer />
     </div>
   );
 }

@@ -1,7 +1,21 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using Entities.Enums;
 
 namespace Entities.Models;
+
+// Helper class for VariantsJson deserialization
+public class ProductVariant
+{
+    public decimal NetAmount { get; set; }
+    public string NetUnit { get; set; } = string.Empty;
+    public decimal Price { get; set; }
+    public int StockQuantity { get; set; }
+    public bool IsOnSale { get; set; }
+    public decimal? SalePrice { get; set; }
+    public DateTime? SaleStartDate { get; set; }
+    public DateTime? SaleEndDate { get; set; }
+}
 
 public class Product
 {
@@ -12,19 +26,11 @@ public class Product
     [StringLength(200)]
     public string Name { get; set; } = string.Empty;
 
-    [StringLength(1000)]
+    [Column(TypeName = "nvarchar(max)")]
     public string? Description { get; set; }
 
     [StringLength(500)]
     public string? ShortDescription { get; set; }
-
-    [Required]
-    [Column(TypeName = "decimal(18,2)")]
-    public decimal Price { get; set; }
-
-    [Required]
-    [StringLength(3)]
-    public string Currency { get; set; } = "VND";
 
     [StringLength(500)]
     public string? Images { get; set; } // JSON string of image URLs
@@ -37,7 +43,7 @@ public class Product
 
     [Required]
     [StringLength(50)]
-    public string Status { get; set; } = "Draft"; // Draft, Active, Inactive, Discontinued
+    public string Status { get; set; } = "Draft"; // Draft, PendingApproval, Approved, Rejected, Discontinued
 
     [StringLength(100)]
     public string? Category { get; set; }
@@ -45,43 +51,9 @@ public class Product
     [StringLength(100)]
     public string? Brand { get; set; }
 
-    [StringLength(50)]
-    public string? Unit { get; set; } // piece, kg, liter, etc.
-
-    [Column(TypeName = "decimal(18,2)")]
-    public decimal? Weight { get; set; }
-
-    [StringLength(200)]
-    public string? Dimensions { get; set; } // "L x W x H"
-
-    [StringLength(1000)]
-    public string? Specifications { get; set; } // JSON string
-
-    [StringLength(1000)]
-    public string? Features { get; set; } // JSON string
-
-    [StringLength(1000)]
-    public string? UsageInstructions { get; set; }
-
-    [StringLength(1000)]
-    public string? CareInstructions { get; set; }
-
-    [StringLength(1000)]
-    public string? Warranty { get; set; }
-
-    [StringLength(1000)]
-    public string? ReturnPolicy { get; set; }
-
-    [StringLength(1000)]
-    public string? ShippingInfo { get; set; }
-
-    public int StockQuantity { get; set; } = 0;
-
     public int MinOrderQuantity { get; set; } = 1;
 
     public int MaxOrderQuantity { get; set; } = 100;
-
-    public bool IsDigital { get; set; } = false;
 
     public bool IsFeatured { get; set; } = false;
 
@@ -98,15 +70,6 @@ public class Product
 
     public DateTime? SaleEndDate { get; set; }
 
-    [StringLength(1000)]
-    public string? Tags { get; set; } // JSON string
-
-    [StringLength(1000)]
-    public string? SEOKeywords { get; set; }
-
-    [StringLength(200)]
-    public string? SEODescription { get; set; }
-
     public int ViewCount { get; set; } = 0;
 
     public int PurchaseCount { get; set; } = 0;
@@ -116,8 +79,57 @@ public class Product
 
     public int ReviewCount { get; set; } = 0;
 
-    [StringLength(1000)]
-    public string? Notes { get; set; }
+    // Variants JSON: [{ "netAmount": 250, "netUnit": "ml", "price": 20000, "stockQuantity": 10, "isOnSale": false, "salePrice": null, "saleStartDate": null, "saleEndDate": null }]
+    [Column(TypeName = "nvarchar(max)")]
+    public string? VariantsJson { get; set; }
+
+    // Persistence columns to satisfy existing DB schema
+    [Required]
+    [Column("Price", TypeName = "decimal(18,2)")]
+    public decimal DbPrice { get; set; } = 0m;
+
+    [Required]
+    [Column("Currency")]
+    [StringLength(10)]
+    public string DbCurrency { get; set; } = "VND";
+
+    [Required]
+    [Column("StockQuantity")]
+    public int DbStockQuantity { get; set; } = 0;
+
+    // Computed properties derived from VariantsJson (not stored in DB)
+    [NotMapped]
+    public decimal Price
+    {
+        get
+        {
+            if (string.IsNullOrEmpty(VariantsJson)) return 0;
+            try
+            {
+                var variants = System.Text.Json.JsonSerializer.Deserialize<List<ProductVariant>>(VariantsJson);
+                return variants?.Where(v => v.Price > 0).Min(v => v.Price) ?? 0;
+            }
+            catch { return 0; }
+        }
+    }
+
+    [NotMapped]
+    public string Currency => "VND";
+
+    [NotMapped]
+    public int StockQuantity
+    {
+        get
+        {
+            if (string.IsNullOrEmpty(VariantsJson)) return 0;
+            try
+            {
+                var variants = System.Text.Json.JsonSerializer.Deserialize<List<ProductVariant>>(VariantsJson);
+                return variants?.Sum(v => v.StockQuantity) ?? 0;
+            }
+            catch { return 0; }
+        }
+    }
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 

@@ -1,5 +1,6 @@
 import { useNavigate, useLocation } from "react-router-dom";
 import { User, MapPin, Calendar, Star, CreditCard } from "lucide-react";
+import Footer from "../components/Footer";
 
 // Mock data cho ví dụ
 const mockUser = {
@@ -111,6 +112,7 @@ export default function Checkout() {
           </section>
         </div>
       </main>
+      <Footer />
     </div>
   );
 } 

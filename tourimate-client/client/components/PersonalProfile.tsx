@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import Header from "./Header";
+import Footer from "./Footer";
 import { httpWithRefresh, httpJson, httpUpload, getApiBase } from "@/src/lib/http";
 import CustomCKEditor from "@/components/ui/CKEditor";
 import { Input } from "@/components/ui/input";
@@ -73,6 +74,33 @@ interface BookedTour {
     vehicle?: string;
     tripTime?: string;
   };
+}
+
+interface OrderItem {
+  id: string;
+  productId: string;
+  productName: string;
+  productImage?: string;
+  quantity: number;
+  price: number;
+  subtotal: number;
+  selectedVariant?: string;
+}
+
+interface Order {
+  id: string;
+  orderNumber: string;
+  status: string; // PendingPayment, Processing, Shipped, Delivered, Cancelled, Returned
+  paymentStatus: string; // Pending, Paid, Refunded
+  totalAmount: number;
+  currency: string;
+  receiverName: string;
+  receiverPhone: string;
+  receiverEmail: string;
+  shippingAddress: string;
+  notes?: string;
+  createdAt: string;
+  items: OrderItem[];
 }
 
 export default function PersonalProfile() {
@@ -238,6 +266,27 @@ export default function PersonalProfile() {
     }
   }, [activeTab]);
 
+  // Fetch user orders
+  const fetchOrders = async () => {
+    setOrdersLoading(true);
+    try {
+      const data = await httpJson<Order[]>(`${getApiBase()}/api/orders`);
+      setOrders(data);
+    } catch (error: any) {
+      console.error("Error fetching orders:", error);
+      toast.error("Không thể tải danh sách sản phẩm đã đặt");
+    } finally {
+      setOrdersLoading(false);
+    }
+  };
+
+  // Load orders when products tab is active
+  useEffect(() => {
+    if (activeTab === "products") {
+      fetchOrders();
+    }
+  }, [activeTab]);
+
   // Open cancel booking dialog
   const openCancelDialog = (booking: BookedTour) => {
     setSelectedBookingId(booking.id);
@@ -296,6 +345,70 @@ export default function PersonalProfile() {
         return "Đã hủy";
       case "Completed":
         return "Hoàn thành";
+      default:
+        return status;
+    }
+  };
+
+  const getOrderStatusColor = (status: string) => {
+    switch (status) {
+      case "PendingPayment":
+        return "bg-yellow-100 text-yellow-800";
+      case "Processing":
+        return "bg-blue-100 text-blue-800";
+      case "Shipped":
+        return "bg-purple-100 text-purple-800";
+      case "Delivered":
+        return "bg-green-100 text-green-800";
+      case "Cancelled":
+        return "bg-red-100 text-red-800";
+      case "Returned":
+        return "bg-gray-100 text-gray-800";
+      default:
+        return "bg-gray-100 text-gray-800";
+    }
+  };
+
+  const getOrderStatusText = (status: string) => {
+    switch (status) {
+      case "PendingPayment":
+        return "Chờ thanh toán";
+      case "Processing":
+        return "Đang xử lý";
+      case "Shipped":
+        return "Đã giao hàng";
+      case "Delivered":
+        return "Đã nhận hàng";
+      case "Cancelled":
+        return "Đã hủy";
+      case "Returned":
+        return "Đã trả hàng";
+      default:
+        return status;
+    }
+  };
+
+  const getPaymentStatusColor = (status: string) => {
+    switch (status) {
+      case "Pending":
+        return "bg-yellow-100 text-yellow-800";
+      case "Paid":
+        return "bg-green-100 text-green-800";
+      case "Refunded":
+        return "bg-red-100 text-red-800";
+      default:
+        return "bg-gray-100 text-gray-800";
+    }
+  };
+
+  const getPaymentStatusText = (status: string) => {
+    switch (status) {
+      case "Pending":
+        return "Chờ thanh toán";
+      case "Paid":
+        return "Đã thanh toán";
+      case "Refunded":
+        return "Đã hoàn tiền";
       default:
         return status;
     }
@@ -460,6 +573,10 @@ export default function PersonalProfile() {
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
   const [selectedBookingPaid, setSelectedBookingPaid] = useState<boolean>(false);
 
+  // Orders state
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [ordersLoading, setOrdersLoading] = useState(false);
+
 
   // Mock data for guide's own tours
   const myTours = [
@@ -531,6 +648,16 @@ export default function PersonalProfile() {
                     }`}
                   >
                     <span className="font-nunito font-medium">Tour đã đặt</span>
+                  </button>
+                  <button
+                    onClick={() => setActiveTab("products")}
+                    className={`w-full text-left px-4 py-3 rounded-lg transition-colors duration-200 ${
+                      activeTab === "products"
+                        ? "bg-tour-light-blue text-tour-blue"
+                        : "hover:bg-gray-100"
+                    }`}
+                  >
+                    <span className="font-nunito font-medium">Sản phẩm đã đặt</span>
                   </button>
                   <button
                     onClick={() => setActiveTab("notifications")}
@@ -1277,7 +1404,7 @@ export default function PersonalProfile() {
                               onClick={() => navigate(`/tour/${booking.tour.id}`)}
                               className="flex items-center justify-center space-x-2 bg-gray-100 hover:bg-gray-200 text-black px-4 py-2 rounded-lg transition-colors duration-200"
                             >
-                              <Eye className="w-4 h-4" />
+                              <Globe className="w-4 h-4" />
                               <span className="font-nunito">Xem tour</span>
                             </button>
                             
@@ -1298,6 +1425,186 @@ export default function PersonalProfile() {
                               >
                                 <Trash2 className="w-4 h-4" />
                                 <span className="font-nunito">Hủy tour</span>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Orders Tab */}
+            {activeTab === "products" && (
+              <div className="bg-white rounded-[20px] p-6 md:p-8 shadow-lg">
+                <h3 className="font-itim text-2xl md:text-3xl text-black mb-8">
+                  Sản phẩm đã đặt
+                </h3>
+                
+                {ordersLoading ? (
+                  <div className="flex justify-center items-center py-12">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-tour-blue"></div>
+                    <span className="ml-3 text-gray-600">Đang tải...</span>
+                  </div>
+                ) : orders.length === 0 ? (
+                  <div className="text-center py-12">
+                    <h4 className="font-nunito text-lg font-medium text-gray-600 mb-2">
+                      Chưa có đơn hàng nào
+                    </h4>
+                    <p className="text-gray-500 mb-6">
+                      Hãy khám phá và đặt sản phẩm đầu tiên của bạn!
+                    </p>
+                    <button
+                      onClick={() => navigate("/products")}
+                      className="bg-tour-blue hover:bg-tour-dark-blue text-white px-6 py-3 rounded-lg transition-colors duration-200 font-nunito font-medium"
+                    >
+                      Khám phá sản phẩm
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    {orders.map((order) => (
+                      <div
+                        key={order.id}
+                        className="border border-gray-200 rounded-[15px] p-6 hover:shadow-lg transition-shadow duration-300"
+                      >
+                        <div className="flex flex-col md:flex-row md:items-start space-y-4 md:space-y-0 md:space-x-6">
+                          <div className="flex-1">
+                            <div className="flex items-start justify-between mb-3">
+                              <div>
+                                <h4 className="font-nunito text-xl font-bold text-black mb-1">
+                                  Đơn hàng #{order.orderNumber}
+                                </h4>
+                                <p className="text-sm text-gray-500">
+                                  Ngày đặt: {formatDate(order.createdAt)}
+                                </p>
+                              </div>
+                              <div className="flex flex-col items-end gap-2">
+                                <span
+                                  className={`px-3 py-1 rounded-full text-sm font-medium ${getOrderStatusColor(order.status)}`}
+                                >
+                                  {getOrderStatusText(order.status)}
+                                </span>
+                                {/* Only show payment status if it's different from what would be implied by order status */}
+                                {!(order.status === "PendingPayment" && order.paymentStatus === "Pending") && (
+                                  <span
+                                    className={`px-3 py-1 rounded-full text-sm font-medium ${getPaymentStatusColor(order.paymentStatus)}`}
+                                  >
+                                    {getPaymentStatusText(order.paymentStatus)}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Order Items */}
+                            <div className="space-y-3 mb-4">
+                              {order.items.map((item) => {
+                                const variant = item.selectedVariant ? (() => {
+                                  try {
+                                    const v = JSON.parse(item.selectedVariant);
+                                    return `${v.netAmount}${v.netUnit}`;
+                                  } catch {
+                                    return null;
+                                  }
+                                })() : null;
+                                
+                                return (
+                                  <div key={item.id} className="flex gap-3 p-3 bg-gray-50 rounded-lg">
+                                    <img
+                                      src={item.productImage || "/placeholder.svg"}
+                                      alt={item.productName}
+                                      className="w-16 h-16 object-cover rounded-lg"
+                                    />
+                                    <div className="flex-1">
+                                      <h5 className="font-nunito font-semibold text-black">
+                                        {item.productName}
+                                      </h5>
+                                      {variant && (
+                                        <p className="text-sm text-gray-600">
+                                          Phân loại: {variant}
+                                        </p>
+                                      )}
+                                      <div className="flex items-center justify-between mt-1">
+                                        <span className="text-sm text-gray-600">
+                                          Số lượng: {item.quantity}
+                                        </span>
+                                        <span className="text-sm font-semibold text-tour-blue">
+                                          {formatPrice(item.subtotal)}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+
+                            {/* Order Info */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                              <div className="space-y-2">
+                                <div className="flex items-center space-x-2 text-gray-600">
+                                  <User className="w-4 h-4" />
+                                  <span className="font-nunito text-sm">
+                                    Người nhận: {order.receiverName}
+                                  </span>
+                                </div>
+                                <div className="flex items-center space-x-2 text-gray-600">
+                                  <Phone className="w-4 h-4" />
+                                  <span className="font-nunito text-sm">
+                                    SĐT: {order.receiverPhone}
+                                  </span>
+                                </div>
+                                <div className="flex items-center space-x-2 text-gray-600">
+                                  <Mail className="w-4 h-4" />
+                                  <span className="font-nunito text-sm">
+                                    Email: {order.receiverEmail}
+                                  </span>
+                                </div>
+                              </div>
+                              
+                              <div className="space-y-2">
+                                <div className="flex items-center space-x-2 text-gray-600">
+                                  <MapPin className="w-4 h-4" />
+                                  <span className="font-nunito text-sm">
+                                    Địa chỉ: {order.shippingAddress}
+                                  </span>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                  <span className="font-nunito text-sm font-medium text-tour-blue">
+                                    Tổng tiền: {formatPrice(order.totalAmount)} {order.currency}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {order.notes && (
+                              <div className="bg-gray-50 p-3 rounded-lg mb-4">
+                                <p className="text-sm text-gray-600">
+                                  <span className="font-medium">Ghi chú:</span> {order.notes}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                          
+                          <div className="flex flex-col space-y-2 min-w-[140px]">
+                            {order.items.length > 0 && (
+                              <button
+                                onClick={() => navigate(`/products/${order.items[0].productId}`)}
+                                className="flex items-center justify-center space-x-2 bg-gray-100 hover:bg-gray-200 text-black px-4 py-2 rounded-lg transition-colors duration-200"
+                              >
+                                <Globe className="w-4 h-4" />
+                                <span className="font-nunito">Xem sản phẩm</span>
+                              </button>
+                            )}
+                            
+                            {order.status === "PendingPayment" && order.paymentStatus === "Pending" && (
+                              <button
+                                onClick={() => navigate(`/checkout?order=${order.orderNumber}`)}
+                                className="flex items-center justify-center space-x-2 bg-tour-blue hover:bg-tour-dark-blue text-white px-4 py-2 rounded-lg transition-colors duration-200"
+                              >
+                                <CreditCard className="w-4 h-4" />
+                                <span className="font-nunito">Thanh toán</span>
                               </button>
                             )}
                           </div>
@@ -1490,16 +1797,7 @@ export default function PersonalProfile() {
         </div>
       </main>
 
-      {/* Footer */}
-      <footer className="bg-gray-300 py-12 md:py-20 mt-12">
-        <div className="container mx-auto px-4">
-          <div className="text-center">
-            <p className="font-nunito text-lg md:text-xl text-black">
-              © 2024 Travel Guide Vietnam. All rights reserved.
-            </p>
-          </div>
-        </div>
-      </footer>
+      <Footer />
 
       {/* Cancellation Dialog */}
       {selectedBookingId && (

@@ -16,7 +16,8 @@ import {
   Clock,
   CheckCircle,
   XCircle,
-  Layers
+  Layers,
+  AlertTriangle
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -80,10 +81,28 @@ interface Booking {
   };
 }
 
+interface OrderItem {
+  id: string;
+  productId: string;
+  productName: string;
+  subtotal: number;
+}
+
+interface Order {
+  id: string;
+  orderNumber: string;
+  status: string;
+  paymentStatus: string;
+  totalAmount: number;
+  createdAt: string;
+  items: OrderItem[];
+}
+
 export default function TourGuidePaymentRequests() {
   const { user } = useAuth();
   const [paymentRequests, setPaymentRequests] = useState<PaymentRequest[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -96,6 +115,8 @@ export default function TourGuidePaymentRequests() {
   const [selectedBookingId, setSelectedBookingId] = useState<string>("");
   const [selectedBookingIds, setSelectedBookingIds] = useState<string[]>([]);
   const [showMultiCreateDialog, setShowMultiCreateDialog] = useState(false);
+  const [showCreateOrderDialog, setShowCreateOrderDialog] = useState(false);
+  const [selectedOrderId, setSelectedOrderId] = useState<string>("");
 
   // Check access
   if (!user || user.role !== "TourGuide") {
@@ -112,6 +133,7 @@ export default function TourGuidePaymentRequests() {
   useEffect(() => {
     fetchPaymentRequests();
     fetchCompletedBookings();
+    fetchCompletedOrders();
   }, [currentPage, statusFilter, searchTerm]);
 
   const fetchPaymentRequests = async () => {
@@ -173,6 +195,19 @@ export default function TourGuidePaymentRequests() {
     }
   };
 
+  const fetchCompletedOrders = async () => {
+    try {
+      const response = await httpJson<any>(
+        `${getApiBase()}/api/orders/tour-guide?status=Delivered&pageSize=100`
+      );
+      const ords: Order[] = response.orders || [];
+      setOrders(ords.filter(o => (o.paymentStatus || '').toLowerCase() === 'paid'));
+    } catch (error) {
+      console.error('Error fetching completed orders:', error);
+      setOrders([]);
+    }
+  };
+
   const handleCreatePaymentRequest = async () => {
     if (!selectedBookingId) {
       toast.error("Vui lòng chọn tour đã hoàn thành");
@@ -222,8 +257,9 @@ export default function TourGuidePaymentRequests() {
 
       const results = await Promise.all(promises);
       
+      const total = (results as Array<any>).reduce((sum, r) => sum + (Number(r?.amount) || 0), 0);
       toast.success(`Tạo thành công ${selectedBookingIds.length} yêu cầu thanh toán`, {
-        description: `Tổng số tiền: ${formatCurrency(results.reduce((sum, result) => sum + ((result as any).amount || 0), 0))}`
+        description: `Tổng số tiền: ${formatCurrency(total)}`
       });
       
       setShowMultiCreateDialog(false);
@@ -235,10 +271,42 @@ export default function TourGuidePaymentRequests() {
     }
   };
 
+  const handleCreateOrderPaymentRequest = async () => {
+    if (!selectedOrderId) {
+      toast.error("Vui lòng chọn đơn hàng đủ điều kiện (Đã giao & Đã thanh toán)");
+      return;
+    }
+    try {
+      setActionLoading(selectedOrderId);
+      const response = await httpJson(`${getApiBase()}/api/paymentrequest/create`, {
+        method: 'POST',
+        body: JSON.stringify({ orderId: selectedOrderId })
+      });
+      toast.success('Tạo yêu cầu thanh toán cho đơn hàng thành công', {
+        description: `Số tiền: ${formatCurrency((response as any).amount || 0)}`
+      });
+      setShowCreateOrderDialog(false);
+      setSelectedOrderId("");
+      fetchPaymentRequests();
+    } catch (error: any) {
+      console.error('Error creating order payment request:', error);
+      toast.error(error.message || 'Không thể tạo yêu cầu thanh toán');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const normalizeStatus = (s: string | number): string => {
     if (typeof s === 'number') {
-      // Map numeric codes to strings: 1=pending, 2=paid, 3=cancelled (fallback pending)
-      return s === 2 ? 'paid' : s === 3 ? 'cancelled' : 'pending';
+      // Map numeric codes to strings: 1=pending, 2=approved, 3=paid, 4=cancelled, 5=overdue
+      switch (s) {
+        case 1: return 'pending';
+        case 2: return 'approved';
+        case 3: return 'paid';
+        case 4: return 'cancelled';
+        case 5: return 'overdue';
+        default: return 'pending';
+      }
     }
     return s.toLowerCase();
   };
@@ -251,6 +319,11 @@ export default function TourGuidePaymentRequests() {
           <Clock className="w-3 h-3 mr-1" />
           Chờ xử lý
         </Badge>;
+      case "approved":
+        return <Badge className="bg-blue-100 text-blue-800 border-blue-200">
+          <CheckCircle className="w-3 h-3 mr-1" />
+          Đã duyệt
+        </Badge>;
       case "paid":
         return <Badge className="bg-green-100 text-green-800 border-green-200">
           <CheckCircle className="w-3 h-3 mr-1" />
@@ -260,6 +333,11 @@ export default function TourGuidePaymentRequests() {
         return <Badge className="bg-red-100 text-red-800 border-red-200">
           <XCircle className="w-3 h-3 mr-1" />
           Đã hủy
+        </Badge>;
+      case "overdue":
+        return <Badge className="bg-red-100 text-red-800 border-red-200">
+          <AlertTriangle className="w-3 h-3 mr-1" />
+          Quá hạn
         </Badge>;
       default:
         return <Badge variant="secondary">{String(status)}</Badge>;
@@ -312,6 +390,14 @@ export default function TourGuidePaymentRequests() {
                 <Plus className="w-4 h-4 mr-2" />
                 Tạo yêu cầu
               </Button>
+            <Button 
+              variant="outline" 
+              onClick={() => setShowCreateOrderDialog(true)}
+              disabled={orders.length === 0}
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Yêu cầu thanh toán Đơn hàng
+            </Button>
             </div>
           </div>
         </div>
@@ -508,6 +594,44 @@ export default function TourGuidePaymentRequests() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+      {/* Create Order Payment Request Dialog */}
+      <AlertDialog open={showCreateOrderDialog} onOpenChange={setShowCreateOrderDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Tạo yêu cầu thanh toán cho Đơn hàng</AlertDialogTitle>
+            <AlertDialogDescription>
+              Chỉ hiển thị các đơn hàng đã giao (Delivered) và đã thanh toán
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <div className="space-y-3">
+            <label className="text-sm font-medium text-gray-700">Chọn đơn hàng</label>
+            <Select value={selectedOrderId} onValueChange={setSelectedOrderId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Chọn đơn hàng" />
+              </SelectTrigger>
+              <SelectContent>
+                {orders.length === 0 && (
+                  <div className="px-3 py-2 text-sm text-gray-500">Không có đơn hàng đủ điều kiện</div>
+                )}
+                {orders.map(o => (
+                  <SelectItem key={o.id} value={o.id}>
+                    {o.orderNumber} — {formatCurrency(o.totalAmount)} — {new Date(o.createdAt).toLocaleDateString('vi-VN')}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <AlertDialogFooter>
+            <AlertDialogCancel>Hủy</AlertDialogCancel>
+            <AlertDialogAction onClick={handleCreateOrderPaymentRequest} disabled={!selectedOrderId || actionLoading === selectedOrderId}>
+              Tạo yêu cầu
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
         {/* Payment Request Details Dialog */}
         {selectedRequest && (

@@ -27,9 +27,21 @@ public class OrderItem : BaseEntity
     [Column(TypeName = "decimal(18,2)")]
     public decimal UnitPrice { get; set; }
 
+    // For backward compatibility
+    [NotMapped]
+    public decimal Price 
+    { 
+        get => UnitPrice; 
+        set => UnitPrice = value; 
+    }
+
     [Required]
     [Column(TypeName = "decimal(18,2)")]
     public decimal Subtotal { get; set; }
+
+    // Store selected variant info as JSON string (for products with variants)
+    [Column(TypeName = "nvarchar(500)")]
+    public string? SelectedVariant { get; set; }
 
     // Navigation properties
     [ForeignKey("OrderId")]

@@ -509,6 +509,21 @@ namespace tourimate.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("ReceiverEmail")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("ReceiverName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("ReceiverPhone")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
                     b.Property<string>("ShippingAddress")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -587,6 +602,9 @@ namespace tourimate.Migrations
 
                     b.Property<int>("Quantity")
                         .HasColumnType("int");
+
+                    b.Property<string>("SelectedVariant")
+                        .HasColumnType("nvarchar(500)");
 
                     b.Property<decimal>("Subtotal")
                         .HasColumnType("decimal(18,2)");
@@ -736,22 +754,9 @@ namespace tourimate.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<int>("ApprovalStatus")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime?>("ApprovedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid?>("ApprovedBy")
-                        .HasColumnType("uniqueidentifier");
-
                     b.Property<string>("Brand")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
-
-                    b.Property<string>("CareInstructions")
-                        .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
 
                     b.Property<string>("Category")
                         .HasMaxLength(100)
@@ -763,31 +768,28 @@ namespace tourimate.Migrations
                     b.Property<Guid>("CreatedBy")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<string>("Currency")
+                    b.Property<string>("DbCurrency")
                         .IsRequired()
-                        .HasMaxLength(3)
-                        .HasColumnType("nvarchar(3)");
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)")
+                        .HasColumnName("Currency");
+
+                    b.Property<decimal>("DbPrice")
+                        .HasColumnType("decimal(18,2)")
+                        .HasColumnName("Price");
+
+                    b.Property<int>("DbStockQuantity")
+                        .HasColumnType("int")
+                        .HasColumnName("StockQuantity");
 
                     b.Property<string>("Description")
-                        .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
-
-                    b.Property<string>("Dimensions")
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<string>("Features")
-                        .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Images")
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
                     b.Property<bool>("IsBestSeller")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("IsDigital")
                         .HasColumnType("bit");
 
                     b.Property<bool>("IsFeatured")
@@ -810,13 +812,6 @@ namespace tourimate.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
-                    b.Property<string>("Notes")
-                        .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
-
-                    b.Property<decimal>("Price")
-                        .HasColumnType("decimal(18,2)");
-
                     b.Property<Guid?>("ProductCategoryId")
                         .HasColumnType("uniqueidentifier");
 
@@ -826,24 +821,8 @@ namespace tourimate.Migrations
                     b.Property<decimal?>("Rating")
                         .HasColumnType("decimal(3,2)");
 
-                    b.Property<string>("RejectionReason")
-                        .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
-
-                    b.Property<string>("ReturnPolicy")
-                        .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
-
                     b.Property<int>("ReviewCount")
                         .HasColumnType("int");
-
-                    b.Property<string>("SEODescription")
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<string>("SEOKeywords")
-                        .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
 
                     b.Property<DateTime?>("SaleEndDate")
                         .HasColumnType("datetime2");
@@ -854,29 +833,14 @@ namespace tourimate.Migrations
                     b.Property<DateTime?>("SaleStartDate")
                         .HasColumnType("datetime2");
 
-                    b.Property<string>("ShippingInfo")
-                        .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
-
                     b.Property<string>("ShortDescription")
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
-
-                    b.Property<string>("Specifications")
-                        .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
 
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
-
-                    b.Property<int>("StockQuantity")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Tags")
-                        .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
 
                     b.Property<Guid>("TourGuideId")
                         .HasColumnType("uniqueidentifier");
@@ -884,33 +848,19 @@ namespace tourimate.Migrations
                     b.Property<Guid>("TourId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<string>("Unit")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("datetime2");
 
                     b.Property<Guid?>("UpdatedBy")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<string>("UsageInstructions")
-                        .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
+                    b.Property<string>("VariantsJson")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<int>("ViewCount")
                         .HasColumnType("int");
 
-                    b.Property<string>("Warranty")
-                        .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
-
-                    b.Property<decimal?>("Weight")
-                        .HasColumnType("decimal(18,2)");
-
                     b.HasKey("Id");
-
-                    b.HasIndex("ApprovedBy");
 
                     b.HasIndex("CreatedBy");
 
@@ -923,8 +873,6 @@ namespace tourimate.Migrations
                     b.HasIndex("UpdatedBy");
 
                     b.HasIndex("Category", "Status");
-
-                    b.HasIndex("Price", "Status");
 
                     b.ToTable("Products");
                 });
@@ -979,35 +927,35 @@ namespace tourimate.Migrations
                         new
                         {
                             Id = new Guid("11111111-1111-1111-1111-111111111111"),
-                            CreatedAt = new DateTime(2025, 11, 3, 9, 48, 23, 226, DateTimeKind.Utc).AddTicks(320),
+                            CreatedAt = new DateTime(2025, 11, 4, 3, 12, 6, 709, DateTimeKind.Utc).AddTicks(8396),
                             Description = "Traditional Vietnamese food and drinks",
                             IsActive = true,
                             IsDeleted = false,
                             Name = "Food & Beverages",
                             SortOrder = 1,
-                            UpdatedAt = new DateTime(2025, 11, 3, 9, 48, 23, 226, DateTimeKind.Utc).AddTicks(325)
+                            UpdatedAt = new DateTime(2025, 11, 4, 3, 12, 6, 709, DateTimeKind.Utc).AddTicks(8397)
                         },
                         new
                         {
                             Id = new Guid("22222222-2222-2222-2222-222222222222"),
-                            CreatedAt = new DateTime(2025, 11, 3, 9, 48, 23, 226, DateTimeKind.Utc).AddTicks(345),
+                            CreatedAt = new DateTime(2025, 11, 4, 3, 12, 6, 709, DateTimeKind.Utc).AddTicks(8413),
                             Description = "Handmade crafts and artisan products",
                             IsActive = true,
                             IsDeleted = false,
                             Name = "Handicrafts",
                             SortOrder = 2,
-                            UpdatedAt = new DateTime(2025, 11, 3, 9, 48, 23, 226, DateTimeKind.Utc).AddTicks(346)
+                            UpdatedAt = new DateTime(2025, 11, 4, 3, 12, 6, 709, DateTimeKind.Utc).AddTicks(8413)
                         },
                         new
                         {
                             Id = new Guid("33333333-3333-3333-3333-333333333333"),
-                            CreatedAt = new DateTime(2025, 11, 3, 9, 48, 23, 226, DateTimeKind.Utc).AddTicks(349),
+                            CreatedAt = new DateTime(2025, 11, 4, 3, 12, 6, 709, DateTimeKind.Utc).AddTicks(8416),
                             Description = "Traditional clothing and fabrics",
                             IsActive = true,
                             IsDeleted = false,
                             Name = "Textiles",
                             SortOrder = 3,
-                            UpdatedAt = new DateTime(2025, 11, 3, 9, 48, 23, 226, DateTimeKind.Utc).AddTicks(349)
+                            UpdatedAt = new DateTime(2025, 11, 4, 3, 12, 6, 709, DateTimeKind.Utc).AddTicks(8417)
                         });
                 });
 
@@ -1676,6 +1624,9 @@ namespace tourimate.Migrations
                     b.Property<int>("Quantity")
                         .HasColumnType("int");
 
+                    b.Property<string>("SelectedVariant")
+                        .HasColumnType("nvarchar(500)");
+
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("datetime2");
 
@@ -1739,38 +1690,38 @@ namespace tourimate.Migrations
                     b.HasData(
                         new
                         {
-                            Id = new Guid("37b2d737-4655-49f8-aae7-17cc7c21e314"),
+                            Id = new Guid("8d095dcf-8734-4f5c-9d47-700678fae191"),
                             Category = "Finance",
-                            CreatedAt = new DateTime(2025, 11, 3, 9, 48, 23, 226, DateTimeKind.Utc).AddTicks(1001),
+                            CreatedAt = new DateTime(2025, 11, 4, 3, 12, 6, 709, DateTimeKind.Utc).AddTicks(8690),
                             Description = "Commission rate for tour bookings",
                             IsDeleted = false,
                             IsPublic = true,
                             Key = "CommissionRate_Tours",
-                            UpdatedAt = new DateTime(2025, 11, 3, 9, 48, 23, 226, DateTimeKind.Utc).AddTicks(1003),
+                            UpdatedAt = new DateTime(2025, 11, 4, 3, 12, 6, 709, DateTimeKind.Utc).AddTicks(8691),
                             Value = "0.15"
                         },
                         new
                         {
-                            Id = new Guid("b76252a8-0a59-40dc-97e6-bddcd5e0eed5"),
+                            Id = new Guid("38bbc7a4-9e77-4ea1-a13d-1a3d417103fc"),
                             Category = "Finance",
-                            CreatedAt = new DateTime(2025, 11, 3, 9, 48, 23, 226, DateTimeKind.Utc).AddTicks(1084),
+                            CreatedAt = new DateTime(2025, 11, 4, 3, 12, 6, 709, DateTimeKind.Utc).AddTicks(8695),
                             Description = "Commission rate for product sales",
                             IsDeleted = false,
                             IsPublic = true,
                             Key = "CommissionRate_Products",
-                            UpdatedAt = new DateTime(2025, 11, 3, 9, 48, 23, 226, DateTimeKind.Utc).AddTicks(1084),
+                            UpdatedAt = new DateTime(2025, 11, 4, 3, 12, 6, 709, DateTimeKind.Utc).AddTicks(8695),
                             Value = "0.15"
                         },
                         new
                         {
-                            Id = new Guid("6f357399-96d9-4414-8b75-654b4614451d"),
+                            Id = new Guid("3a392082-1462-4b6b-a536-00addb0cf45e"),
                             Category = "Security",
-                            CreatedAt = new DateTime(2025, 11, 3, 9, 48, 23, 226, DateTimeKind.Utc).AddTicks(1087),
+                            CreatedAt = new DateTime(2025, 11, 4, 3, 12, 6, 709, DateTimeKind.Utc).AddTicks(8698),
                             Description = "OTP expiry time in minutes",
                             IsDeleted = false,
                             IsPublic = false,
                             Key = "OTP_ExpiryMinutes",
-                            UpdatedAt = new DateTime(2025, 11, 3, 9, 48, 23, 226, DateTimeKind.Utc).AddTicks(1088),
+                            UpdatedAt = new DateTime(2025, 11, 4, 3, 12, 6, 709, DateTimeKind.Utc).AddTicks(8698),
                             Value = "5"
                         });
                 });
@@ -2477,10 +2428,6 @@ namespace tourimate.Migrations
 
             modelBuilder.Entity("Entities.Models.Product", b =>
                 {
-                    b.HasOne("Entities.Models.User", "Approver")
-                        .WithMany("Products")
-                        .HasForeignKey("ApprovedBy");
-
                     b.HasOne("Entities.Models.User", "Creator")
                         .WithMany()
                         .HasForeignKey("CreatedBy")
@@ -2507,8 +2454,6 @@ namespace tourimate.Migrations
                         .WithMany()
                         .HasForeignKey("UpdatedBy")
                         .OnDelete(DeleteBehavior.NoAction);
-
-                    b.Navigation("Approver");
 
                     b.Navigation("Creator");
 
@@ -2899,8 +2844,6 @@ namespace tourimate.Migrations
                     b.Navigation("Bookings");
 
                     b.Navigation("Orders");
-
-                    b.Navigation("Products");
 
                     b.Navigation("Profile");
 

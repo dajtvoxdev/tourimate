@@ -17,7 +17,8 @@ import {
   Check,
   X,
   AlertCircle,
-  ArrowUp
+  ArrowUp,
+  ShoppingBag
 } from "lucide-react";
 import Header from "../components/Header";
 import { Button } from "../components/ui/button";
@@ -31,6 +32,21 @@ import { TourDto } from "../types/tour";
 import { TourApiService, TourCategoryDto } from "../lib/tourApi";
 import { TourAvailabilityApiService, TourAvailabilityDto } from "../src/lib/tourAvailabilityApi";
 import { ReviewsSection } from "../components/ReviewsSection";
+import { httpJson, getApiBase } from "../src/lib/http";
+
+interface ProductDto {
+  id: string;
+  name: string;
+  shortDescription?: string;
+  price: number;
+  currency: string;
+  images?: string;
+  tourTitle: string;
+  stockQuantity: number;
+  purchaseCount: number;
+  rating?: number;
+  reviewCount: number;
+}
 
 export default function TourDetail() {
   const { id } = useParams<{ id: string }>();
@@ -48,10 +64,12 @@ export default function TourDetail() {
   const [currentRating, setCurrentRating] = useState(0);
   const [currentReviewCount, setCurrentReviewCount] = useState(0);
   const [showBackToTop, setShowBackToTop] = useState(false);
+  const [relatedProducts, setRelatedProducts] = useState<ProductDto[]>([]);
 
   useEffect(() => {
     if (id) {
       fetchTourDetail(id);
+      fetchTourProducts(id);
       // Also refresh tour data to get latest rating/review count
       setTimeout(() => refreshTourData(), 100);
     }
@@ -77,6 +95,15 @@ export default function TourDetail() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  const fetchTourProducts = async (tourId: string) => {
+    try {
+      const response = await httpJson<any>(`${getApiBase()}/api/product?tourId=${tourId}&status=Approved&pageSize=4`);
+      setRelatedProducts(response.products || []);
+    } catch (error) {
+      console.error('Error fetching tour products:', error);
+    }
+  };
+
   const fetchTourDetail = async (tourId: string) => {
     try {
       setLoading(true);
@@ -86,10 +113,13 @@ export default function TourDetail() {
       setCurrentReviewCount(data.totalReviews);
       // Load tour availabilities and pick most recent upcoming
       const avails = await TourAvailabilityApiService.getTourAvailabilitiesByTour(tourId);
-      setAvailabilities(avails || []);
-      const today = new Date();
-      const upcoming = (avails || [])
-        .filter(a => a.isAvailable && new Date(a.date) >= new Date(today.toDateString()))
+      const startOfToday = new Date();
+      startOfToday.setHours(0, 0, 0, 0);
+      const startOfTomorrow = new Date(startOfToday);
+      startOfTomorrow.setDate(startOfToday.getDate() + 1);
+      const futureAvailabilities = (avails || []).filter(a => a.isAvailable && new Date(a.date) >= startOfTomorrow);
+      setAvailabilities(futureAvailabilities);
+      const upcoming = futureAvailabilities
         .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
       setRecentAvailability(upcoming[0] || null);
     } catch (error) {
@@ -211,6 +241,8 @@ export default function TourDetail() {
     }
   };
 
+  const hasFutureAvailabilities = availabilities.length > 0;
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50">
@@ -268,6 +300,7 @@ export default function TourDetail() {
           variant="ghost"
           onClick={() => navigate('/tours')}
           className="mb-6"
+          disabled={!hasFutureAvailabilities && (!user || user.id !== tour.tourGuideId)}
         >
           <ArrowLeft className="w-4 h-4 mr-2" />
           Quay lại danh sách tour
@@ -567,8 +600,9 @@ export default function TourDetail() {
                     onClick={handleBookTour}
                     className="w-full"
                     size="lg"
+                    disabled={!hasFutureAvailabilities}
                   >
-                    Đặt tour ngay
+                    {hasFutureAvailabilities ? 'Đặt tour ngay' : 'Hết ngày khởi hành khả dụng'}
                   </Button>
                 )}
 
@@ -586,7 +620,6 @@ export default function TourDetail() {
                   {(availabilities
                     .slice()
                     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-                    .filter(a => a.isAvailable)
                   ).slice(0, 8).map((a) => (
                     <div key={a.id} className="flex items-center justify-between gap-3 border rounded-md p-3">
                       <div className="space-y-1">
@@ -617,7 +650,7 @@ export default function TourDetail() {
                       </div>
                     </div>
                   ))}
-                  {availabilities.filter(a => a.isAvailable).length === 0 && (
+                  {availabilities.length === 0 && (
                     <div className="text-sm text-gray-500">Chưa có lịch khởi hành khả dụng</div>
                   )}
                 </CardContent>
@@ -677,6 +710,72 @@ export default function TourDetail() {
           </div>
         </div>
       </div>
+
+      {/* Related Products Section */}
+      {relatedProducts.length > 0 && (
+        <div className="container mx-auto px-4 mt-12">
+          <h2 className="text-2xl font-bold mb-6">Sản phẩm từ tour này</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {relatedProducts.map((product) => {
+              const images = product.images ? JSON.parse(product.images) : [];
+              const formatProductPrice = (price: number, currency: string = "VND") => {
+                return new Intl.NumberFormat('vi-VN', {
+                  style: 'currency',
+                  currency: currency === 'VND' ? 'VND' : currency,
+                }).format(price);
+              };
+              return (
+                <div
+                  key={product.id}
+                  className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-200 cursor-pointer"
+                  onClick={() => navigate(`/products/${product.id}`)}
+                >
+                  <div className="relative h-48">
+                    <img
+                      src={images.length > 0 ? images[0] : '/placeholder-product.jpg'}
+                      alt={product.name}
+                      className="w-full h-full object-cover"
+                    />
+                    {product.stockQuantity <= 0 && (
+                      <div className="absolute top-3 left-3 bg-red-500 text-white px-3 py-1 rounded-lg font-semibold text-sm">
+                        Hết hàng
+                      </div>
+                    )}
+                    <div className="absolute bottom-3 right-3 bg-white/90 backdrop-blur-sm rounded-lg px-3 py-1">
+                      <span className="font-bold text-lg text-gray-900">
+                        {formatProductPrice(product.price, product.currency)}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="p-4 space-y-2">
+                    <h3 className="font-semibold text-gray-900 line-clamp-2 min-h-[3rem]">
+                      {product.name}
+                    </h3>
+                    <div className="flex items-center gap-3 text-sm text-gray-500">
+                      {product.rating && product.reviewCount > 0 && (
+                        <div className="flex items-center gap-1">
+                          <Star className="w-4 h-4 text-yellow-500 fill-current" />
+                          <span>{product.rating.toFixed(1)}</span>
+                        </div>
+                      )}
+                      <div className="flex items-center gap-1">
+                        <ShoppingBag className="w-4 h-4" />
+                        <span>{product.purchaseCount} đã mua</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div className="mt-6 text-center">
+            <Button variant="outline" onClick={() => navigate(`/products?tourId=${id}`)}>
+              Xem tất cả sản phẩm từ tour này
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Back to Top Button */}
       {showBackToTop && (

@@ -1,9 +1,16 @@
 import { RequestHandler } from "express";
-import { DemoResponse } from "@shared/api";
+
+export interface DemoResponse {
+  message: string;
+  data?: Record<string, unknown>;
+}
 
 export const handleDemo: RequestHandler = (req, res) => {
   const response: DemoResponse = {
-    message: "Hello from Express server",
+    message: "Hello from demo route!",
+    data: {
+      timestamp: new Date().toISOString(),
+    },
   };
-  res.status(200).json(response);
+  res.json(response);
 };

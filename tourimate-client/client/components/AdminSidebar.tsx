@@ -74,6 +74,12 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) => {
   const API_BASE = (import.meta as any).env?.VITE_API_BASE_URL || "https://localhost:7181";
 
   React.useEffect(() => {
+    if (user?.role !== "Admin") {
+      // Ensure we don't keep an old count when not admin
+      setPendingGuideApps(0);
+      return;
+    }
+
     let mounted = true;
     const fetchPending = async () => {
       try {
@@ -86,10 +92,11 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) => {
         if (mounted) setPendingGuideApps(Number(data.totalCount || 0));
       } catch {}
     };
+
     fetchPending();
     const id = window.setInterval(fetchPending, 30000);
     return () => { mounted = false; window.clearInterval(id); };
-  }, [API_BASE]);
+  }, [API_BASE, user?.role]);
 
   const isTourGuideOnly = user?.role === 'TourGuide';
   const navItems: NavItem[] = [
@@ -125,7 +132,15 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) => {
         { id: "my-products", label: "Sản phẩm của tôi", icon: Package, path: "/admin/products" },
         { id: "create-product", label: "Tạo sản phẩm", icon: Package, path: "/admin/product/create" }
       ]
-    } : null,
+    } : {
+      id: "products",
+      label: "Quản lý Sản phẩm",
+      icon: Package,
+      children: [
+        { id: "all-products", label: "Tất cả Sản phẩm", icon: Package, path: "/admin/products" },
+        { id: "product-categories", label: "Danh mục Sản phẩm", icon: Package, path: "/admin/product-categories" }
+      ]
+    },
     // !isTourGuideOnly ? {
     //   id: "transactions",
     //   label: "Quản lý Giao dịch",
@@ -169,6 +184,22 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ isOpen, onClose }) => {
         { id: "all-bookings", label: "Tất cả Tour đã đặt", icon: Calendar, path: "/admin/bookings" },
         { id: "pending-bookings", label: "Chờ xử lý", icon: Clock, path: "/admin/bookings/pending" },
         { id: "confirmed-bookings", label: "Đã xác nhận", icon: CheckCircle, path: "/admin/bookings/confirmed" }
+      ]
+    },
+    // Orders management
+    isTourGuideOnly ? {
+      id: "orders",
+      label: "Đơn hàng",
+      icon: Package,
+      children: [
+        { id: "my-orders", label: "Đơn hàng của tôi", icon: Package, path: "/admin/my-orders" }
+      ]
+    } : {
+      id: "orders",
+      label: "Đơn hàng",
+      icon: Package,
+      children: [
+        { id: "all-orders", label: "Tất cả Đơn hàng", icon: Package, path: "/admin/orders" }
       ]
     },
     isTourGuideOnly ? {

@@ -1,22 +1,55 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { ChevronLeft, ChevronRight, MapPin, Calendar, Bus, Star } from "lucide-react";
+import { ChevronLeft, ChevronRight, MapPin, Calendar, Bus, Star, Users, ShoppingBag, ShoppingCart } from "lucide-react";
 import Header from "./Header";
+import Footer from "./Footer";
 import FeaturedTours from "./FeaturedTours";
 import { TourDto } from "../types/tour";
 import { TourApiService } from "../lib/tourApi";
 import { useAuth } from "../src/hooks/useAuth";
+import { httpJson, getApiBase } from "../src/lib/http";
+import { Button } from "./ui/button";
+import { useToast } from "../hooks/use-toast";
 
+
+interface ProductDto {
+  id: string;
+  name: string;
+  description?: string;
+  shortDescription?: string;
+  price: number;
+  currency: string;
+  images?: string;
+  tourId: string;
+  tourTitle: string;
+  tourGuideId: string;
+  tourGuideName: string;
+  status: string;
+  category?: string;
+  brand?: string;
+  stockQuantity: number;
+  purchaseCount: number;
+  rating?: number;
+  reviewCount: number;
+  variantsJson?: string;
+}
 
 export default function TourHomepage() {
   const [currentSlide, setCurrentSlide] = useState(0);
+  const [productSlide, setProductSlide] = useState(0);
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [featuredTours, setFeaturedTours] = useState<TourDto[]>([]);
+  const [featuredProducts, setFeaturedProducts] = useState<ProductDto[]>([]);
+  const [bestSellingProducts, setBestSellingProducts] = useState<ProductDto[]>([]);
   const [loading, setLoading] = useState(true);
+  const [productsLoading, setProductsLoading] = useState(true);
+  const [addingToCart, setAddingToCart] = useState<string | null>(null);
   const { user } = useAuth();
 
   useEffect(() => {
     fetchFeaturedTours();
+    fetchProducts();
   }, []);
 
   const fetchFeaturedTours = async () => {
@@ -29,6 +62,39 @@ export default function TourHomepage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchProducts = async () => {
+    try {
+      setProductsLoading(true);
+      const [featured, bestSelling] = await Promise.all([
+        httpJson<ProductDto[]>(`${getApiBase()}/api/product/featured`),
+        httpJson<ProductDto[]>(`${getApiBase()}/api/product/best-selling`)
+      ]);
+      setFeaturedProducts(featured);
+      setBestSellingProducts(bestSelling);
+    } catch (error) {
+      console.error('Error fetching products:', error);
+    } finally {
+      setProductsLoading(false);
+    }
+  };
+
+  const getProductImages = (product: ProductDto): string[] => {
+    if (!product.images) return [];
+    try {
+      return JSON.parse(product.images);
+    } catch {
+      return [];
+    }
+  };
+
+  const nextProductSlide = () => {
+    setProductSlide((prev) => (prev + 1) % featuredProducts.length);
+  };
+
+  const prevProductSlide = () => {
+    setProductSlide((prev) => (prev - 1 + featuredProducts.length) % featuredProducts.length);
   };
 
   const formatPrice = (price: number, currency: string = "VND") => {
@@ -48,6 +114,84 @@ export default function TourHomepage() {
       return `${days} ngày`;
     }
     return `${days} ngày ${hours} giờ`;
+  };
+
+  const quickAddToCart = async (e: React.MouseEvent, product: ProductDto) => {
+    e.stopPropagation();
+    
+    try {
+      const token = localStorage.getItem('accessToken');
+      if (!token) {
+        navigate(`/login?redirect=/`);
+        return;
+      }
+
+      // If product has variants, redirect to detail page
+      if (product.variantsJson) {
+        try {
+          const variants = JSON.parse(product.variantsJson);
+          if (variants && variants.length > 0) {
+            navigate(`/products/${product.id}`);
+            return;
+          }
+        } catch (err) {
+          console.error('Error parsing variants:', err);
+        }
+      }
+
+      // Check stock
+      if (product.stockQuantity <= 0) {
+        toast({
+          variant: "destructive",
+          title: "Hết hàng",
+          description: "Sản phẩm hiện đã hết hàng",
+        });
+        return;
+      }
+
+      setAddingToCart(product.id);
+
+      await httpJson(`${getApiBase()}/api/shoppingcart`, {
+        method: 'POST',
+        body: JSON.stringify({
+          productId: product.id,
+          quantity: 1,
+        }),
+      });
+
+      toast({
+        title: "Thêm vào giỏ hàng thành công",
+        description: `Đã thêm "${product.name}" vào giỏ hàng`,
+      });
+    } catch (error: any) {
+      console.error('Error adding to cart:', error);
+      if (error.message?.includes('401')) {
+        navigate(`/login?redirect=/`);
+      } else {
+        // Parse error message
+        let errorMessage = 'Không thể thêm vào giỏ hàng';
+        if (error.message) {
+          if (error.message.includes('Insufficient stock')) {
+            const match = error.message.match(/Only (\d+) items available/);
+            if (match) {
+              errorMessage = `Không đủ hàng. Hiện chỉ còn ${match[1]} sản phẩm`;
+            } else {
+              errorMessage = 'Sản phẩm đã hết hàng';
+            }
+          } else {
+            errorMessage = error.message;
+          }
+        }
+        
+        toast({
+          variant: "destructive",
+          title: "Lỗi",
+          description: errorMessage,
+        });
+      }
+    } finally {
+      setAddingToCart(null);
+    }
   };
 
   // Chia tours thành 2 nhóm, mỗi nhóm 5 tour
@@ -511,16 +655,238 @@ export default function TourHomepage() {
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="bg-gray-300 py-12 md:py-20">
+      {/* Featured Products Slider Section */}
+      <section className="py-8 md:py-12 bg-white">
         <div className="container mx-auto px-4">
-          <div className="text-center">
-            <p className="font-nunito text-lg md:text-xl text-black">
-              © 2024 Travel Guide Vietnam. All rights reserved.
+          <div className="text-center mb-8">
+            <h2 className="font-josefin text-3xl md:text-4xl lg:text-5xl font-bold text-black mb-4">
+              Sản phẩm nổi bật
+            </h2>
+            <p className="font-nunito text-lg md:text-xl text-gray-600">
+              Những sản phẩm đặc sản được lựa chọn kỹ càng từ các tour du lịch
             </p>
           </div>
+
+          {productsLoading ? (
+            <div className="flex justify-center items-center py-12">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-tour-blue"></div>
+            </div>
+          ) : featuredProducts.length > 0 ? (
+            <div className="relative">
+              <div className="overflow-hidden">
+                <div
+                  className="transition-transform duration-500 ease-in-out"
+                  style={{ transform: `translateX(-${productSlide * 100}%)` }}
+                >
+                  <div className="flex">
+                    {featuredProducts.map((product) => {
+                      const images = getProductImages(product);
+                      return (
+                        <div
+                          key={product.id}
+                          className="w-full flex-shrink-0 px-4"
+                        >
+                          <div className="bg-white rounded-lg shadow-lg overflow-hidden max-w-4xl mx-auto">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                              <div className="relative h-64 md:h-full">
+                                <img
+                                  src={images.length > 0 ? images[0] : '/placeholder-product.jpg'}
+                                  alt={product.name}
+                                  className="w-full h-full object-cover"
+                                />
+                                {product.stockQuantity <= 0 && (
+                                  <div className="absolute top-3 left-3 bg-red-500 text-white px-3 py-1 rounded-lg font-semibold">
+                                    Hết hàng
+                                  </div>
+                                )}
+                              </div>
+                              <div className="p-6 flex flex-col justify-center">
+                                <h3 className="font-bold text-2xl md:text-3xl text-gray-900 mb-4">
+                                  {product.name}
+                                </h3>
+                                {product.shortDescription && (
+                                  <div 
+                                    className="text-gray-600 mb-4 line-clamp-3 prose prose-sm max-w-none"
+                                    dangerouslySetInnerHTML={{ __html: product.shortDescription }}
+                                  />
+                                )}
+                                <div className="flex items-center gap-4 mb-4">
+                                  {product.rating && product.reviewCount > 0 && (
+                                    <div className="flex items-center gap-1">
+                                      <Star className="w-5 h-5 text-yellow-500 fill-current" />
+                                      <span className="font-semibold">{product.rating.toFixed(1)}</span>
+                                      <span className="text-gray-500">({product.reviewCount})</span>
+                                    </div>
+                                  )}
+                                  <div className="flex items-center gap-1 text-gray-500">
+                                    <ShoppingBag className="w-5 h-5" />
+                                    <span>{product.purchaseCount} đã mua</span>
+                                  </div>
+                                </div>
+                                <div className="mb-6">
+                                  <span className="text-3xl font-bold text-tour-blue">
+                                    {formatPrice(product.price, product.currency)}
+                                  </span>
+                                </div>
+                                <div className="flex gap-3">
+                                  <Button
+                                    onClick={(e) => quickAddToCart(e, product)}
+                                    disabled={product.stockQuantity <= 0 || addingToCart === product.id}
+                                    className="flex-1"
+                                    size="lg"
+                                  >
+                                    <ShoppingCart className="w-5 h-5 mr-2" />
+                                    {addingToCart === product.id ? 'Đang thêm...' : 'Thêm vào giỏ'}
+                                  </Button>
+                                  <Button
+                                    onClick={() => navigate(`/products/${product.id}`)}
+                                    variant="outline"
+                                    size="lg"
+                                  >
+                                    Xem chi tiết
+                                  </Button>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* Navigation Arrows */}
+              {featuredProducts.length > 1 && (
+                <>
+                  <button
+                    onClick={prevProductSlide}
+                    className="absolute left-0 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white p-2 md:p-3 rounded-full shadow-lg transition-all duration-200 z-10"
+                  >
+                    <ChevronLeft className="w-6 h-6 md:w-8 md:h-8 text-black" />
+                  </button>
+                  <button
+                    onClick={nextProductSlide}
+                    className="absolute right-0 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white p-2 md:p-3 rounded-full shadow-lg transition-all duration-200 z-10"
+                  >
+                    <ChevronRight className="w-6 h-6 md:w-8 md:h-8 text-black" />
+                  </button>
+
+                  {/* Dots Indicator */}
+                  <div className="flex justify-center space-x-2 mt-8">
+                    {featuredProducts.map((_, index) => (
+                      <button
+                        key={index}
+                        onClick={() => setProductSlide(index)}
+                        className={`w-4 h-4 rounded-full transition-colors duration-200 ${
+                          index === productSlide ? "bg-tour-blue" : "bg-gray-300"
+                        }`}
+                      />
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          ) : (
+            <div className="text-center py-12 text-gray-500">
+              Chưa có sản phẩm nổi bật
+            </div>
+          )}
         </div>
-      </footer>
+      </section>
+
+      {/* Best Selling Products Grid Section */}
+      <section className="py-8 md:py-12 bg-gray-50">
+        <div className="container mx-auto px-4">
+          <div className="text-center mb-8">
+            <h2 className="font-josefin text-3xl md:text-4xl lg:text-5xl font-bold text-black mb-4">
+              Sản phẩm bán chạy
+            </h2>
+            <p className="font-nunito text-lg md:text-xl text-gray-600">
+              Những sản phẩm được nhiều người mua nhất
+            </p>
+          </div>
+
+          {productsLoading ? (
+            <div className="flex justify-center items-center py-12">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-tour-blue"></div>
+            </div>
+          ) : bestSellingProducts.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {bestSellingProducts.map((product) => {
+                const images = getProductImages(product);
+                return (
+                  <div
+                    key={product.id}
+                    className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-200 cursor-pointer"
+                    onClick={() => navigate(`/products/${product.id}`)}
+                  >
+                    <div className="relative h-48">
+                      <img
+                        src={images.length > 0 ? images[0] : '/placeholder-product.jpg'}
+                        alt={product.name}
+                        className="w-full h-full object-cover"
+                      />
+                      {product.stockQuantity <= 0 && (
+                        <div className="absolute top-3 left-3 bg-red-500 text-white px-3 py-1 rounded-lg font-semibold text-sm">
+                          Hết hàng
+                        </div>
+                      )}
+                      <div className="absolute bottom-3 right-3 bg-white/90 backdrop-blur-sm rounded-lg px-3 py-1">
+                        <span className="font-bold text-lg text-gray-900">
+                          {formatPrice(product.price, product.currency)}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="p-4 space-y-3">
+                      <h3 className="font-semibold text-lg text-gray-900 line-clamp-2">
+                        {product.name}
+                      </h3>
+                      {product.shortDescription && (
+                        <div 
+                          className="text-sm text-gray-600 line-clamp-2 prose prose-sm max-w-none"
+                          dangerouslySetInnerHTML={{ __html: product.shortDescription }}
+                        />
+                      )}
+
+                      <div className="flex items-center gap-4 text-sm text-gray-500">
+                        {product.rating && product.reviewCount > 0 && (
+                          <div className="flex items-center gap-1">
+                            <Star className="w-4 h-4 text-yellow-500 fill-current" />
+                            <span>{product.rating.toFixed(1)} ({product.reviewCount})</span>
+                          </div>
+                        )}
+                        <div className="flex items-center gap-1">
+                          <ShoppingBag className="w-4 h-4" />
+                          <span>{product.purchaseCount} đã mua</span>
+                        </div>
+                      </div>
+
+                      {/* Quick Add to Cart Button */}
+                      <Button
+                        className="w-full"
+                        size="sm"
+                        onClick={(e) => quickAddToCart(e, product)}
+                        disabled={product.stockQuantity <= 0 || addingToCart === product.id}
+                      >
+                        <ShoppingCart className="w-4 h-4 mr-2" />
+                        {addingToCart === product.id ? 'Đang thêm...' : 'Thêm vào giỏ'}
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="text-center py-12 text-gray-500">
+              Chưa có sản phẩm bán chạy
+            </div>
+          )}
+        </div>
+      </section>
+
+      <Footer />
     </div>
   );
 }

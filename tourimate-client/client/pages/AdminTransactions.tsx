@@ -12,7 +12,8 @@ import {
   CreditCard,
   DollarSign,
   TrendingUp,
-  TrendingDown
+  TrendingDown,
+  RefreshCw
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,19 +31,28 @@ import AdminLayout from "@/components/AdminLayout";
 
 interface Transaction {
   id: string;
+  transactionId: string;
   transactionNumber: string;
   type: string;
-  status: string;
+  entityType?: string;
+  status: string; // Primary status from Transaction model: pending, completed, failed, cancelled, refunded
   amount: number;
+  currency: string;
   customerName: string;
   customerEmail: string;
+  paymentMethod?: string;
+  paymentGateway?: string;
+  description?: string;
+  // Related entity info (secondary)
+  bookingNumber?: string;
+  orderNumber?: string;
   tourTitle?: string;
   tourDate?: string;
   participants?: number;
+  paymentStatus?: string; // From related Booking/Order
+  contactInfo?: string;
   createdAt: string;
   updatedAt: string;
-  paymentStatus: string;
-  contactInfo?: string;
 }
 
 interface TransactionsResponse {
@@ -238,15 +248,13 @@ export default function AdminTransactions() {
   const handleStatusChange = async (transactionId: string, newStatus: string) => {
     try {
       setActionLoading(transactionId);
-      const transaction = transactions.find(t => t.id === transactionId);
-      if (!transaction) return;
 
-      await httpJson(`${getApiBase()}/api/transactions/${transactionId}/status?type=${transaction.type}`, {
+      await httpJson(`${getApiBase()}/api/transactions/${transactionId}/status`, {
         method: "PUT",
         body: JSON.stringify({ status: newStatus })
       });
       
-      toast.success("Cập nhật trạng thái thành công");
+      toast.success("Cập nhật trạng thái giao dịch thành công");
       fetchTransactions();
     } catch (error: any) {
       console.error("Error updating transaction status:", error);
@@ -257,29 +265,38 @@ export default function AdminTransactions() {
   };
 
   const getStatusBadge = (status: string) => {
+    // Transaction status values: pending, completed, failed, cancelled, refunded
     switch (status.toLowerCase()) {
-      case "confirmed":
-      case "confirm":
       case "completed":
-        return <Badge className="bg-green-100 text-green-800">Đã chuyển khoản</Badge>;
-      case "pendingpayment":
+        return <Badge className="bg-green-100 text-green-800 border-green-200">Đã hoàn thành</Badge>;
       case "pending":
-        return <Badge className="bg-yellow-100 text-yellow-800">Chờ thanh toán</Badge>;
+        return <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200">Chờ xử lý</Badge>;
+      case "failed":
+        return <Badge className="bg-red-100 text-red-800 border-red-200">Thất bại</Badge>;
       case "cancelled":
-        return <Badge className="bg-red-100 text-red-800">Hủy</Badge>;
+        return <Badge className="bg-gray-100 text-gray-800 border-gray-200">Đã hủy</Badge>;
+      case "refunded":
+        return <Badge className="bg-purple-100 text-purple-800 border-purple-200">Đã hoàn tiền</Badge>;
       default:
         return <Badge variant="secondary">{status}</Badge>;
     }
   };
 
-  const getTypeBadge = (type: string) => {
-    switch (type.toLowerCase()) {
+  const getTypeBadge = (type: string, entityType?: string) => {
+    // Use entityType if available, otherwise use type
+    const displayType = entityType || type;
+    
+    switch (displayType.toLowerCase()) {
       case "booking":
         return <Badge className="bg-blue-100 text-blue-800">Đặt tour</Badge>;
-      case "payment":
-        return <Badge className="bg-green-100 text-green-800">Thanh toán</Badge>;
       case "order":
         return <Badge className="bg-purple-100 text-purple-800">Đơn hàng</Badge>;
+      case "booking_payment":
+        return <Badge className="bg-blue-100 text-blue-800">Thanh toán tour</Badge>;
+      case "order_payment":
+        return <Badge className="bg-purple-100 text-purple-800">Thanh toán đơn hàng</Badge>;
+      case "payment":
+        return <Badge className="bg-green-100 text-green-800">Thanh toán</Badge>;
       default:
         return <Badge variant="outline">{type}</Badge>;
     }
@@ -406,9 +423,11 @@ export default function AdminTransactions() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Tất cả</SelectItem>
-                    <SelectItem value="confirmed">Đã chuyển khoản</SelectItem>
-                    <SelectItem value="pendingpayment">Chờ thanh toán</SelectItem>
-                    <SelectItem value="cancelled">Hủy</SelectItem>
+                    <SelectItem value="completed">Đã hoàn thành</SelectItem>
+                    <SelectItem value="pending">Chờ xử lý</SelectItem>
+                    <SelectItem value="failed">Thất bại</SelectItem>
+                    <SelectItem value="cancelled">Đã hủy</SelectItem>
+                    <SelectItem value="refunded">Đã hoàn tiền</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -452,7 +471,7 @@ export default function AdminTransactions() {
                         {/* Header */}
                         <div className="flex items-center gap-4">
                           <div className="flex items-center gap-2">
-                            {getTypeBadge(transaction.type)}
+                            {getTypeBadge(transaction.type, transaction.entityType)}
                             {getStatusBadge(transaction.status)}
                           </div>
                           <span className="text-sm text-gray-500">
@@ -461,19 +480,25 @@ export default function AdminTransactions() {
                         </div>
 
                         {/* Transaction Info */}
-                        <div className="flex items-center gap-4 text-sm text-gray-600">
+                        <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600">
                           <div className="flex items-center gap-1">
-                            {transaction.type === "Payment" ? (
-                              <DollarSign className="w-4 h-4 text-green-600" />
-                            ) : (
-                              <CreditCard className="w-4 h-4" />
-                            )}
-                            <span>{transaction.transactionNumber}</span>
+                            <CreditCard className="w-4 h-4" />
+                            <span className="font-mono">{transaction.transactionNumber}</span>
                           </div>
                           <div className="flex items-center gap-1">
                             <User className="w-4 h-4" />
                             <span>{transaction.customerName}</span>
                           </div>
+                          {transaction.bookingNumber && (
+                            <div className="flex items-center gap-1 text-blue-600">
+                              <span className="font-medium">Đặt tour: {transaction.bookingNumber}</span>
+                            </div>
+                          )}
+                          {transaction.orderNumber && (
+                            <div className="flex items-center gap-1 text-purple-600">
+                              <span className="font-medium">Đơn hàng: {transaction.orderNumber}</span>
+                            </div>
+                          )}
                           {transaction.tourTitle && (
                             <div className="flex items-center gap-1">
                               <Calendar className="w-4 h-4" />
@@ -484,8 +509,15 @@ export default function AdminTransactions() {
 
                         {/* Amount and Details */}
                         <div className="flex items-center justify-between">
-                          <div className="text-lg font-semibold text-green-600">
-                            {formatCurrency(transaction.amount)}
+                          <div>
+                            <div className="text-lg font-semibold text-green-600">
+                              {formatCurrency(transaction.amount)} {transaction.currency}
+                            </div>
+                            {transaction.paymentMethod && (
+                              <div className="text-xs text-gray-500">
+                                {transaction.paymentMethod} {transaction.paymentGateway && `via ${transaction.paymentGateway}`}
+                              </div>
+                            )}
                           </div>
                           {transaction.participants && (
                             <span className="text-sm text-gray-500">
@@ -515,22 +547,49 @@ export default function AdminTransactions() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            {transaction.status !== "Confirmed" && transaction.status !== "confirm" && transaction.status !== "Completed" && (
+                            {transaction.status.toLowerCase() !== "completed" && (
                               <DropdownMenuItem
-                                onClick={() => handleStatusChange(transaction.id, "Confirmed")}
+                                onClick={() => handleStatusChange(transaction.id, "completed")}
                                 disabled={actionLoading === transaction.id}
                               >
                                 <Check className="w-4 h-4 mr-2" />
-                                Đã chuyển khoản
+                                Đánh dấu hoàn thành
                               </DropdownMenuItem>
                             )}
-                            {transaction.status !== "Cancelled" && (
+                            {transaction.status.toLowerCase() !== "pending" && (
                               <DropdownMenuItem
-                                onClick={() => handleStatusChange(transaction.id, "Cancelled")}
+                                onClick={() => handleStatusChange(transaction.id, "pending")}
+                                disabled={actionLoading === transaction.id}
+                              >
+                                <RefreshCw className="w-4 h-4 mr-2" />
+                                Đặt lại chờ xử lý
+                              </DropdownMenuItem>
+                            )}
+                            {transaction.status.toLowerCase() !== "failed" && (
+                              <DropdownMenuItem
+                                onClick={() => handleStatusChange(transaction.id, "failed")}
+                                disabled={actionLoading === transaction.id}
+                              >
+                                <X className="w-4 h-4 mr-2" />
+                                Đánh dấu thất bại
+                              </DropdownMenuItem>
+                            )}
+                            {transaction.status.toLowerCase() !== "cancelled" && (
+                              <DropdownMenuItem
+                                onClick={() => handleStatusChange(transaction.id, "cancelled")}
                                 disabled={actionLoading === transaction.id}
                               >
                                 <X className="w-4 h-4 mr-2" />
                                 Hủy
+                              </DropdownMenuItem>
+                            )}
+                            {transaction.status.toLowerCase() !== "refunded" && transaction.status.toLowerCase() !== "completed" && (
+                              <DropdownMenuItem
+                                onClick={() => handleStatusChange(transaction.id, "refunded")}
+                                disabled={actionLoading === transaction.id}
+                              >
+                                <DollarSign className="w-4 h-4 mr-2" />
+                                Đánh dấu đã hoàn tiền
                               </DropdownMenuItem>
                             )}
                           </DropdownMenuContent>
@@ -610,23 +669,63 @@ export default function AdminTransactions() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-medium text-gray-500">Mã giao dịch</label>
-                  <p className="text-lg font-semibold">{selectedTransaction.transactionNumber}</p>
+                  <p className="text-lg font-semibold font-mono">{selectedTransaction.transactionNumber}</p>
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-500">Loại</label>
-                  <div className="mt-1">{getTypeBadge(selectedTransaction.type)}</div>
+                  <div className="mt-1">{getTypeBadge(selectedTransaction.type, selectedTransaction.entityType)}</div>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-gray-500">Trạng thái</label>
+                  <label className="text-sm font-medium text-gray-500">Trạng thái giao dịch</label>
                   <div className="mt-1">{getStatusBadge(selectedTransaction.status)}</div>
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-500">Số tiền</label>
                   <p className="text-lg font-semibold text-green-600">
-                    {formatCurrency(selectedTransaction.amount)}
+                    {formatCurrency(selectedTransaction.amount)} {selectedTransaction.currency}
                   </p>
                 </div>
+                {selectedTransaction.paymentMethod && (
+                  <div>
+                    <label className="text-sm font-medium text-gray-500">Phương thức thanh toán</label>
+                    <p className="text-sm">{selectedTransaction.paymentMethod}</p>
+                    {selectedTransaction.paymentGateway && (
+                      <p className="text-xs text-gray-500">via {selectedTransaction.paymentGateway}</p>
+                    )}
+                  </div>
+                )}
+                {selectedTransaction.description && (
+                  <div>
+                    <label className="text-sm font-medium text-gray-500">Mô tả</label>
+                    <p className="text-sm">{selectedTransaction.description}</p>
+                  </div>
+                )}
               </div>
+              
+              {/* Related entity info */}
+              {(selectedTransaction.bookingNumber || selectedTransaction.orderNumber) && (
+                <div className="border-t pt-4">
+                  <h3 className="text-sm font-medium text-gray-500 mb-2">Thông tin liên quan</h3>
+                  {selectedTransaction.bookingNumber && (
+                    <div className="mb-2">
+                      <label className="text-xs font-medium text-gray-500">Mã đặt tour</label>
+                      <p className="text-sm text-blue-600 font-medium">{selectedTransaction.bookingNumber}</p>
+                    </div>
+                  )}
+                  {selectedTransaction.orderNumber && (
+                    <div className="mb-2">
+                      <label className="text-xs font-medium text-gray-500">Mã đơn hàng</label>
+                      <p className="text-sm text-purple-600 font-medium">{selectedTransaction.orderNumber}</p>
+                    </div>
+                  )}
+                  {selectedTransaction.paymentStatus && (
+                    <div>
+                      <label className="text-xs font-medium text-gray-500">Trạng thái thanh toán (từ đơn)</label>
+                      <p className="text-sm">{selectedTransaction.paymentStatus}</p>
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div>
                 <label className="text-sm font-medium text-gray-500">Khách hàng</label>

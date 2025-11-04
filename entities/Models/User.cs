@@ -52,7 +52,7 @@ public class User : BaseEntity, IAuditableEntity
     public virtual UserProfile? Profile { get; set; }
     public virtual ICollection<TourGuideApplication> TourGuideApplications { get; set; } = new List<TourGuideApplication>();
     public virtual ICollection<Tour> Tours { get; set; } = new List<Tour>();
-    public virtual ICollection<Product> Products { get; set; } = new List<Product>();
+    // Products relationship handled via Product.TourGuide navigation (TourGuideId FK)
     public virtual ICollection<Booking> Bookings { get; set; } = new List<Booking>();
     public virtual ICollection<Order> Orders { get; set; } = new List<Order>();
     public virtual ICollection<Review> Reviews { get; set; } = new List<Review>();

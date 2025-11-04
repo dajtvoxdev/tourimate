@@ -10,6 +10,7 @@ public interface ICommissionService
     Task<decimal> CalculateTourGuideCommissionAsync(Guid bookingId);
     Task<Cost> CreateTourGuidePaymentRequestAsync(Guid bookingId, Guid tourGuideId);
     Task<bool> ProcessTourGuidePaymentAsync(Guid costId, Guid adminId);
+    Task<Cost> CreateTourGuideOrderPaymentRequestAsync(Guid orderId, Guid tourGuideId);
 }
 
 public class CommissionService : ICommissionService
@@ -180,6 +181,96 @@ public class CommissionService : ICommissionService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error processing tour guide payment {CostId}", costId);
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Create a payment request for tour guide based on paid & delivered product order items
+    /// </summary>
+    public async Task<Cost> CreateTourGuideOrderPaymentRequestAsync(Guid orderId, Guid tourGuideId)
+    {
+        try
+        {
+            var order = await _context.Orders
+                .Include(o => o.Items)
+                    .ThenInclude(i => i.Product)
+                .FirstOrDefaultAsync(o => o.Id == orderId);
+
+            if (order == null)
+            {
+                throw new ArgumentException("Order not found");
+            }
+
+            if (order.PaymentStatus != PaymentStatus.Paid)
+            {
+                throw new InvalidOperationException("Can only request payment for orders that are paid");
+            }
+
+            if (order.Status != OrderStatus.Delivered)
+            {
+                throw new InvalidOperationException("Can only request payment for orders that are delivered");
+            }
+
+            // Items that belong to the requesting tour guide
+            var guideItems = order.Items.Where(i => i.Product.TourGuideId == tourGuideId).ToList();
+            if (guideItems.Count == 0)
+            {
+                throw new UnauthorizedAccessException("Tour guide can only request payment for their own order items");
+            }
+
+            // Prevent duplicate requests per order-guide pair
+            var existingCost = await _context.Costs
+                .FirstOrDefaultAsync(c => c.RelatedEntityId == orderId &&
+                                          c.RelatedEntityType == "Order" &&
+                                          c.Type == CostType.TourGuidePayment &&
+                                          c.RecipientId == tourGuideId);
+            if (existingCost != null)
+            {
+                throw new InvalidOperationException("Payment request already exists for this order");
+            }
+
+            // Calculate commission for the guide's portion of the order
+            var guideGrossAmount = guideItems.Sum(i => i.Subtotal);
+            var commissionPercentage = await GetCommissionPercentageAsync();
+            var commissionAmount = Math.Round(guideGrossAmount * (commissionPercentage / 100m), 2);
+
+            var admin = await _context.Users.FirstOrDefaultAsync(u => u.Role == UserRole.Admin);
+            if (admin == null)
+            {
+                throw new InvalidOperationException("No admin user found");
+            }
+
+            var cost = new Cost
+            {
+                CostCode = $"TG-ORD-{order.OrderNumber}",
+                CostName = $"Tour Guide Payment - Order {order.OrderNumber}",
+                Description = $"Payment for delivered order items in {order.OrderNumber}",
+                Amount = commissionAmount,
+                Currency = order.Currency,
+                Type = CostType.TourGuidePayment,
+                Status = CostStatus.Pending,
+                PayerId = admin.Id,
+                RecipientId = tourGuideId,
+                RelatedEntityId = order.Id,
+                RelatedEntityType = "Order",
+                ReferenceNumber = order.OrderNumber,
+                DueDate = DateTime.UtcNow.AddDays(7),
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+
+            _context.Costs.Add(cost);
+            await _context.SaveChangesAsync();
+
+            _logger.LogInformation("Created tour guide order payment request {CostId} for order {OrderNumber}, amount: {Amount}",
+                cost.Id, order.OrderNumber, commissionAmount);
+
+            return cost;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error creating tour guide payment request for order {OrderId}", orderId);
             throw;
         }
     }

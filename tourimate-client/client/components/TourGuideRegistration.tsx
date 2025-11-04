@@ -14,6 +14,7 @@ import {
   Calendar as CalendarIcon,
 } from "lucide-react";
 import Header from "./Header";
+import Footer from "./Footer";
 import { useAuth } from "@/src/hooks/useAuth";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SearchableSelect } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
@@ -1272,16 +1273,7 @@ export default function TourGuideRegistration() {
         </div>
       </main>
 
-      {/* Footer */}
-      <footer className="bg-gray-300 py-12 md:py-20 mt-12">
-        <div className="container mx-auto px-4">
-          <div className="text-center">
-            <p className="font-nunito text-lg md:text-xl text-black">
-              © 2024 Travel Guide Vietnam. All rights reserved.
-            </p>
-          </div>
-        </div>
-      </footer>
+      <Footer />
     </div>
   );
 }

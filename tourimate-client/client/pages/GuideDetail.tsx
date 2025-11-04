@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import Header from "../components/Header";
+import Footer from "../components/Footer";
 import { MapPin, Star } from "lucide-react";
 import { TourApiService } from "../lib/tourApi";
 import { TourDto } from "../types/tour";
@@ -145,6 +146,7 @@ export default function GuideDetail() {
           )}
         </div>
       </div>
+      <Footer />
     </div>
   );
 }

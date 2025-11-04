@@ -251,6 +251,12 @@ public class TouriMateDbContext : DbContext
             .HasForeignKey(p => p.UpdatedBy)
             .OnDelete(DeleteBehavior.NoAction);
 
+        // Ensure EF doesn't attempt to map/select shadow UserId from legacy migrations
+        modelBuilder.Entity<Product>()
+            .Ignore("UserId")
+            .Ignore("UserId1")
+            .Ignore("TourGuideId1");
+
         // Order relationships
         modelBuilder.Entity<Order>()
             .HasIndex(o => o.OrderNumber)
@@ -473,8 +479,7 @@ public class TouriMateDbContext : DbContext
         modelBuilder.Entity<Product>()
             .HasIndex(p => new { p.Category, p.Status });
 
-        modelBuilder.Entity<Product>()
-            .HasIndex(p => new { p.Price, p.Status });
+        // Removed index on Price since Price is now computed (NotMapped)
 
         modelBuilder.Entity<Booking>()
             .HasIndex(b => new { b.TourDate, b.Status });

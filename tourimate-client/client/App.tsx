@@ -23,7 +23,7 @@ import AboutUs from "./components/AboutUs";
 import PersonalProfile from "./components/PersonalProfile";
 import TourGuideRegistration from "./components/TourGuideRegistration";
 import GuideDetail from "./pages/GuideDetail";
-import Checkout from "./pages/Checkout";
+import ProductCheckout from "./pages/ProductCheckout";
 import AdminTourManagement from "./components/AdminTourManagement";
 import AdminDivisions from "./components/AdminDivisions";
 import AdminTourCategories from "./components/AdminTourCategories";
@@ -34,8 +34,10 @@ import AdminReviews from "./pages/AdminReviews";
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminTransactions from "./pages/AdminTransactions";
 import AdminBookings from "./pages/AdminBookings";
+import AdminOrderManagement from "./pages/AdminOrderManagement";
 import AdminRevenue from "./pages/AdminRevenue";
 import AdminRefunds from "./pages/AdminRefunds";
+import TourGuideOrderManagement from "./pages/TourGuideOrderManagement";
 import AdminPricingConfig from "./pages/AdminPricingConfig";
 import AdminCostManagement from "./pages/AdminCostManagement";
 import TourGuideCostManagement from "./pages/TourGuideCostManagement";
@@ -49,8 +51,11 @@ import NonAdminProtectedRoute from "./components/NonAdminProtectedRoute";
 import TourAvailabilityPage from "./pages/TourAvailabilityPage";
 import TourCategoriesPage from "./pages/TourCategoriesPage";
 import TourBooking from "./pages/TourBooking";
-import PaymentProcessing from "./pages/PaymentProcessing";
 import PaymentSuccess from "./pages/PaymentSuccess";
+import ProductCategoriesPage from "./pages/ProductCategoriesPage";
+import Products from "./pages/Products";
+import ProductDetail from "./pages/ProductDetail";
+import Cart from "./pages/Cart";
 
 const queryClient = new QueryClient();
 
@@ -70,8 +75,9 @@ const App = () => (
           <Route path="/tour-guides" element={<TourGuides />} />
           <Route path="/tour/:id" element={<TourDetail />} />
           <Route path="/tour/:id/book" element={<TourBooking />} />
-          <Route path="/payment-processing" element={<PaymentProcessing />} />
           <Route path="/payment-success" element={<PaymentSuccess />} />
+          <Route path="/products" element={<Products />} />
+          <Route path="/products/:id" element={<ProductDetail />} />
           <Route path="/about" element={<AboutUs />} />
           <Route path="/profile" element={<PersonalProfile />} />
           <Route
@@ -83,7 +89,22 @@ const App = () => (
             }
           />
           <Route path="/guide/:guideId" element={<GuideDetail />} />
-          <Route path="/checkout" element={<Checkout />} />
+          <Route 
+            path="/checkout" 
+            element={
+              <ProtectedRoute>
+                <ProductCheckout />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/cart" 
+            element={
+              <ProtectedRoute>
+                <Cart />
+              </ProtectedRoute>
+            } 
+          />
           <Route 
             path="/admin" 
             element={
@@ -168,6 +189,14 @@ const App = () => (
           <Route path="/admin/bookings/pending" element={<Navigate to="/admin/bookings?status=pendingpayment" replace />} />
           <Route path="/admin/bookings/confirmed" element={<Navigate to="/admin/bookings?status=confirmed" replace />} />
           <Route 
+            path="/admin/orders" 
+            element={
+              <AdminProtectedRoute>
+                <AdminOrderManagement />
+              </AdminProtectedRoute>
+            } 
+          />
+          <Route 
             path="/admin/revenue" 
             element={
               <AdminProtectedRoute>
@@ -240,6 +269,14 @@ const App = () => (
             } 
           />
           <Route 
+            path="/admin/my-orders" 
+            element={
+              <ProtectedRoute>
+                <TourGuideOrderManagement />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
             path="/cost-management" 
             element={
               <ProtectedRoute>
@@ -260,6 +297,14 @@ const App = () => (
           element={
             <AdminProtectedRoute>
               <TourCategoriesPage />
+            </AdminProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/product-categories"
+          element={
+            <AdminProtectedRoute>
+              <ProductCategoriesPage />
             </AdminProtectedRoute>
           }
         />

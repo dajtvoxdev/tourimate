@@ -31,8 +31,8 @@ public class TransactionController : ControllerBase
     /// </summary>
     /// <param name="page">Page number</param>
     /// <param name="pageSize">Page size</param>
-    /// <param name="status">Filter by status</param>
-    /// <param name="type">Filter by type (Booking, Order)</param>
+    /// <param name="status">Filter by transaction status (pending, completed, failed, cancelled, refunded)</param>
+    /// <param name="type">Filter by transaction type (booking_payment, order_payment, etc.)</param>
     /// <param name="search">Search term</param>
     /// <returns>List of transactions</returns>
     [HttpGet]
@@ -45,122 +45,152 @@ public class TransactionController : ControllerBase
     {
         try
         {
-            var transactions = new List<object>();
-            var totalCount = 0;
-
-            // Get bookings
-            var bookingQuery = _context.Bookings
-                .Include(b => b.Tour)
-                .Include(b => b.TourAvailability)
-                .Include(b => b.Customer)
+            // Query from Transactions table as primary source
+            var query = _context.Transactions
+                .Include(t => t.User)
                 .AsQueryable();
 
-            if (!string.IsNullOrEmpty(status) && Enum.TryParse<BookingStatus>(status, true, out var bookingStatus))
+            // Filter by transaction status (from Transaction model)
+            if (!string.IsNullOrEmpty(status))
             {
-                bookingQuery = bookingQuery.Where(b => b.Status == bookingStatus);
+                query = query.Where(t => t.Status.ToLower() == status.ToLower());
             }
 
+            // Filter by transaction type
+            if (!string.IsNullOrEmpty(type))
+            {
+                if (type.ToLower() == "booking")
+                {
+                    query = query.Where(t => t.Type == "booking_payment" || t.EntityType == "Booking");
+                }
+                else if (type.ToLower() == "order")
+                {
+                    query = query.Where(t => t.Type == "order_payment" || t.EntityType == "Order");
+                }
+                else
+                {
+                    query = query.Where(t => t.Type.Contains(type, StringComparison.OrdinalIgnoreCase));
+                }
+            }
+
+            // Search functionality
             if (!string.IsNullOrEmpty(search))
             {
-                bookingQuery = bookingQuery.Where(b =>
-                    b.BookingNumber.Contains(search) ||
-                    b.Tour.Title.Contains(search) ||
-                    b.Customer.FirstName.Contains(search) ||
-                    b.Customer.LastName.Contains(search) ||
-                    b.Customer.Email.Contains(search));
+                query = query.Where(t =>
+                    t.TransactionId.Contains(search) ||
+                    t.User.FirstName.Contains(search) ||
+                    t.User.LastName.Contains(search) ||
+                    t.User.Email.Contains(search) ||
+                    t.Description != null && t.Description.Contains(search));
             }
 
-            if (string.IsNullOrEmpty(type) || type.ToLower() == "booking")
-            {
-                var bookingCount = await bookingQuery.CountAsync();
-                totalCount += bookingCount;
+            var totalCount = await query.CountAsync();
 
-                var bookings = await bookingQuery
-                    .OrderByDescending(b => b.CreatedAt)
-                    .Skip((page - 1) * pageSize)
-                    .Take(pageSize)
-                    .Select(b => new
-                    {
-                        Id = b.Id,
-                        TransactionNumber = b.BookingNumber,
-                        Type = "Booking",
-                        Status = b.Status.ToString(),
-                        Amount = b.TotalAmount,
-                        CustomerName = b.Customer.FirstName + " " + b.Customer.LastName,
-                        CustomerEmail = b.Customer.Email,
-                        TourTitle = b.Tour.Title,
-                        TourDate = b.TourAvailability.Date,
-                        Participants = b.Participants,
-                        CreatedAt = b.CreatedAt,
-                        UpdatedAt = b.UpdatedAt,
-                        PaymentStatus = b.PaymentStatus.ToString(),
-                        ContactInfo = b.ContactInfo
-                    })
-                    .ToListAsync();
-
-                transactions.AddRange(bookings);
-            }
-
-            // Get orders
-            if (string.IsNullOrEmpty(type) || type.ToLower() == "order")
-            {
-                var orderQuery = _context.Orders
-                    .Include(o => o.Customer)
-                    .AsQueryable();
-
-                if (!string.IsNullOrEmpty(status) && Enum.TryParse<OrderStatus>(status, true, out var orderStatus))
-                {
-                    orderQuery = orderQuery.Where(o => o.Status == orderStatus);
-                }
-
-                if (!string.IsNullOrEmpty(search))
-                {
-                    orderQuery = orderQuery.Where(o =>
-                        o.OrderNumber.Contains(search) ||
-                        o.Customer.FirstName.Contains(search) ||
-                        o.Customer.LastName.Contains(search) ||
-                        o.Customer.Email.Contains(search));
-                }
-
-                var orderCount = await orderQuery.CountAsync();
-                totalCount += orderCount;
-
-                var orders = await orderQuery
-                    .OrderByDescending(o => o.CreatedAt)
-                    .Skip((page - 1) * pageSize)
-                    .Take(pageSize)
-                    .Select(o => new
-                    {
-                        Id = o.Id,
-                        TransactionNumber = o.OrderNumber,
-                        Type = "Order",
-                        Status = o.Status.ToString(),
-                        Amount = o.TotalAmount,
-                        CustomerName = o.Customer.FirstName + " " + o.Customer.LastName,
-                        CustomerEmail = o.Customer.Email,
-                        TourTitle = (string?)null,
-                        TourDate = (DateOnly?)null,
-                        Participants = (int?)null,
-                        CreatedAt = o.CreatedAt,
-                        UpdatedAt = o.UpdatedAt,
-                        PaymentStatus = o.PaymentStatus.ToString(),
-                        ContactInfo = (string?)null
-                    })
-                    .ToListAsync();
-
-                transactions.AddRange(orders);
-            }
-
-            // Sort combined results by creation date
-            var sortedTransactions = transactions
-                .OrderByDescending(t => ((dynamic)t).CreatedAt)
+            // Get transactions with related booking/order info
+            var transactions = await query
+                .OrderByDescending(t => t.CreatedAt)
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
-                .ToList();
+                .Select(t => new
+                {
+                    Id = t.Id,
+                    TransactionId = t.TransactionId,
+                    TransactionNumber = t.TransactionId, // Use TransactionId as transaction number
+                    Type = t.Type,
+                    EntityType = t.EntityType,
+                    Status = t.Status, // Primary status from Transaction
+                    Amount = t.Amount,
+                    Currency = t.Currency,
+                    CustomerName = t.User.FirstName + " " + t.User.LastName,
+                    CustomerEmail = t.User.Email,
+                    PaymentMethod = t.PaymentMethod,
+                    PaymentGateway = t.PaymentGateway,
+                    CreatedAt = t.CreatedAt,
+                    UpdatedAt = t.UpdatedAt,
+                    Description = t.Description,
+                    EntityId = t.EntityId,
+                    // Related entity info (Booking or Order) - will be loaded separately if needed
+                    BookingNumber = (string?)null,
+                    OrderNumber = (string?)null,
+                    TourTitle = (string?)null,
+                    TourDate = (DateTime?)null,
+                    Participants = (int?)null,
+                    PaymentStatus = (string?)null, // From related entity
+                    ContactInfo = (string?)null
+                })
+                .ToListAsync();
+
+            // Load related booking/order info for display
+            var transactionDtos = new List<object>();
+            foreach (var tx in transactions)
+            {
+                string? bookingNumber = null;
+                string? orderNumber = null;
+                string? tourTitle = null;
+                DateTime? tourDate = null;
+                int? participants = null;
+                string? paymentStatus = null;
+                string? contactInfo = null;
+
+                if (tx.EntityType == "Booking" && tx.EntityId.HasValue)
+                {
+                    var booking = await _context.Bookings
+                        .Include(b => b.Tour)
+                        .Include(b => b.TourAvailability)
+                        .FirstOrDefaultAsync(b => b.Id == tx.EntityId.Value);
+                    
+                    if (booking != null)
+                    {
+                        bookingNumber = booking.BookingNumber;
+                        tourTitle = booking.Tour?.Title;
+                        tourDate = booking.TourAvailability?.Date;
+                        participants = booking.Participants;
+                        paymentStatus = booking.PaymentStatus.ToString();
+                        contactInfo = booking.ContactInfo;
+                    }
+                }
+                else if (tx.EntityType == "Order" && tx.EntityId.HasValue)
+                {
+                    var order = await _context.Orders
+                        .FirstOrDefaultAsync(o => o.Id == tx.EntityId.Value);
+                    
+                    if (order != null)
+                    {
+                        orderNumber = order.OrderNumber;
+                        paymentStatus = order.PaymentStatus.ToString();
+                    }
+                }
+
+                transactionDtos.Add(new
+                {
+                    tx.Id,
+                    tx.TransactionId,
+                    TransactionNumber = tx.TransactionNumber,
+                    Type = tx.Type,
+                    EntityType = tx.EntityType,
+                    Status = tx.Status, // Primary status
+                    tx.Amount,
+                    tx.Currency,
+                    tx.CustomerName,
+                    tx.CustomerEmail,
+                    tx.PaymentMethod,
+                    tx.PaymentGateway,
+                    tx.CreatedAt,
+                    tx.UpdatedAt,
+                    tx.Description,
+                    BookingNumber = bookingNumber,
+                    OrderNumber = orderNumber,
+                    TourTitle = tourTitle,
+                    TourDate = tourDate,
+                    Participants = participants,
+                    PaymentStatus = paymentStatus, // From related entity
+                    ContactInfo = contactInfo
+                });
+            }
 
             return Ok(new
             {
-                transactions = sortedTransactions,
+                transactions = transactionDtos,
                 pagination = new
                 {
                     page,
@@ -258,14 +288,14 @@ public class TransactionController : ControllerBase
     }
 
     /// <summary>
-    /// Get transactions for tour guide (only their own tours)
+    /// Get transactions for tour guide (only their own tours and products)
     /// </summary>
     /// <param name="page">Page number</param>
     /// <param name="pageSize">Page size</param>
-    /// <param name="status">Filter by status</param>
-    /// <param name="type">Filter by type (Booking, Order)</param>
+    /// <param name="status">Filter by transaction status</param>
+    /// <param name="type">Filter by transaction type</param>
     /// <param name="search">Search term</param>
-    /// <returns>List of transactions for tour guide's tours</returns>
+    /// <returns>List of transactions for tour guide's tours and products</returns>
     [HttpGet("tour-guide")]
     [Authorize]
     public async Task<IActionResult> GetTransactionsForTourGuide(
@@ -290,123 +320,171 @@ public class TransactionController : ControllerBase
                 return Forbid("Only tour guides can access this endpoint");
             }
 
-            var transactions = new List<object>();
-            var totalCount = 0;
+            // Get transaction IDs for bookings of tour guide's tours
+            var tourBookingIds = await _context.Bookings
+                .Where(b => b.Tour.TourGuideId == userId.Value)
+                .Select(b => b.Id)
+                .ToListAsync();
 
-            // Get bookings for tour guide's tours only
-            var bookingQuery = _context.Bookings
-                .Include(b => b.Tour)
-                .Include(b => b.TourAvailability)
-                .Include(b => b.Customer)
-                .Where(b => b.Tour.TourGuideId == userId.Value) // Only bookings for tour guide's tours
+            // Get transaction IDs for orders containing tour guide's products
+            var productOrderIds = await _context.OrderItems
+                .Where(oi => oi.Product.TourGuideId == userId.Value)
+                .Select(oi => oi.OrderId)
+                .Distinct()
+                .ToListAsync();
+
+            // Query Transactions table - filter by tour guide's bookings or orders
+            var query = _context.Transactions
+                .Include(t => t.User)
+                .Where(t => 
+                    (t.EntityType == "Booking" && t.EntityId.HasValue && tourBookingIds.Contains(t.EntityId.Value)) ||
+                    (t.EntityType == "Order" && t.EntityId.HasValue && productOrderIds.Contains(t.EntityId.Value))
+                )
                 .AsQueryable();
 
-            if (!string.IsNullOrEmpty(status) && Enum.TryParse<BookingStatus>(status, true, out var bookingStatus))
+            // Filter by transaction status (from Transaction model)
+            if (!string.IsNullOrEmpty(status))
             {
-                bookingQuery = bookingQuery.Where(b => b.Status == bookingStatus);
+                query = query.Where(t => t.Status.ToLower() == status.ToLower());
             }
 
+            // Filter by transaction type
+            if (!string.IsNullOrEmpty(type))
+            {
+                if (type.ToLower() == "booking")
+                {
+                    query = query.Where(t => t.Type == "booking_payment" || t.EntityType == "Booking");
+                }
+                else if (type.ToLower() == "order")
+                {
+                    query = query.Where(t => t.Type == "order_payment" || t.EntityType == "Order");
+                }
+                else
+                {
+                    query = query.Where(t => t.Type.Contains(type, StringComparison.OrdinalIgnoreCase));
+                }
+            }
+
+            // Search functionality
             if (!string.IsNullOrEmpty(search))
             {
-                bookingQuery = bookingQuery.Where(b =>
-                    b.BookingNumber.Contains(search) ||
-                    b.Tour.Title.Contains(search) ||
-                    b.Customer.FirstName.Contains(search) ||
-                    b.Customer.LastName.Contains(search) ||
-                    b.Customer.Email.Contains(search));
+                query = query.Where(t =>
+                    t.TransactionId.Contains(search) ||
+                    t.User.FirstName.Contains(search) ||
+                    t.User.LastName.Contains(search) ||
+                    t.User.Email.Contains(search) ||
+                    t.Description != null && t.Description.Contains(search));
             }
 
-            if (string.IsNullOrEmpty(type) || type.ToLower() == "booking")
-            {
-                var bookingCount = await bookingQuery.CountAsync();
-                totalCount += bookingCount;
+            var totalCount = await query.CountAsync();
 
-                var bookings = await bookingQuery
-                    .OrderByDescending(b => b.CreatedAt)
-                    .Skip((page - 1) * pageSize)
-                    .Take(pageSize)
-                    .Select(b => new
-                    {
-                        Id = b.Id,
-                        TransactionNumber = b.BookingNumber,
-                        Type = "Booking",
-                        Status = b.Status.ToString(),
-                        Amount = b.TotalAmount,
-                        CustomerName = b.Customer.FirstName + " " + b.Customer.LastName,
-                        CustomerEmail = b.Customer.Email,
-                        TourTitle = b.Tour.Title,
-                        TourDate = b.TourAvailability.Date,
-                        Participants = b.Participants,
-                        CreatedAt = b.CreatedAt,
-                        UpdatedAt = b.UpdatedAt,
-                        PaymentStatus = b.PaymentStatus.ToString(),
-                        ContactInfo = b.ContactInfo
-                    })
-                    .ToListAsync();
-
-                transactions.AddRange(bookings);
-            }
-
-            // Get payments received by tour guide (from Cost records)
-            if (string.IsNullOrEmpty(type) || type.ToLower() == "payment")
-            {
-                var paymentQuery = _context.Costs
-                    .Include(c => c.Payer)
-                    .Where(c => c.RecipientId == userId.Value && c.Type == CostType.TourGuidePayment)
-                    .AsQueryable();
-
-                if (!string.IsNullOrEmpty(status) && Enum.TryParse<CostStatus>(status, true, out var costStatus))
-                {
-                    paymentQuery = paymentQuery.Where(c => c.Status == costStatus);
-                }
-
-                if (!string.IsNullOrEmpty(search))
-                {
-                    paymentQuery = paymentQuery.Where(c =>
-                        c.CostCode.Contains(search) ||
-                        c.CostName.Contains(search) ||
-                        c.ReferenceNumber.Contains(search));
-                }
-
-                var paymentCount = await paymentQuery.CountAsync();
-                totalCount += paymentCount;
-
-                var payments = await paymentQuery
-                    .OrderByDescending(c => c.CreatedAt)
-                    .Skip((page - 1) * pageSize)
-                    .Take(pageSize)
-                    .Select(c => new
-                    {
-                        Id = c.Id,
-                        TransactionNumber = c.CostCode,
-                        Type = "Payment",
-                        Status = c.Status.ToString(),
-                        Amount = c.Amount,
-                        CustomerName = c.Payer.FirstName + " " + c.Payer.LastName,
-                        CustomerEmail = c.Payer.Email,
-                        TourTitle = c.CostName,
-                        TourDate = c.PaidDate ?? c.DueDate,
-                        Participants = 1, // Payment is per booking
-                        CreatedAt = c.CreatedAt,
-                        UpdatedAt = c.UpdatedAt,
-                        PaymentStatus = c.Status.ToString(),
-                        ContactInfo = c.PaymentMethod ?? "Bank Transfer"
-                    })
-                    .ToListAsync();
-
-                transactions.AddRange(payments);
-            }
-
-            // Sort combined results by creation date
-            var sortedTransactions = transactions
-                .OrderByDescending(t => ((dynamic)t).CreatedAt)
+            // Get transactions with related booking/order info
+            var transactions = await query
+                .OrderByDescending(t => t.CreatedAt)
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
-                .ToList();
+                .Select(t => new
+                {
+                    Id = t.Id,
+                    TransactionId = t.TransactionId,
+                    TransactionNumber = t.TransactionId,
+                    Type = t.Type,
+                    EntityType = t.EntityType,
+                    Status = t.Status, // Primary status from Transaction
+                    Amount = t.Amount,
+                    Currency = t.Currency,
+                    CustomerName = t.User.FirstName + " " + t.User.LastName,
+                    CustomerEmail = t.User.Email,
+                    PaymentMethod = t.PaymentMethod,
+                    PaymentGateway = t.PaymentGateway,
+                    CreatedAt = t.CreatedAt,
+                    UpdatedAt = t.UpdatedAt,
+                    Description = t.Description,
+                    EntityId = t.EntityId,
+                    BookingNumber = (string?)null,
+                    OrderNumber = (string?)null,
+                    TourTitle = (string?)null,
+                    TourDate = (DateTime?)null,
+                    Participants = (int?)null,
+                    PaymentStatus = (string?)null,
+                    ContactInfo = (string?)null
+                })
+                .ToListAsync();
+
+            // Load related booking/order info for display
+            var transactionDtos = new List<object>();
+            foreach (var tx in transactions)
+            {
+                string? bookingNumber = null;
+                string? orderNumber = null;
+                string? tourTitle = null;
+                DateTime? tourDate = null;
+                int? participants = null;
+                string? paymentStatus = null;
+                string? contactInfo = null;
+
+                if (tx.EntityType == "Booking" && tx.EntityId.HasValue)
+                {
+                    var booking = await _context.Bookings
+                        .Include(b => b.Tour)
+                        .Include(b => b.TourAvailability)
+                        .FirstOrDefaultAsync(b => b.Id == tx.EntityId.Value && b.Tour.TourGuideId == userId.Value);
+                    
+                    if (booking != null)
+                    {
+                        bookingNumber = booking.BookingNumber;
+                        tourTitle = booking.Tour?.Title;
+                        tourDate = booking.TourAvailability?.Date;
+                        participants = booking.Participants;
+                        paymentStatus = booking.PaymentStatus.ToString();
+                        contactInfo = booking.ContactInfo;
+                    }
+                }
+                else if (tx.EntityType == "Order" && tx.EntityId.HasValue)
+                {
+                    var order = await _context.Orders
+                        .Include(o => o.Items)
+                            .ThenInclude(item => item.Product)
+                        .FirstOrDefaultAsync(o => o.Id == tx.EntityId.Value && 
+                            o.Items.Any(item => item.Product.TourGuideId == userId.Value));
+                    
+                    if (order != null)
+                    {
+                        orderNumber = order.OrderNumber;
+                        paymentStatus = order.PaymentStatus.ToString();
+                    }
+                }
+
+                transactionDtos.Add(new
+                {
+                    tx.Id,
+                    tx.TransactionId,
+                    TransactionNumber = tx.TransactionNumber,
+                    Type = tx.Type,
+                    EntityType = tx.EntityType,
+                    Status = tx.Status, // Primary status
+                    tx.Amount,
+                    tx.Currency,
+                    tx.CustomerName,
+                    tx.CustomerEmail,
+                    tx.PaymentMethod,
+                    tx.PaymentGateway,
+                    tx.CreatedAt,
+                    tx.UpdatedAt,
+                    tx.Description,
+                    BookingNumber = bookingNumber,
+                    OrderNumber = orderNumber,
+                    TourTitle = tourTitle,
+                    TourDate = tourDate,
+                    Participants = participants,
+                    PaymentStatus = paymentStatus,
+                    ContactInfo = contactInfo
+                });
+            }
 
             return Ok(new
             {
-                transactions = sortedTransactions,
+                transactions = transactionDtos,
                 pagination = new
                 {
                     page,
@@ -725,62 +803,138 @@ public class TransactionController : ControllerBase
             return StatusCode(500, "Internal server error");
         }
     }
-    /// <param name="transactionId">Transaction ID</param>
-    /// <param name="type">Transaction type (Booking or Order)</param>
+    /// <param name="transactionId">Transaction ID (Guid)</param>
     /// <param name="request">Status update request</param>
     /// <returns>Success result</returns>
     [HttpPut("{transactionId}/status")]
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> UpdateTransactionStatus(
         Guid transactionId,
-        [FromQuery] string type,
         [FromBody] UpdateTransactionStatusRequest request)
     {
         try
         {
-            if (type.ToLower() == "booking")
-            {
-                var booking = await _context.Bookings.FindAsync(transactionId);
-                if (booking == null)
-                {
-                    return NotFound("Booking not found");
-                }
+            // Update Transaction status (primary)
+            var transaction = await _context.Transactions
+                .FirstOrDefaultAsync(t => t.Id == transactionId);
 
-                if (Enum.TryParse<BookingStatus>(request.Status, true, out var bookingStatus))
-                {
-                    booking.Status = bookingStatus;
-                    booking.UpdatedAt = DateTime.UtcNow;
-                    await _context.SaveChangesAsync();
-                    return Ok(new { message = "Booking status updated successfully" });
-                }
-                else
-                {
-                    return BadRequest("Invalid booking status");
-                }
-            }
-            else if (type.ToLower() == "order")
+            if (transaction == null)
             {
-                var order = await _context.Orders.FindAsync(transactionId);
-                if (order == null)
-                {
-                    return NotFound("Order not found");
-                }
+                return NotFound("Transaction not found");
+            }
 
-                if (Enum.TryParse<OrderStatus>(request.Status, true, out var orderStatus))
-                {
-                    order.Status = orderStatus;
-                    order.UpdatedAt = DateTime.UtcNow;
-                    await _context.SaveChangesAsync();
-                    return Ok(new { message = "Order status updated successfully" });
-                }
-                else
-                {
-                    return BadRequest("Invalid order status");
-                }
-            }
-            else
+            // Validate status - Transaction status values: pending, completed, failed, cancelled, refunded
+            var validStatuses = new[] { "pending", "completed", "failed", "cancelled", "refunded" };
+            var newStatus = request.Status.ToLower();
+            
+            if (!validStatuses.Contains(newStatus))
             {
-                return BadRequest("Invalid transaction type");
+                return BadRequest($"Invalid transaction status. Valid values: {string.Join(", ", validStatuses)}");
             }
+
+            // Update Transaction status
+            transaction.Status = newStatus;
+            transaction.UpdatedAt = DateTime.UtcNow;
+            transaction.UpdatedBy = GetCurrentUserId();
+
+            // Optionally update related Booking/Order status if needed
+            if (transaction.EntityType == "Booking" && transaction.EntityId.HasValue)
+            {
+                var booking = await _context.Bookings.FirstOrDefaultAsync(b => b.Id == transaction.EntityId.Value);
+                if (booking != null)
+                {
+                    // Sync booking status if transaction is completed
+                    if (newStatus == "completed" && booking.Status != BookingStatus.Confirmed)
+                    {
+                        booking.Status = BookingStatus.Confirmed;
+                        booking.PaymentStatus = PaymentStatus.Paid;
+                        booking.UpdatedAt = DateTime.UtcNow;
+                    }
+                    // Sync booking status if transaction is cancelled
+                    else if (newStatus == "cancelled" && booking.Status != BookingStatus.Cancelled)
+                    {
+                        booking.Status = BookingStatus.Cancelled;
+                        booking.UpdatedAt = DateTime.UtcNow;
+                    }
+                }
+            }
+            else if (transaction.EntityType == "Order" && transaction.EntityId.HasValue)
+            {
+                var order = await _context.Orders.FirstOrDefaultAsync(o => o.Id == transaction.EntityId.Value);
+                if (order != null)
+                {
+                    // Sync order status if transaction is completed
+                    if (newStatus == "completed" && order.Status != OrderStatus.Processing)
+                    {
+                        order.Status = OrderStatus.Processing;
+                        order.PaymentStatus = PaymentStatus.Paid;
+                        order.UpdatedAt = DateTime.UtcNow;
+                    }
+                    // Sync order status if transaction is cancelled
+                    else if (newStatus == "cancelled" && order.Status != OrderStatus.Cancelled)
+                    {
+                        order.Status = OrderStatus.Cancelled;
+                        order.UpdatedAt = DateTime.UtcNow;
+                    }
+                }
+            }
+            // Sync Cost status if this transaction is linked to a Cost record
+            else if (transaction.EntityType == "Cost" && transaction.EntityId.HasValue)
+            {
+                var cost = await _context.Costs.FirstOrDefaultAsync(c => c.Id == transaction.EntityId.Value);
+                if (cost != null)
+                {
+                    // Map transaction status -> cost status
+                    // completed => Paid, cancelled => Cancelled, pending/failed => Pending (manual follow-up)
+                    if (newStatus == "completed")
+                    {
+                        cost.Status = CostStatus.Paid;
+                        cost.PaidDate = DateTime.UtcNow;
+                    }
+                    else if (newStatus == "cancelled")
+                    {
+                        cost.Status = CostStatus.Cancelled;
+                    }
+                    else if (newStatus == "pending" || newStatus == "failed")
+                    {
+                        cost.Status = CostStatus.Pending;
+                    }
+                    cost.UpdatedAt = DateTime.UtcNow;
+                }
+            }
+            // Sync Refund status if this transaction is linked to a Refund record
+            else if (transaction.EntityType == "Refund" && transaction.EntityId.HasValue)
+            {
+                var refund = await _context.Refunds.FirstOrDefaultAsync(r => r.Id == transaction.EntityId.Value);
+                if (refund != null)
+                {
+                    // Map transaction status -> refund status
+                    if (newStatus == "completed")
+                    {
+                        refund.RefundStatus = "Completed";
+                        refund.RefundCompletedAt = DateTime.UtcNow;
+                    }
+                    else if (newStatus == "pending")
+                    {
+                        refund.RefundStatus = "Pending";
+                    }
+                    else if (newStatus == "failed")
+                    {
+                        refund.RefundStatus = "Failed";
+                    }
+                    else if (newStatus == "cancelled")
+                    {
+                        refund.RefundStatus = "Cancelled";
+                    }
+                    refund.UpdatedAt = DateTime.UtcNow;
+                }
+            }
+
+            await _context.SaveChangesAsync();
+            
+            _logger.LogInformation("Transaction {TransactionId} status updated to {Status} by admin", transactionId, newStatus);
+            
+            return Ok(new { message = "Transaction status updated successfully", status = newStatus });
         }
         catch (Exception ex)
         {

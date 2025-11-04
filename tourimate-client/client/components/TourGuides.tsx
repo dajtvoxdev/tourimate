@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowRight, Loader2 } from "lucide-react";
 import Header from "./Header";
+import Footer from "./Footer";
 import { httpJson, getApiBase } from "@/src/lib/http";
 
 interface TourGuide {
@@ -235,16 +236,7 @@ export default function TourGuides() {
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="bg-gray-300 py-12 md:py-20">
-        <div className="container mx-auto px-4">
-          <div className="text-center">
-            <p className="font-nunito text-lg md:text-xl text-black">
-              © 2024 Travel Guide Vietnam. All rights reserved.
-            </p>
-          </div>
-        </div>
-      </footer>
+      <Footer />
     </div>
   );
 }

@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { ChevronDown, User, LogOut, Menu, X, Settings } from "lucide-react";
+import { ChevronDown, User, LogOut, Menu, X, Settings, ShoppingCart } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "../src/hooks/useAuth";
+import { httpJson, getApiBase } from "../src/lib/http";
 
 interface HeaderProps {
   hideRegister?: boolean;
@@ -14,10 +15,30 @@ export default function Header({ hideRegister = false, hideLogin = false }: Head
   const location = useLocation();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const [cartItemCount, setCartItemCount] = useState(0);
   const { isLoggedIn, user, isAdmin, logout } = useAuth();
   const isTourGuide = user?.role === 'TourGuide';
 
   // Note: Removed auto-redirect to admin page to allow admin users to browse homepage normally
+
+  // Load cart item count
+  useEffect(() => {
+    if (isLoggedIn) {
+      loadCartCount();
+    } else {
+      setCartItemCount(0);
+    }
+  }, [isLoggedIn, location.pathname]);
+
+  const loadCartCount = async () => {
+    try {
+      const count = await httpJson<number>(`${getApiBase()}/api/shoppingcart/count`);
+      setCartItemCount(count);
+    } catch (error) {
+      console.error("Error loading cart count:", error);
+      setCartItemCount(0);
+    }
+  };
 
   const handleLogout = async () => {
     await logout();
@@ -58,6 +79,7 @@ export default function Header({ hideRegister = false, hideLogin = false }: Head
           <nav className="hidden md:flex items-center gap-3 lg:gap-4">
             <NavButton to="/" label="Trang chủ" />
             <NavButton to="/tours" label="Tours" />
+            <NavButton to="/products" label="Sản phẩm" />
             <NavButton to="/about" label="Về chúng tôi" />
             <NavButton to="/tour-guides" label="Hướng dẫn viên" />
             {isLoggedIn && isTourGuide && (
@@ -65,8 +87,23 @@ export default function Header({ hideRegister = false, hideLogin = false }: Head
             )}
           </nav>
 
-          {/* Right: Auth / Avatar */}
+          {/* Right: Cart + Auth / Avatar */}
           <div className="flex items-center gap-3">
+            {/* Cart Icon */}
+            {isLoggedIn && (
+              <button
+                onClick={() => navigate("/cart")}
+                className="relative p-2 hover:bg-gray-100 rounded-full transition-colors duration-200"
+              >
+                <ShoppingCart className="w-6 h-6 text-gray-700" />
+                {cartItemCount > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                    {cartItemCount > 99 ? "99+" : cartItemCount}
+                  </span>
+                )}
+              </button>
+            )}
+
             {isLoggedIn ? (
               <div className="relative">
                 <button onClick={() => setIsDropdownOpen(!isDropdownOpen)} className="flex items-center space-x-2 p-1.5 hover:bg-gray-100 rounded-full transition-colors duration-200">
@@ -137,6 +174,7 @@ export default function Header({ hideRegister = false, hideLogin = false }: Head
             <div className="flex flex-col gap-2">
               <NavButton to="/" label="Trang chủ" />
               <NavButton to="/tours" label="Tours" />
+              <NavButton to="/products" label="Sản phẩm" />
               <NavButton to="/about" label="Về chúng tôi" />
               <NavButton to="/tour-guides" label="Hướng dẫn viên" />
               {isLoggedIn && isTourGuide && (

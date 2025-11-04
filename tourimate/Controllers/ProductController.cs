@@ -23,109 +23,173 @@ public class ProductController : ControllerBase
         _logger = logger;
     }
 
+    private static (decimal price, int stock, string currency) ComputeDerivedPricing(Product p)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(p.VariantsJson))
+            {
+                return (0m, 0, "VND");
+            }
+            var variants = JsonSerializer.Deserialize<List<VariantPayload>>(p.VariantsJson!) ?? new();
+            var minPrice = variants.Count > 0 ? variants.Min(v => (decimal)(v.price ?? 0)) : 0m;
+            var totalStock = variants.Sum(v => v.stockQuantity ?? 0);
+            return (minPrice, totalStock, "VND");
+        }
+        catch
+        {
+            return (0m, 0, "VND");
+        }
+    }
+
+    private class VariantPayload
+    {
+        public string? unit { get; set; }
+        public decimal? price { get; set; }
+        public int? stockQuantity { get; set; }
+        public decimal? netAmount { get; set; }
+        public string? netUnit { get; set; }
+        public bool? isOnSale { get; set; }
+        public decimal? salePrice { get; set; }
+        public string? saleStartDate { get; set; }
+        public string? saleEndDate { get; set; }
+    }
+
     [HttpGet]
     public async Task<ActionResult<ProductSearchResponse>> GetProducts([FromQuery] ProductSearchRequest request)
     {
         try
         {
-            var query = _db.Products
+            var baseQuery = _db.Products
                 .Include(p => p.Tour)
                 .Include(p => p.TourGuide)
                 .AsQueryable();
 
-            // Apply filters
+            // Apply simple string/eq filters server-side
             if (!string.IsNullOrWhiteSpace(request.SearchTerm))
             {
-                query = query.Where(p => p.Name.Contains(request.SearchTerm) ||
-                                       (p.Description != null && p.Description.Contains(request.SearchTerm)) ||
-                                       (p.ShortDescription != null && p.ShortDescription.Contains(request.SearchTerm)));
+                baseQuery = baseQuery.Where(p => p.Name.Contains(request.SearchTerm) ||
+                                           (p.Description != null && p.Description.Contains(request.SearchTerm)) ||
+                                           (p.ShortDescription != null && p.ShortDescription.Contains(request.SearchTerm)));
             }
 
             if (!string.IsNullOrWhiteSpace(request.Category))
             {
-                query = query.Where(p => p.Category == request.Category);
+                baseQuery = baseQuery.Where(p => p.Category == request.Category);
             }
 
             if (!string.IsNullOrWhiteSpace(request.Brand))
             {
-                query = query.Where(p => p.Brand == request.Brand);
+                baseQuery = baseQuery.Where(p => p.Brand == request.Brand);
             }
 
             if (!string.IsNullOrWhiteSpace(request.Status))
             {
-                query = query.Where(p => p.Status == request.Status);
+                baseQuery = baseQuery.Where(p => p.Status == request.Status);
             }
 
             if (request.TourId.HasValue)
             {
-                query = query.Where(p => p.TourId == request.TourId.Value);
+                baseQuery = baseQuery.Where(p => p.TourId == request.TourId.Value);
             }
 
             if (request.TourGuideId.HasValue)
             {
-                query = query.Where(p => p.TourGuideId == request.TourGuideId.Value);
+                baseQuery = baseQuery.Where(p => p.TourGuideId == request.TourGuideId.Value);
             }
 
-            if (request.MinPrice.HasValue)
+            if (request.ProvinceCode.HasValue)
             {
-                query = query.Where(p => p.Price >= request.MinPrice.Value);
-            }
-
-            if (request.MaxPrice.HasValue)
-            {
-                query = query.Where(p => p.Price <= request.MaxPrice.Value);
+                baseQuery = baseQuery.Where(p => p.Tour.ProvinceCode == request.ProvinceCode.Value);
             }
 
             if (request.IsFeatured.HasValue)
             {
-                query = query.Where(p => p.IsFeatured == request.IsFeatured.Value);
+                baseQuery = baseQuery.Where(p => p.IsFeatured == request.IsFeatured.Value);
             }
 
             if (request.IsBestSeller.HasValue)
             {
-                query = query.Where(p => p.IsBestSeller == request.IsBestSeller.Value);
+                baseQuery = baseQuery.Where(p => p.IsBestSeller == request.IsBestSeller.Value);
             }
 
             if (request.IsNewArrival.HasValue)
             {
-                query = query.Where(p => p.IsNewArrival == request.IsNewArrival.Value);
+                baseQuery = baseQuery.Where(p => p.IsNewArrival == request.IsNewArrival.Value);
             }
 
             if (request.IsOnSale.HasValue)
             {
-                query = query.Where(p => p.IsOnSale == request.IsOnSale.Value);
+                baseQuery = baseQuery.Where(p => p.IsOnSale == request.IsOnSale.Value);
             }
 
-            if (request.IsDigital.HasValue)
+            // Materialize then apply price filters/sorts based on VariantsJson
+            var all = await baseQuery
+                .OrderByDescending(p => p.CreatedAt) // temp ordering before in-memory adjustments
+                .ToListAsync();
+
+            // Derived filters
+            if (request.MinPrice.HasValue)
             {
-                query = query.Where(p => p.IsDigital == request.IsDigital.Value);
+                all = all.Where(p => ComputeDerivedPricing(p).price >= request.MinPrice.Value).ToList();
+            }
+            if (request.MaxPrice.HasValue)
+            {
+                all = all.Where(p => ComputeDerivedPricing(p).price <= request.MaxPrice.Value).ToList();
             }
 
-            // Apply sorting
-            query = request.SortBy?.ToLower() switch
+            // Sorting
+            if (!string.IsNullOrWhiteSpace(request.SortBy) && request.SortBy.Equals("price", StringComparison.OrdinalIgnoreCase))
             {
-                "name" => request.SortOrder == "desc" ? query.OrderByDescending(p => p.Name) : query.OrderBy(p => p.Name),
-                "price" => request.SortOrder == "desc" ? query.OrderByDescending(p => p.Price) : query.OrderBy(p => p.Price),
-                "createdat" => request.SortOrder == "desc" ? query.OrderByDescending(p => p.CreatedAt) : query.OrderBy(p => p.CreatedAt),
-                "rating" => request.SortOrder == "desc" ? query.OrderByDescending(p => p.Rating) : query.OrderBy(p => p.Rating),
-                "viewcount" => request.SortOrder == "desc" ? query.OrderByDescending(p => p.ViewCount) : query.OrderBy(p => p.ViewCount),
-                "purchasecount" => request.SortOrder == "desc" ? query.OrderByDescending(p => p.PurchaseCount) : query.OrderBy(p => p.PurchaseCount),
-                _ => query.OrderByDescending(p => p.CreatedAt)
-            };
+                all = (request.SortOrder?.ToLower() == "desc")
+                    ? all.OrderByDescending(p => ComputeDerivedPricing(p).price).ToList()
+                    : all.OrderBy(p => ComputeDerivedPricing(p).price).ToList();
+            }
+            else
+            {
+                // keep createdAt desc as default
+                if (!string.IsNullOrWhiteSpace(request.SortBy))
+                {
+                    // fallback to name/rating/viewcount/purchasecount using in-memory if needed
+                    switch (request.SortBy.ToLower())
+                    {
+                        case "name":
+                            all = (request.SortOrder?.ToLower() == "desc") ? all.OrderByDescending(p => p.Name).ToList() : all.OrderBy(p => p.Name).ToList();
+                            break;
+                        case "rating":
+                            all = (request.SortOrder?.ToLower() == "desc") ? all.OrderByDescending(p => p.Rating).ToList() : all.OrderBy(p => p.Rating).ToList();
+                            break;
+                        case "viewcount":
+                            all = (request.SortOrder?.ToLower() == "desc") ? all.OrderByDescending(p => p.ViewCount).ToList() : all.OrderBy(p => p.ViewCount).ToList();
+                            break;
+                        case "purchasecount":
+                            all = (request.SortOrder?.ToLower() == "desc") ? all.OrderByDescending(p => p.PurchaseCount).ToList() : all.OrderBy(p => p.PurchaseCount).ToList();
+                            break;
+                        default:
+                            all = all.OrderByDescending(p => p.CreatedAt).ToList();
+                            break;
+                    }
+                }
+            }
 
-            var totalCount = await query.CountAsync();
+            var totalCount = all.Count;
 
-            var products = await query
+            var pageItems = all
                 .Skip((request.Page - 1) * request.PageSize)
                 .Take(request.PageSize)
-                .Select(p => new ProductDto
+                .ToList();
+
+            var products = pageItems.Select(p =>
+            {
+                var (price, stock, currency) = ComputeDerivedPricing(p);
+                return new ProductDto
                 {
                     Id = p.Id,
                     Name = p.Name,
                     Description = p.Description,
                     ShortDescription = p.ShortDescription,
-                    Price = p.Price,
-                    Currency = p.Currency,
+                    Price = price,
+                    Currency = currency,
                     Images = p.Images,
                     TourId = p.TourId,
                     TourTitle = p.Tour.Title,
@@ -134,20 +198,9 @@ public class ProductController : ControllerBase
                     Status = p.Status,
                     Category = p.Category,
                     Brand = p.Brand,
-                    Unit = p.Unit,
-                    Weight = p.Weight,
-                    Dimensions = p.Dimensions,
-                    Specifications = p.Specifications,
-                    Features = p.Features,
-                    UsageInstructions = p.UsageInstructions,
-                    CareInstructions = p.CareInstructions,
-                    Warranty = p.Warranty,
-                    ReturnPolicy = p.ReturnPolicy,
-                    ShippingInfo = p.ShippingInfo,
-                    StockQuantity = p.StockQuantity,
+                    StockQuantity = stock,
                     MinOrderQuantity = p.MinOrderQuantity,
                     MaxOrderQuantity = p.MaxOrderQuantity,
-                    IsDigital = p.IsDigital,
                     IsFeatured = p.IsFeatured,
                     IsBestSeller = p.IsBestSeller,
                     IsNewArrival = p.IsNewArrival,
@@ -155,18 +208,15 @@ public class ProductController : ControllerBase
                     SalePrice = p.SalePrice,
                     SaleStartDate = p.SaleStartDate,
                     SaleEndDate = p.SaleEndDate,
-                    Tags = p.Tags,
-                    SEOKeywords = p.SEOKeywords,
-                    SEODescription = p.SEODescription,
                     ViewCount = p.ViewCount,
                     PurchaseCount = p.PurchaseCount,
                     Rating = p.Rating,
                     ReviewCount = p.ReviewCount,
-                    Notes = p.Notes,
+                    VariantsJson = p.VariantsJson,
                     CreatedAt = p.CreatedAt,
                     UpdatedAt = p.UpdatedAt
-                })
-                .ToListAsync();
+                };
+            }).ToList();
 
             return Ok(new ProductSearchResponse
             {
@@ -180,83 +230,6 @@ public class ProductController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error getting products");
-            return StatusCode(500, "Internal server error");
-        }
-    }
-
-    [HttpGet("{id}")]
-    public async Task<ActionResult<ProductDto>> GetProduct(Guid id)
-    {
-        try
-        {
-            var product = await _db.Products
-                .Include(p => p.Tour)
-                .Include(p => p.TourGuide)
-                .FirstOrDefaultAsync(p => p.Id == id);
-
-            if (product == null)
-            {
-                return NotFound("Product not found");
-            }
-
-            // Increment view count
-            product.ViewCount++;
-            await _db.SaveChangesAsync();
-
-            var productDto = new ProductDto
-            {
-                Id = product.Id,
-                Name = product.Name,
-                Description = product.Description,
-                ShortDescription = product.ShortDescription,
-                Price = product.Price,
-                Currency = product.Currency,
-                Images = product.Images,
-                TourId = product.TourId,
-                TourTitle = product.Tour.Title,
-                TourGuideId = product.TourGuideId,
-                TourGuideName = product.TourGuide.FirstName + " " + product.TourGuide.LastName,
-                Status = product.Status,
-                Category = product.Category,
-                Brand = product.Brand,
-                Unit = product.Unit,
-                Weight = product.Weight,
-                Dimensions = product.Dimensions,
-                Specifications = product.Specifications,
-                Features = product.Features,
-                UsageInstructions = product.UsageInstructions,
-                CareInstructions = product.CareInstructions,
-                Warranty = product.Warranty,
-                ReturnPolicy = product.ReturnPolicy,
-                ShippingInfo = product.ShippingInfo,
-                StockQuantity = product.StockQuantity,
-                MinOrderQuantity = product.MinOrderQuantity,
-                MaxOrderQuantity = product.MaxOrderQuantity,
-                IsDigital = product.IsDigital,
-                IsFeatured = product.IsFeatured,
-                IsBestSeller = product.IsBestSeller,
-                IsNewArrival = product.IsNewArrival,
-                IsOnSale = product.IsOnSale,
-                SalePrice = product.SalePrice,
-                SaleStartDate = product.SaleStartDate,
-                SaleEndDate = product.SaleEndDate,
-                Tags = product.Tags,
-                SEOKeywords = product.SEOKeywords,
-                SEODescription = product.SEODescription,
-                ViewCount = product.ViewCount,
-                PurchaseCount = product.PurchaseCount,
-                Rating = product.Rating,
-                ReviewCount = product.ReviewCount,
-                Notes = product.Notes,
-                CreatedAt = product.CreatedAt,
-                UpdatedAt = product.UpdatedAt
-            };
-
-            return Ok(productDto);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error getting product {ProductId}", id);
             return StatusCode(500, "Internal server error");
         }
     }
@@ -297,28 +270,14 @@ public class ProductController : ControllerBase
                 Name = request.Name,
                 Description = request.Description,
                 ShortDescription = request.ShortDescription,
-                Price = request.Price,
-                Currency = request.Currency,
                 Images = request.Images,
                 TourId = request.TourId,
                 TourGuideId = userId.Value,
                 Status = "Draft",
                 Category = request.Category,
                 Brand = request.Brand,
-                Unit = request.Unit,
-                Weight = request.Weight,
-                Dimensions = request.Dimensions,
-                Specifications = request.Specifications,
-                Features = request.Features,
-                UsageInstructions = request.UsageInstructions,
-                CareInstructions = request.CareInstructions,
-                Warranty = request.Warranty,
-                ReturnPolicy = request.ReturnPolicy,
-                ShippingInfo = request.ShippingInfo,
-                StockQuantity = request.StockQuantity,
                 MinOrderQuantity = request.MinOrderQuantity,
                 MaxOrderQuantity = request.MaxOrderQuantity,
-                IsDigital = request.IsDigital,
                 IsFeatured = request.IsFeatured,
                 IsBestSeller = request.IsBestSeller,
                 IsNewArrival = request.IsNewArrival,
@@ -326,14 +285,17 @@ public class ProductController : ControllerBase
                 SalePrice = request.SalePrice,
                 SaleStartDate = request.SaleStartDate,
                 SaleEndDate = request.SaleEndDate,
-                Tags = request.Tags,
-                SEOKeywords = request.SEOKeywords,
-                SEODescription = request.SEODescription,
-                Notes = request.Notes,
+                VariantsJson = request.VariantsJson,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow,
                 CreatedBy = userId.Value
             };
+
+            // Set DB-backed columns from derived pricing (cheapest variant and total stock)
+            var (cPrice, cStock, cCurr) = ComputeDerivedPricing(product);
+            product.DbPrice = cPrice;
+            product.DbStockQuantity = cStock;
+            product.DbCurrency = cCurr;
 
             _db.Products.Add(product);
             await _db.SaveChangesAsync();
@@ -344,14 +306,16 @@ public class ProductController : ControllerBase
                 .Include(p => p.TourGuide)
                 .FirstOrDefaultAsync(p => p.Id == product.Id);
 
+            var (price, stock, currency) = ComputeDerivedPricing(createdProduct!);
+
             var productDto = new ProductDto
             {
                 Id = createdProduct!.Id,
                 Name = createdProduct.Name,
                 Description = createdProduct.Description,
                 ShortDescription = createdProduct.ShortDescription,
-                Price = createdProduct.Price,
-                Currency = createdProduct.Currency,
+                Price = price,
+                Currency = currency,
                 Images = createdProduct.Images,
                 TourId = createdProduct.TourId,
                 TourTitle = createdProduct.Tour.Title,
@@ -360,20 +324,9 @@ public class ProductController : ControllerBase
                 Status = createdProduct.Status,
                 Category = createdProduct.Category,
                 Brand = createdProduct.Brand,
-                Unit = createdProduct.Unit,
-                Weight = createdProduct.Weight,
-                Dimensions = createdProduct.Dimensions,
-                Specifications = createdProduct.Specifications,
-                Features = createdProduct.Features,
-                UsageInstructions = createdProduct.UsageInstructions,
-                CareInstructions = createdProduct.CareInstructions,
-                Warranty = createdProduct.Warranty,
-                ReturnPolicy = createdProduct.ReturnPolicy,
-                ShippingInfo = createdProduct.ShippingInfo,
-                StockQuantity = createdProduct.StockQuantity,
+                StockQuantity = stock,
                 MinOrderQuantity = createdProduct.MinOrderQuantity,
                 MaxOrderQuantity = createdProduct.MaxOrderQuantity,
-                IsDigital = createdProduct.IsDigital,
                 IsFeatured = createdProduct.IsFeatured,
                 IsBestSeller = createdProduct.IsBestSeller,
                 IsNewArrival = createdProduct.IsNewArrival,
@@ -381,19 +334,16 @@ public class ProductController : ControllerBase
                 SalePrice = createdProduct.SalePrice,
                 SaleStartDate = createdProduct.SaleStartDate,
                 SaleEndDate = createdProduct.SaleEndDate,
-                Tags = createdProduct.Tags,
-                SEOKeywords = createdProduct.SEOKeywords,
-                SEODescription = createdProduct.SEODescription,
                 ViewCount = createdProduct.ViewCount,
                 PurchaseCount = createdProduct.PurchaseCount,
                 Rating = createdProduct.Rating,
                 ReviewCount = createdProduct.ReviewCount,
-                Notes = createdProduct.Notes,
+                VariantsJson = createdProduct.VariantsJson,
                 CreatedAt = createdProduct.CreatedAt,
                 UpdatedAt = createdProduct.UpdatedAt
             };
 
-            return CreatedAtAction(nameof(GetProduct), new { id = product.Id }, productDto);
+            return CreatedAtAction(nameof(GetProductById), new { id = product.Id }, productDto);
         }
         catch (Exception ex)
         {
@@ -432,10 +382,6 @@ public class ProductController : ControllerBase
                 product.Description = request.Description;
             if (request.ShortDescription != null)
                 product.ShortDescription = request.ShortDescription;
-            if (request.Price.HasValue)
-                product.Price = request.Price.Value;
-            if (!string.IsNullOrWhiteSpace(request.Currency))
-                product.Currency = request.Currency;
             if (request.Images != null)
                 product.Images = request.Images;
             if (!string.IsNullOrWhiteSpace(request.Status))
@@ -444,34 +390,10 @@ public class ProductController : ControllerBase
                 product.Category = request.Category;
             if (request.Brand != null)
                 product.Brand = request.Brand;
-            if (request.Unit != null)
-                product.Unit = request.Unit;
-            if (request.Weight.HasValue)
-                product.Weight = request.Weight;
-            if (request.Dimensions != null)
-                product.Dimensions = request.Dimensions;
-            if (request.Specifications != null)
-                product.Specifications = request.Specifications;
-            if (request.Features != null)
-                product.Features = request.Features;
-            if (request.UsageInstructions != null)
-                product.UsageInstructions = request.UsageInstructions;
-            if (request.CareInstructions != null)
-                product.CareInstructions = request.CareInstructions;
-            if (request.Warranty != null)
-                product.Warranty = request.Warranty;
-            if (request.ReturnPolicy != null)
-                product.ReturnPolicy = request.ReturnPolicy;
-            if (request.ShippingInfo != null)
-                product.ShippingInfo = request.ShippingInfo;
-            if (request.StockQuantity.HasValue)
-                product.StockQuantity = request.StockQuantity.Value;
             if (request.MinOrderQuantity.HasValue)
                 product.MinOrderQuantity = request.MinOrderQuantity.Value;
             if (request.MaxOrderQuantity.HasValue)
                 product.MaxOrderQuantity = request.MaxOrderQuantity.Value;
-            if (request.IsDigital.HasValue)
-                product.IsDigital = request.IsDigital.Value;
             if (request.IsFeatured.HasValue)
                 product.IsFeatured = request.IsFeatured.Value;
             if (request.IsBestSeller.HasValue)
@@ -486,27 +408,24 @@ public class ProductController : ControllerBase
                 product.SaleStartDate = request.SaleStartDate;
             if (request.SaleEndDate.HasValue)
                 product.SaleEndDate = request.SaleEndDate;
-            if (request.Tags != null)
-                product.Tags = request.Tags;
-            if (request.SEOKeywords != null)
-                product.SEOKeywords = request.SEOKeywords;
-            if (request.SEODescription != null)
-                product.SEODescription = request.SEODescription;
-            if (request.Notes != null)
-                product.Notes = request.Notes;
+            if (request.VariantsJson != null)
+                product.VariantsJson = request.VariantsJson;
 
-            // Reset approval status when product is updated (requires re-approval)
+            // Reset status when product is updated (requires re-approval)
             // Only reset if product was previously approved
-            if (product.ApprovalStatus == ProductStatus.Approved)
+            if (product.Status == "Approved")
             {
-                product.ApprovalStatus = ProductStatus.PendingApproval;
-                product.ApprovedBy = null;
-                product.ApprovedAt = null;
-                product.RejectionReason = null;
+                product.Status = "PendingApproval"; // Require re-approval after update
                 
-                _logger.LogInformation("Product {ProductId} approval status reset to PendingApproval after update by tour guide {UserId}", 
+                _logger.LogInformation("Product {ProductId} status reset to PendingApproval after update by tour guide {UserId}", 
                     product.Id, userId.Value);
             }
+
+            // Update DB-backed columns from derived pricing
+            var (uPrice, uStock, uCurr) = ComputeDerivedPricing(product);
+            product.DbPrice = uPrice;
+            product.DbStockQuantity = uStock;
+            product.DbCurrency = uCurr;
 
             product.UpdatedAt = DateTime.UtcNow;
             product.UpdatedBy = userId.Value;
@@ -519,14 +438,16 @@ public class ProductController : ControllerBase
                 .Include(p => p.TourGuide)
                 .FirstOrDefaultAsync(p => p.Id == id);
 
+            var (price, stock, currency) = ComputeDerivedPricing(updatedProduct!);
+
             var productDto = new ProductDto
             {
                 Id = updatedProduct!.Id,
                 Name = updatedProduct.Name,
                 Description = updatedProduct.Description,
                 ShortDescription = updatedProduct.ShortDescription,
-                Price = updatedProduct.Price,
-                Currency = updatedProduct.Currency,
+                Price = price,
+                Currency = currency,
                 Images = updatedProduct.Images,
                 TourId = updatedProduct.TourId,
                 TourTitle = updatedProduct.Tour.Title,
@@ -535,20 +456,9 @@ public class ProductController : ControllerBase
                 Status = updatedProduct.Status,
                 Category = updatedProduct.Category,
                 Brand = updatedProduct.Brand,
-                Unit = updatedProduct.Unit,
-                Weight = updatedProduct.Weight,
-                Dimensions = updatedProduct.Dimensions,
-                Specifications = updatedProduct.Specifications,
-                Features = updatedProduct.Features,
-                UsageInstructions = updatedProduct.UsageInstructions,
-                CareInstructions = updatedProduct.CareInstructions,
-                Warranty = updatedProduct.Warranty,
-                ReturnPolicy = updatedProduct.ReturnPolicy,
-                ShippingInfo = updatedProduct.ShippingInfo,
-                StockQuantity = updatedProduct.StockQuantity,
+                StockQuantity = stock,
                 MinOrderQuantity = updatedProduct.MinOrderQuantity,
                 MaxOrderQuantity = updatedProduct.MaxOrderQuantity,
-                IsDigital = updatedProduct.IsDigital,
                 IsFeatured = updatedProduct.IsFeatured,
                 IsBestSeller = updatedProduct.IsBestSeller,
                 IsNewArrival = updatedProduct.IsNewArrival,
@@ -556,14 +466,11 @@ public class ProductController : ControllerBase
                 SalePrice = updatedProduct.SalePrice,
                 SaleStartDate = updatedProduct.SaleStartDate,
                 SaleEndDate = updatedProduct.SaleEndDate,
-                Tags = updatedProduct.Tags,
-                SEOKeywords = updatedProduct.SEOKeywords,
-                SEODescription = updatedProduct.SEODescription,
                 ViewCount = updatedProduct.ViewCount,
                 PurchaseCount = updatedProduct.PurchaseCount,
                 Rating = updatedProduct.Rating,
                 ReviewCount = updatedProduct.ReviewCount,
-                Notes = updatedProduct.Notes,
+                VariantsJson = updatedProduct.VariantsJson,
                 CreatedAt = updatedProduct.CreatedAt,
                 UpdatedAt = updatedProduct.UpdatedAt
             };
@@ -617,19 +524,24 @@ public class ProductController : ControllerBase
     {
         try
         {
-            var products = await _db.Products
+            var list = await _db.Products
                 .Include(p => p.Tour)
                 .Include(p => p.TourGuide)
                 .Where(p => p.TourId == tourId && p.Status == "Active")
                 .OrderBy(p => p.Name)
-                .Select(p => new ProductDto
+                .ToListAsync();
+
+            var products = list.Select(p =>
+            {
+                var (price, stock, currency) = ComputeDerivedPricing(p);
+                return new ProductDto
                 {
                     Id = p.Id,
                     Name = p.Name,
                     Description = p.Description,
                     ShortDescription = p.ShortDescription,
-                    Price = p.Price,
-                    Currency = p.Currency,
+                    Price = price,
+                    Currency = currency,
                     Images = p.Images,
                     TourId = p.TourId,
                     TourTitle = p.Tour.Title,
@@ -638,20 +550,9 @@ public class ProductController : ControllerBase
                     Status = p.Status,
                     Category = p.Category,
                     Brand = p.Brand,
-                    Unit = p.Unit,
-                    Weight = p.Weight,
-                    Dimensions = p.Dimensions,
-                    Specifications = p.Specifications,
-                    Features = p.Features,
-                    UsageInstructions = p.UsageInstructions,
-                    CareInstructions = p.CareInstructions,
-                    Warranty = p.Warranty,
-                    ReturnPolicy = p.ReturnPolicy,
-                    ShippingInfo = p.ShippingInfo,
-                    StockQuantity = p.StockQuantity,
+                    StockQuantity = stock,
                     MinOrderQuantity = p.MinOrderQuantity,
                     MaxOrderQuantity = p.MaxOrderQuantity,
-                    IsDigital = p.IsDigital,
                     IsFeatured = p.IsFeatured,
                     IsBestSeller = p.IsBestSeller,
                     IsNewArrival = p.IsNewArrival,
@@ -659,18 +560,15 @@ public class ProductController : ControllerBase
                     SalePrice = p.SalePrice,
                     SaleStartDate = p.SaleStartDate,
                     SaleEndDate = p.SaleEndDate,
-                    Tags = p.Tags,
-                    SEOKeywords = p.SEOKeywords,
-                    SEODescription = p.SEODescription,
                     ViewCount = p.ViewCount,
                     PurchaseCount = p.PurchaseCount,
                     Rating = p.Rating,
                     ReviewCount = p.ReviewCount,
-                    Notes = p.Notes,
+                    VariantsJson = p.VariantsJson,
                     CreatedAt = p.CreatedAt,
                     UpdatedAt = p.UpdatedAt
-                })
-                .ToListAsync();
+                };
+            }).ToList();
 
             return Ok(products);
         }
@@ -704,6 +602,41 @@ public class ProductController : ControllerBase
         }
     }
 
+    [HttpGet("pending-approval")]
+    public async Task<ActionResult<ProductSearchResponse>> GetProductsPendingApproval([FromQuery] ProductSearchRequest request)
+    {
+        try
+        {
+            var userId = GetCurrentUserId();
+            if (!userId.HasValue)
+            {
+                return Unauthorized("User not authenticated");
+            }
+
+            // Check if user is admin
+            var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == userId.Value);
+            if (user == null || user.Role != UserRole.Admin)
+            {
+                return Forbid("Only admins can access this endpoint");
+            }
+
+            // Get all products regardless of tour guide, but filter by status if not specified
+            // If no status filter is provided, default to showing products that need review
+            if (string.IsNullOrWhiteSpace(request.Status))
+            {
+                // Show products pending approval by default, but allow filtering
+                request.Status = null; // Allow all statuses but admin can filter
+            }
+
+            return await GetProducts(request);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting products pending approval");
+            return StatusCode(500, "Internal server error");
+        }
+    }
+
     [HttpGet("statistics")]
     public async Task<ActionResult<ProductStatisticsDto>> GetProductStatistics()
     {
@@ -715,26 +648,25 @@ public class ProductController : ControllerBase
                 return Unauthorized("User not authenticated");
             }
 
-            var query = _db.Products.Where(p => p.TourGuideId == userId.Value);
+            var query = _db.Products.Where(p => p.TourGuideId == userId.Value).AsEnumerable();
 
-            var hasAny = await query.AnyAsync();
+            var statsSource = query.ToList();
 
             var statistics = new ProductStatisticsDto
             {
-                TotalProducts = await query.CountAsync(),
-                ActiveProducts = await query.CountAsync(p => p.Status == "Active"),
-                DraftProducts = await query.CountAsync(p => p.Status == "Draft"),
-                InactiveProducts = await query.CountAsync(p => p.Status == "Inactive"),
-                FeaturedProducts = await query.CountAsync(p => p.IsFeatured),
-                BestSellerProducts = await query.CountAsync(p => p.IsBestSeller),
-                NewArrivalProducts = await query.CountAsync(p => p.IsNewArrival),
-                OnSaleProducts = await query.CountAsync(p => p.IsOnSale),
-                DigitalProducts = await query.CountAsync(p => p.IsDigital),
-                TotalValue = await query.Select(p => p.Price * p.StockQuantity).DefaultIfEmpty(0m).SumAsync(),
-                AveragePrice = hasAny ? await query.AverageAsync(p => p.Price) : 0m,
-                TotalViews = await query.Select(p => p.ViewCount).DefaultIfEmpty(0).SumAsync(),
-                TotalPurchases = await query.Select(p => p.PurchaseCount).DefaultIfEmpty(0).SumAsync(),
-                AverageRating = hasAny ? await query.AverageAsync(p => p.Rating.HasValue ? (decimal)p.Rating.Value : 0m) : 0m
+                TotalProducts = statsSource.Count,
+                ActiveProducts = statsSource.Count(p => p.Status == "Approved"), // Count approved products as active
+                DraftProducts = statsSource.Count(p => p.Status == "Draft"),
+                InactiveProducts = statsSource.Count(p => p.Status == "Rejected" || p.Status == "Discontinued"), // Count rejected and discontinued as inactive
+                FeaturedProducts = statsSource.Count(p => p.IsFeatured),
+                BestSellerProducts = statsSource.Count(p => p.IsBestSeller),
+                NewArrivalProducts = statsSource.Count(p => p.IsNewArrival),
+                OnSaleProducts = statsSource.Count(p => p.IsOnSale),
+                TotalValue = statsSource.Select(p => ComputeDerivedPricing(p).price * ComputeDerivedPricing(p).stock).DefaultIfEmpty(0m).Sum(),
+                AveragePrice = statsSource.Any() ? statsSource.Average(p => ComputeDerivedPricing(p).price) : 0m,
+                TotalViews = statsSource.Select(p => p.ViewCount).DefaultIfEmpty(0).Sum(),
+                TotalPurchases = statsSource.Select(p => p.PurchaseCount).DefaultIfEmpty(0).Sum(),
+                AverageRating = statsSource.Any() ? statsSource.Average(p => p.Rating.HasValue ? (decimal)p.Rating.Value : 0m) : 0m
             };
 
             return Ok(statistics);
@@ -770,15 +702,12 @@ public class ProductController : ControllerBase
                 return NotFound("Product not found");
             }
 
-            if (product.ApprovalStatus == ProductStatus.Approved)
+            if (product.Status == "Approved")
             {
                 return BadRequest("Product is already approved");
             }
 
-            product.ApprovalStatus = ProductStatus.Approved;
-            product.ApprovedBy = userId.Value;
-            product.ApprovedAt = DateTime.UtcNow;
-            product.RejectionReason = null;
+            product.Status = "Approved";
             product.UpdatedAt = DateTime.UtcNow;
             product.UpdatedBy = userId.Value;
 
@@ -817,15 +746,12 @@ public class ProductController : ControllerBase
                 return NotFound("Product not found");
             }
 
-            if (product.ApprovalStatus == ProductStatus.Rejected)
+            if (product.Status == "Rejected")
             {
                 return BadRequest("Product is already rejected");
             }
 
-            product.ApprovalStatus = ProductStatus.Rejected;
-            product.RejectionReason = request.RejectionReason;
-            product.ApprovedBy = null;
-            product.ApprovedAt = null;
+            product.Status = "Rejected";
             product.UpdatedAt = DateTime.UtcNow;
             product.UpdatedBy = userId.Value;
 
@@ -836,6 +762,309 @@ public class ProductController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error rejecting product {ProductId}", id);
+            return StatusCode(500, "Internal server error");
+        }
+    }
+
+    [HttpPost("{id}/request-approval")]
+    public async Task<IActionResult> RequestApproval(Guid id)
+    {
+        try
+        {
+            var userId = GetCurrentUserId();
+            if (!userId.HasValue)
+            {
+                return Unauthorized("User not authenticated");
+            }
+
+            var product = await _db.Products.FirstOrDefaultAsync(p => p.Id == id);
+            if (product == null)
+            {
+                return NotFound("Product not found");
+            }
+
+            if (product.TourGuideId != userId.Value)
+            {
+                return Forbid("You can only request approval for your own products");
+            }
+
+            // Move to PendingApproval
+            product.Status = "PendingApproval";
+            product.UpdatedAt = DateTime.UtcNow;
+            product.UpdatedBy = userId.Value;
+
+            await _db.SaveChangesAsync();
+
+            return Ok(new { message = "Approval requested", productId = product.Id });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error requesting approval for product {ProductId}", id);
+            return StatusCode(500, "Internal server error");
+        }
+    }
+
+    /// <summary>
+    /// Get featured products (TOP 5)
+    /// </summary>
+    [HttpGet("featured")]
+    public async Task<ActionResult<List<ProductDto>>> GetFeaturedProducts()
+    {
+        try
+        {
+            var products = await _db.Products
+                .Include(p => p.Tour)
+                .Include(p => p.TourGuide)
+                .Where(p => p.Status == "Approved" && p.IsFeatured)
+                .OrderByDescending(p => p.CreatedAt)
+                .Take(5)
+                .ToListAsync();
+
+            var productDtos = products.Select(p =>
+            {
+                var (price, stock, currency) = ComputeDerivedPricing(p);
+                return new ProductDto
+                {
+                    Id = p.Id,
+                    Name = p.Name,
+                    Description = p.Description,
+                    ShortDescription = p.ShortDescription,
+                    Price = price,
+                    Currency = currency,
+                    Images = p.Images,
+                    TourId = p.TourId,
+                    TourTitle = p.Tour.Title,
+                    TourGuideId = p.TourGuideId,
+                    TourGuideName = p.TourGuide.FirstName + " " + p.TourGuide.LastName,
+                    Status = p.Status,
+                    Category = p.Category,
+                    Brand = p.Brand,
+                    StockQuantity = stock,
+                    MinOrderQuantity = p.MinOrderQuantity,
+                    MaxOrderQuantity = p.MaxOrderQuantity,
+                    IsFeatured = p.IsFeatured,
+                    IsBestSeller = p.IsBestSeller,
+                    IsNewArrival = p.IsNewArrival,
+                    IsOnSale = p.IsOnSale,
+                    SalePrice = p.SalePrice,
+                    SaleStartDate = p.SaleStartDate,
+                    SaleEndDate = p.SaleEndDate,
+                    ViewCount = p.ViewCount,
+                    PurchaseCount = p.PurchaseCount,
+                    Rating = p.Rating,
+                    ReviewCount = p.ReviewCount,
+                    VariantsJson = p.VariantsJson,
+                    CreatedAt = p.CreatedAt,
+                    UpdatedAt = p.UpdatedAt
+                };
+            }).ToList();
+
+            return Ok(productDtos);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting featured products");
+            return StatusCode(500, "Internal server error");
+        }
+    }
+
+    /// <summary>
+    /// Get best-selling products (TOP 6)
+    /// </summary>
+    [HttpGet("best-selling")]
+    public async Task<ActionResult<List<ProductDto>>> GetBestSellingProducts()
+    {
+        try
+        {
+            var products = await _db.Products
+                .Include(p => p.Tour)
+                .Include(p => p.TourGuide)
+                .Where(p => p.Status == "Approved")
+                .OrderByDescending(p => p.PurchaseCount)
+                .Take(6)
+                .ToListAsync();
+
+            var productDtos = products.Select(p =>
+            {
+                var (price, stock, currency) = ComputeDerivedPricing(p);
+                return new ProductDto
+                {
+                    Id = p.Id,
+                    Name = p.Name,
+                    Description = p.Description,
+                    ShortDescription = p.ShortDescription,
+                    Price = price,
+                    Currency = currency,
+                    Images = p.Images,
+                    TourId = p.TourId,
+                    TourTitle = p.Tour.Title,
+                    TourGuideId = p.TourGuideId,
+                    TourGuideName = p.TourGuide.FirstName + " " + p.TourGuide.LastName,
+                    Status = p.Status,
+                    Category = p.Category,
+                    Brand = p.Brand,
+                    StockQuantity = stock,
+                    MinOrderQuantity = p.MinOrderQuantity,
+                    MaxOrderQuantity = p.MaxOrderQuantity,
+                    IsFeatured = p.IsFeatured,
+                    IsBestSeller = p.IsBestSeller,
+                    IsNewArrival = p.IsNewArrival,
+                    IsOnSale = p.IsOnSale,
+                    SalePrice = p.SalePrice,
+                    SaleStartDate = p.SaleStartDate,
+                    SaleEndDate = p.SaleEndDate,
+                    ViewCount = p.ViewCount,
+                    PurchaseCount = p.PurchaseCount,
+                    Rating = p.Rating,
+                    ReviewCount = p.ReviewCount,
+                    VariantsJson = p.VariantsJson,
+                    CreatedAt = p.CreatedAt,
+                    UpdatedAt = p.UpdatedAt
+                };
+            }).ToList();
+
+            return Ok(productDtos);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting best-selling products");
+            return StatusCode(500, "Internal server error");
+        }
+    }
+
+    /// <summary>
+    /// Get related products from the same tour
+    /// </summary>
+    [HttpGet("{id}/related")]
+    public async Task<ActionResult<List<ProductDto>>> GetRelatedProducts(Guid id)
+    {
+        try
+        {
+            var product = await _db.Products.FindAsync(id);
+            if (product == null)
+            {
+                return NotFound("Product not found");
+            }
+
+            var relatedProducts = await _db.Products
+                .Include(p => p.Tour)
+                .Include(p => p.TourGuide)
+                .Where(p => p.TourId == product.TourId && p.Id != id && p.Status == "Approved")
+                .OrderByDescending(p => p.PurchaseCount)
+                .Take(4)
+                .ToListAsync();
+
+            var productDtos = relatedProducts.Select(p =>
+            {
+                var (price, stock, currency) = ComputeDerivedPricing(p);
+                return new ProductDto
+                {
+                    Id = p.Id,
+                    Name = p.Name,
+                    Description = p.Description,
+                    ShortDescription = p.ShortDescription,
+                    Price = price,
+                    Currency = currency,
+                    Images = p.Images,
+                    TourId = p.TourId,
+                    TourTitle = p.Tour.Title,
+                    TourGuideId = p.TourGuideId,
+                    TourGuideName = p.TourGuide.FirstName + " " + p.TourGuide.LastName,
+                    Status = p.Status,
+                    Category = p.Category,
+                    Brand = p.Brand,
+                    StockQuantity = stock,
+                    MinOrderQuantity = p.MinOrderQuantity,
+                    MaxOrderQuantity = p.MaxOrderQuantity,
+                    IsFeatured = p.IsFeatured,
+                    IsBestSeller = p.IsBestSeller,
+                    IsNewArrival = p.IsNewArrival,
+                    IsOnSale = p.IsOnSale,
+                    SalePrice = p.SalePrice,
+                    SaleStartDate = p.SaleStartDate,
+                    SaleEndDate = p.SaleEndDate,
+                    ViewCount = p.ViewCount,
+                    PurchaseCount = p.PurchaseCount,
+                    Rating = p.Rating,
+                    ReviewCount = p.ReviewCount,
+                    VariantsJson = p.VariantsJson,
+                    CreatedAt = p.CreatedAt,
+                    UpdatedAt = p.UpdatedAt
+                };
+            }).ToList();
+
+            return Ok(productDtos);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting related products for product {ProductId}", id);
+            return StatusCode(500, "Internal server error");
+        }
+    }
+
+    /// <summary>
+    /// Get product by ID
+    /// </summary>
+    [HttpGet("{id}")]
+    public async Task<ActionResult<ProductDto>> GetProductById(Guid id)
+    {
+        try
+        {
+            var product = await _db.Products
+                .Include(p => p.Tour)
+                .Include(p => p.TourGuide)
+                .FirstOrDefaultAsync(p => p.Id == id);
+
+            if (product == null)
+            {
+                return NotFound("Product not found");
+            }
+
+            var (price, stock, currency) = ComputeDerivedPricing(product);
+            var productDto = new ProductDto
+            {
+                Id = product.Id,
+                Name = product.Name,
+                Description = product.Description,
+                ShortDescription = product.ShortDescription,
+                Price = price,
+                Currency = currency,
+                Images = product.Images,
+                TourId = product.TourId,
+                TourTitle = product.Tour.Title,
+                TourGuideId = product.TourGuideId,
+                TourGuideName = product.TourGuide.FirstName + " " + product.TourGuide.LastName,
+                Status = product.Status,
+                Category = product.Category,
+                Brand = product.Brand,
+                StockQuantity = stock,
+                MinOrderQuantity = product.MinOrderQuantity,
+                MaxOrderQuantity = product.MaxOrderQuantity,
+                IsFeatured = product.IsFeatured,
+                IsBestSeller = product.IsBestSeller,
+                IsNewArrival = product.IsNewArrival,
+                IsOnSale = product.IsOnSale,
+                SalePrice = product.SalePrice,
+                SaleStartDate = product.SaleStartDate,
+                SaleEndDate = product.SaleEndDate,
+                ViewCount = product.ViewCount,
+                PurchaseCount = product.PurchaseCount,
+                Rating = product.Rating,
+                ReviewCount = product.ReviewCount,
+                VariantsJson = product.VariantsJson,
+                CreatedAt = product.CreatedAt,
+                UpdatedAt = product.UpdatedAt
+            };
+
+            // Increment view count
+            product.ViewCount++;
+            await _db.SaveChangesAsync();
+
+            return Ok(productDto);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting product {ProductId}", id);
             return StatusCode(500, "Internal server error");
         }
     }

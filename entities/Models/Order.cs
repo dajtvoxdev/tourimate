@@ -15,6 +15,26 @@ public class Order : BaseEntity, IAuditableEntity
     [Required]
     public Guid CustomerId { get; set; }
 
+    // For backward compatibility
+    [NotMapped]
+    public Guid UserId 
+    { 
+        get => CustomerId; 
+        set => CustomerId = value; 
+    }
+
+    [Required]
+    [MaxLength(200)]
+    public string ReceiverName { get; set; } = string.Empty;
+
+    [Required]
+    [MaxLength(20)]
+    public string ReceiverPhone { get; set; } = string.Empty;
+
+    [Required]
+    [MaxLength(200)]
+    public string ReceiverEmail { get; set; } = string.Empty;
+
     [Required]
     [Column(TypeName = "decimal(18,2)")]
     public decimal Subtotal { get; set; }
@@ -85,6 +105,15 @@ public class Order : BaseEntity, IAuditableEntity
     public virtual User Customer { get; set; } = null!;
 
     public virtual ICollection<OrderItem> Items { get; set; } = new List<OrderItem>();
+    
+    // For backward compatibility
+    [NotMapped]
+    public virtual ICollection<OrderItem> OrderItems 
+    { 
+        get => Items; 
+        set => Items = value; 
+    }
+    
     public virtual ICollection<Review> Reviews { get; set; } = new List<Review>();
     public virtual ICollection<Transaction> Transactions { get; set; } = new List<Transaction>();
 

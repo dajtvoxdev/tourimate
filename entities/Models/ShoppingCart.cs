@@ -16,6 +16,11 @@ public class ShoppingCart : BaseEntity
     [Required]
     public int Quantity { get; set; }
 
+    // Store selected variant info as JSON string
+    // Format: {"netAmount": 250, "netUnit": "ml", "price": 50000, "stockQuantity": 10}
+    [Column(TypeName = "nvarchar(500)")]
+    public string? SelectedVariant { get; set; }
+
     // Navigation properties
     [ForeignKey("UserId")]
     public virtual User User { get; set; } = null!;
@@ -23,10 +28,5 @@ public class ShoppingCart : BaseEntity
     [ForeignKey("ProductId")]
     public virtual Product Product { get; set; } = null!;
 
-    // Computed properties
-    [NotMapped]
-    public decimal Subtotal => Quantity * Product.Price;
-
-    [NotMapped]
-    public bool IsAvailable => Product.Status == "Active" && Product.StockQuantity >= Quantity;
+    // Note: Subtotal and IsAvailable should be computed from Product.VariantsJson and SelectedVariant in application logic
 }

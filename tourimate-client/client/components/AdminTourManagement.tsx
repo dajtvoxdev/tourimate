@@ -36,7 +36,8 @@ import {
   Check,
   X,
   RotateCcw,
-  Clock
+  Clock,
+  RefreshCw
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -123,6 +124,13 @@ const AdminTourManagement = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleClearFilters = () => {
+    setSearchParams({
+      page: 1,
+      pageSize: 10
+    });
   };
 
   const handleSearch = (value: string) => {
@@ -351,15 +359,31 @@ const AdminTourManagement = () => {
   return (
     <AdminLayout>
       <div className="max-w-9xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Quản lý Tour</h1>
-          <p className="text-gray-600 mt-2">Quản lý tất cả tour trên nền tảng</p>
+        <div className="mb-8 flex justify-between items-center">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Quản lý Tour</h1>
+            <p className="text-gray-600 mt-2">Quản lý tất cả tour trên nền tảng</p>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={loadTours} disabled={loading}>
+              <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+              Làm mới
+            </Button>
+            <Button onClick={() => navigate("/admin/tour/create")}>
+              <Plus className="w-4 h-4 mr-2" />
+              Tạo tour
+            </Button>
+          </div>
         </div>
 
         {/* Filters and Search */}
         <Card className="mb-6">
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>Bộ lọc và Tìm kiếm</CardTitle>
+            <Button variant="outline" size="sm" onClick={handleClearFilters}>
+              <X className="w-4 h-4 mr-2" />
+              Xóa lọc
+            </Button>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -406,52 +430,6 @@ const AdminTourManagement = () => {
                     <SelectItem value="rejected">Từ chối</SelectItem>
                   </SelectContent>
                 </Select>
-              </div>
-              
-              <div className="flex items-end">
-                {isTourGuide && (
-                  <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-                    <DialogTrigger asChild>
-                      <Button className="w-full">
-                        <Plus className="h-4 w-4 mr-2" />
-                        Tạo Tour
-                      </Button>
-                    </DialogTrigger>
-                  <DialogContent className="max-w-[1200px] w-[95vw] h-[90vh] flex flex-col">
-                    <DialogHeader>
-                      <DialogTitle>Tạo Tour Mới</DialogTitle>
-                      <DialogDescription>
-                        Điền thông tin để tạo tour mới
-                      </DialogDescription>
-                    </DialogHeader>
-                    <CreateTourForm
-                      submitLabel="Tạo Tour"
-                      onCancel={() => setIsCreateDialogOpen(false)}
-                      onUploadImages={async (files) => {
-                        const token = localStorage.getItem("accessToken");
-                        const form = new FormData();
-                        files.forEach(f => form.append("files", f));
-                        const data = await httpUpload<{ urls: string[] }>(`${getApiBase()}/api/media/uploads`, form);
-                        return (data.urls || []) as string[];
-                      }}
-                      onSubmit={async (payload) => {
-                        try {
-                          const request: any = { ...payload };
-                          if (request.imageUrls?.length) delete request.images;
-                          await tourApi.createTour(request);
-                          toast.success("Tạo tour thành công");
-                          setIsCreateDialogOpen(false);
-                          resetForm();
-                          loadTours();
-                        } catch (e) {
-                          console.error(e);
-                          toast.error("Không thể tạo tour");
-                        }
-                      }}
-                    />
-                  </DialogContent>
-                  </Dialog>
-                )}
               </div>
             </div>
           </CardContent>

@@ -437,6 +437,14 @@ public class BookingController : ControllerBase
                 return BadRequest("Invalid status transition");
             }
 
+            // If transitioning to Confirmed for the first time, increment tour bookings
+            if (current != BookingStatus.Confirmed && newStatus == BookingStatus.Confirmed)
+            {
+                booking.Tour.TotalBookings++;
+                _logger.LogInformation("Incremented TotalBookings for Tour {TourId} to {Count}", 
+                    booking.Tour.Id, booking.Tour.TotalBookings);
+            }
+
             booking.Status = newStatus;
             booking.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();

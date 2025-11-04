@@ -221,6 +221,18 @@ public class PaymentRequestController : ControllerBase
                 return Forbid("Only tour guides can create payment requests");
             }
 
+            if (request.OrderId.HasValue && request.OrderId != Guid.Empty)
+            {
+                var costOrder = await _commissionService.CreateTourGuideOrderPaymentRequestAsync(request.OrderId.Value, userId.Value);
+                return Ok(new
+                {
+                    message = "Payment request created successfully",
+                    costId = costOrder.Id,
+                    amount = costOrder.Amount,
+                    status = costOrder.Status.ToString()
+                });
+            }
+
             var cost = await _commissionService.CreateTourGuidePaymentRequestAsync(request.BookingId, userId.Value);
 
             return Ok(new
@@ -305,4 +317,5 @@ public class PaymentRequestController : ControllerBase
 public class CreatePaymentRequestDto
 {
     public Guid BookingId { get; set; }
+    public Guid? OrderId { get; set; }
 }

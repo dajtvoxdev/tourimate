@@ -272,33 +272,13 @@ Stop-WebAppPool -Name "DefaultAppPool" -ErrorAction SilentlyContinue
 Write-Host "Waiting for application pool to stop..."
 Start-Sleep -Seconds 5
 
-# Backup web.config files before cleaning
-Write-Host "Backing up configuration files..."
-`$backupDir = 'C:\inetpub\wwwroot\backup-temp'
-if (!(Test-Path `$backupDir)) {
-    New-Item -ItemType Directory -Path `$backupDir -Force | Out-Null
-}
+# Clean frontend spa directory (will be replaced with new files)
+Write-Host "Cleaning frontend SPA directory..."
+Remove-Item -Path 'C:\inetpub\wwwroot\tourimate-frontend-production\spa\*' -Recurse -Force -ErrorAction SilentlyContinue
 
-# Backup frontend web.config if exists (inside spa folder - IIS physical path)
-`$frontendWebConfig = 'C:\inetpub\wwwroot\tourimate-frontend-production\spa\web.config'
-if (Test-Path `$frontendWebConfig) {
-    Write-Host "Backing up frontend web.config..."
-    Copy-Item -Path `$frontendWebConfig -Destination "`$backupDir\frontend-web.config" -Force
-}
-
-# Backup backend web.config if exists
-`$backendWebConfig = 'C:\inetpub\wwwroot\tourimate-production\web.config'
-if (Test-Path `$backendWebConfig) {
-    Write-Host "Backing up backend web.config..."
-    Copy-Item -Path `$backendWebConfig -Destination "`$backupDir\backend-web.config" -Force
-}
-
-# Clean deployment directories (keep directory structure)
+# Clean backend directory
 Write-Host "Cleaning backend deployment directory..."
 Get-ChildItem -Path 'C:\inetpub\wwwroot\tourimate-production' -Recurse -ErrorAction SilentlyContinue | Remove-Item -Force -Recurse -ErrorAction SilentlyContinue
-
-Write-Host "Cleaning frontend deployment directory..."
-Get-ChildItem -Path 'C:\inetpub\wwwroot\tourimate-frontend-production' -Recurse -ErrorAction SilentlyContinue | Remove-Item -Force -Recurse -ErrorAction SilentlyContinue
 
 Write-Host "VPS preparation completed. Ready for file transfer."
 "@
@@ -323,10 +303,15 @@ scp -P $($Config.VpsPort) -r `"$($Config.BackendBuildPath)\*`" $($Config.VpsUser
             Handle-Error "Failed to transfer backend files"
         }
         
-        # Transfer frontend files
-        Write-Log "Transferring frontend files..."
+        # Transfer frontend files directly to spa folder (since physical path is configured as tourimate-frontend-production\spa)
+        Write-Log "Transferring frontend files to spa folder..."
+        $spaBuildPath = Join-Path $Config.FrontendBuildPath "spa"
+        if (!(Test-Path $spaBuildPath)) {
+            Handle-Error "SPA build path not found: $spaBuildPath"
+        }
+        
         $scpFrontendCmd = @"
-scp -P $($Config.VpsPort) -r `"$($Config.FrontendBuildPath)\*`" $($Config.VpsUser)@$($Config.VpsHost):'C:\inetpub\wwwroot\tourimate-frontend-production\'
+scp -P $($Config.VpsPort) -r `"$spaBuildPath\*`" $($Config.VpsUser)@$($Config.VpsHost):'C:\inetpub\wwwroot\tourimate-frontend-production\spa\'
 "@
         Write-Log "SCP Command: $scpFrontendCmd"
         Invoke-Expression $scpFrontendCmd
@@ -335,30 +320,9 @@ scp -P $($Config.VpsPort) -r `"$($Config.FrontendBuildPath)\*`" $($Config.VpsUse
             Handle-Error "Failed to transfer frontend files"
         }
         
-        # Restore web.config files and start IIS
-        Write-Log "Restoring configuration files and starting IIS..."
-        $restoreScript = @"
-# Restore web.config files from backup
-Write-Host "Restoring configuration files..."
-`$backupDir = 'C:\inetpub\wwwroot\backup-temp'
-
-# Restore frontend web.config if backup exists (to spa folder - IIS physical path)
-if (Test-Path "`$backupDir\frontend-web.config") {
-    Write-Host "Restoring frontend web.config..."
-    Copy-Item -Path "`$backupDir\frontend-web.config" -Destination 'C:\inetpub\wwwroot\tourimate-frontend-production\spa\web.config' -Force
-    Write-Host "Frontend web.config restored"
-}
-
-# Restore backend web.config if backup exists  
-if (Test-Path "`$backupDir\backend-web.config") {
-    Write-Host "Restoring backend web.config..."
-    Copy-Item -Path "`$backupDir\backend-web.config" -Destination 'C:\inetpub\wwwroot\tourimate-production\web.config' -Force
-    Write-Host "Backend web.config restored"
-}
-
-# Clean up backup directory
-Remove-Item -Path `$backupDir -Recurse -Force -ErrorAction SilentlyContinue
-
+        # Start IIS application pools
+        Write-Log "Starting IIS application pools..."
+        $startScript = @"
 # Start IIS application pools
 Write-Host "Starting IIS application pools..."
 Import-Module WebAdministration -ErrorAction SilentlyContinue
@@ -366,10 +330,10 @@ Start-WebAppPool -Name "DefaultAppPool" -ErrorAction SilentlyContinue
 Write-Host "IIS application pools started successfully"
 "@
         
-        $restoreScript | ssh -p $Config.VpsPort $sshConnection "powershell -Command -"
+        $startScript | ssh -p $Config.VpsPort $sshConnection "powershell -Command -"
         
         if ($LASTEXITCODE -ne 0) {
-            Handle-Error "Failed to restore configs and start IIS application pools"
+            Handle-Error "Failed to start IIS application pools"
         }
         
         Write-Log "Deployment to VPS completed successfully"

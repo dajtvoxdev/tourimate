@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { User, MapPin, Calendar, Star, CreditCard, ArrowLeft, Users, Clock, ChevronRight, Home, Copy, Check } from "lucide-react";
 import Header from "@/components/Header";
+import Footer from "@/components/Footer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { PaymentDialog } from "@/components/PaymentDialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { useAuth } from "@/src/hooks/useAuth";
@@ -87,6 +89,7 @@ const TourBooking: React.FC = () => {
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [showQRDialog, setShowQRDialog] = useState(false);
   const [bookingNumber, setBookingNumber] = useState<string>("");
+  const [bookingId, setBookingId] = useState<string>("");
   const [totalAmount, setTotalAmount] = useState<number>(0);
   const [isProcessing, setIsProcessing] = useState(false);
   const [adminBanking, setAdminBanking] = useState<{
@@ -109,7 +112,6 @@ const TourBooking: React.FC = () => {
     // Check authentication first
     if (!user) {
       toast.error("Vui lòng đăng nhập để đặt tour");
-      // Save current URL as return URL
       const currentUrl = window.location.pathname + window.location.search;
       navigate(`/login?returnUrl=${encodeURIComponent(currentUrl)}`);
       return;
@@ -121,7 +123,6 @@ const TourBooking: React.FC = () => {
       try {
         setLoading(true);
         
-        // Get URL parameters
         const availabilityId = searchParams.get('availability');
         const bookingNumber = searchParams.get('booking');
         
@@ -132,57 +133,53 @@ const TourBooking: React.FC = () => {
           httpJson<{ account: string; bankName: string; qrCodeUrl: string }>(`${getApiBase()}/api/payment/admin-banking`, { skipAuth: true })
         ]);
         
-        // Fetch booking data separately if booking number is provided
-        let bookingData: ExistingBooking | null = null;
+        let bookingDataResult: ExistingBooking | null = null;
         if (bookingNumber) {
           try {
-            bookingData = await httpJson<ExistingBooking>(`${getApiBase()}/api/bookings/${bookingNumber}`);
+            bookingDataResult = await httpJson<ExistingBooking>(`${getApiBase()}/api/bookings/${bookingNumber}`);
           } catch (error) {
             console.error("Error fetching booking data:", error);
-            // Continue without booking data
           }
         }
         
+        // Filter future availabilities only
+        const startOfToday = new Date();
+        startOfToday.setHours(0, 0, 0, 0);
+        const startOfTomorrow = new Date(startOfToday);
+        startOfTomorrow.setDate(startOfToday.getDate() + 1);
+        const futureAvailabilities = (availabilitiesData.data || []).filter((a: TourAvailability) => new Date(a.date) >= startOfTomorrow);
+        
         setTour(tourData);
-        setAvailabilities(availabilitiesData.data);
+        setAvailabilities(futureAvailabilities);
         setCategories(categoriesData);
         setAdminBanking(bankingData);
         
-        // Check if user is tour guide trying to book their own tour
         if (user && user.role === "TourGuide" && tourData.tourGuideId === user.id) {
           toast.error("Bạn không thể đặt tour của chính mình");
           navigate(`/tour/${tourId}`);
           return;
         }
         
-        // Handle existing booking data
-        if (bookingData) {
-          setExistingBooking(bookingData);
-          
-          // Parse contact info from JSON
-          const contactInfo = JSON.parse(bookingData.contactInfo);
-          
-          // Pre-fill form with existing booking data
+        if (bookingDataResult) {
+          setExistingBooking(bookingDataResult);
+          const contactInfo = JSON.parse(bookingDataResult.contactInfo);
           setBookingData({
-            adultCount: bookingData.adultCount,
-            childCount: bookingData.childCount,
+            adultCount: bookingDataResult.adultCount,
+            childCount: bookingDataResult.childCount,
             contactName: contactInfo.Name || contactInfo.name || "",
             contactEmail: contactInfo.Email || contactInfo.email || "",
             contactPhone: contactInfo.Phone || contactInfo.phone || "",
-            specialRequests: bookingData.specialRequests || ""
+            specialRequests: bookingDataResult.specialRequests || ""
           });
         }
         
-        // Auto-select availability
         if (availabilityId) {
-          // Find and select the specific availability
-          const targetAvailability = availabilitiesData.data.find(av => av.id === availabilityId);
+          const targetAvailability = futureAvailabilities.find(av => av.id === availabilityId);
           if (targetAvailability) {
             setSelectedAvailability(targetAvailability);
           }
-        } else if (availabilitiesData.data.length > 0) {
-          // Auto-select the first available date if no specific availability
-          setSelectedAvailability(availabilitiesData.data[0]);
+        } else if (futureAvailabilities.length > 0) {
+          setSelectedAvailability(futureAvailabilities[0]);
         }
       } catch (error) {
         console.error("Error loading tour data:", error);
@@ -199,16 +196,13 @@ const TourBooking: React.FC = () => {
   const handleBooking = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Check authentication
     if (!user) {
       toast.error("Vui lòng đăng nhập để đặt tour");
-      // Save current URL as return URL
       const currentUrl = window.location.pathname + window.location.search;
       navigate(`/login?returnUrl=${encodeURIComponent(currentUrl)}`);
       return;
     }
     
-    // Check if user is tour guide trying to book their own tour
     if (user.role === "TourGuide" && tour && tour.tourGuideId === user.id) {
       toast.error("Bạn không thể đặt tour của chính mình");
       return;
@@ -219,6 +213,15 @@ const TourBooking: React.FC = () => {
       return;
     }
 
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const startOfTomorrow = new Date(startOfToday);
+    startOfTomorrow.setDate(startOfToday.getDate() + 1);
+    if (new Date(selectedAvailability.date) < startOfTomorrow) {
+      toast.error("Ngày khởi hành không còn khả dụng");
+      return;
+    }
+    
     if (bookingData.adultCount + bookingData.childCount === 0) {
       toast.error("Vui lòng chọn số lượng khách");
       return;
@@ -246,7 +249,6 @@ const TourBooking: React.FC = () => {
       let bookingResponse: { bookingNumber: string };
 
       if (existingBooking) {
-        // Update existing booking
         const bookingPayload = {
           tourId: tour.id,
           tourAvailabilityId: selectedAvailability.id,
@@ -267,7 +269,6 @@ const TourBooking: React.FC = () => {
           }
         );
       } else {
-        // Create new booking
         const bookingPayload = {
           tourId: tour.id,
           tourAvailabilityId: selectedAvailability.id,
@@ -290,6 +291,13 @@ const TourBooking: React.FC = () => {
       }
 
       setBookingNumber(bookingResponse.bookingNumber);
+
+      // fetch booking id for redirect to success page later
+      try {
+        const booking = await httpJson<ExistingBooking>(`${getApiBase()}/api/bookings/${bookingResponse.bookingNumber}`);
+        setBookingId(booking.id);
+      } catch {}
+
       setShowQRDialog(true);
       toast.success("Đặt tour thành công! Vui lòng thanh toán để hoàn tất.");
 
@@ -300,6 +308,11 @@ const TourBooking: React.FC = () => {
       setIsProcessing(false);
     }
   };
+
+  // Auto poll for payment status when QR dialog is open
+  useEffect(() => {
+    // removed polling; prefer SignalR on PaymentProcessing page
+  }, []);
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('vi-VN', {
@@ -333,7 +346,6 @@ const TourBooking: React.FC = () => {
     }
   };
 
-  // Early return if user is not authenticated
   if (!user) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -372,6 +384,8 @@ const TourBooking: React.FC = () => {
       </div>
     );
   }
+
+  const hasFutureAvailabilities = availabilities.length > 0;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -584,10 +598,10 @@ const TourBooking: React.FC = () => {
                       ))}
                     </div>
                     
-                    {availabilities.length === 0 && (
+                    {!hasFutureAvailabilities && (
                       <div className="text-center py-8 text-gray-500">
                         <Calendar className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                        <p>Không có ngày khởi hành nào</p>
+                        <p>Không có ngày khởi hành khả dụng</p>
                       </div>
                     )}
                   </div>
@@ -605,6 +619,7 @@ const TourBooking: React.FC = () => {
                           ...prev,
                           adultCount: parseInt(e.target.value) || 1
                         }))}
+                        disabled={!hasFutureAvailabilities}
                       />
                     </div>
                     <div>
@@ -618,6 +633,7 @@ const TourBooking: React.FC = () => {
                           ...prev,
                           childCount: parseInt(e.target.value) || 0
                         }))}
+                        disabled={!hasFutureAvailabilities}
                       />
                     </div>
                   </div>
@@ -635,6 +651,7 @@ const TourBooking: React.FC = () => {
                           contactName: e.target.value
                         }))}
                         required
+                        disabled={!hasFutureAvailabilities}
                       />
                     </div>
                     <div>
@@ -648,6 +665,7 @@ const TourBooking: React.FC = () => {
                           contactEmail: e.target.value
                         }))}
                         required
+                        disabled={!hasFutureAvailabilities}
                       />
                     </div>
                     <div>
@@ -660,6 +678,7 @@ const TourBooking: React.FC = () => {
                           contactPhone: e.target.value
                         }))}
                         required
+                        disabled={!hasFutureAvailabilities}
                       />
                     </div>
                     <div>
@@ -672,12 +691,13 @@ const TourBooking: React.FC = () => {
                           specialRequests: e.target.value
                         }))}
                         placeholder="Nhập yêu cầu đặc biệt (nếu có)"
+                        disabled={!hasFutureAvailabilities}
                       />
                     </div>
                   </div>
 
-                  <Button type="submit" className="w-full">
-                    Tiếp tục thanh toán
+                  <Button type="submit" className="w-full" disabled={!hasFutureAvailabilities}>
+                    {hasFutureAvailabilities ? 'Tiếp tục thanh toán' : 'Không có ngày khởi hành khả dụng'}
                   </Button>
                 </form>
               </CardContent>
@@ -797,167 +817,14 @@ const TourBooking: React.FC = () => {
       </AlertDialog>
 
       {/* QR Code Payment Dialog */}
-      <Dialog open={showQRDialog} onOpenChange={setShowQRDialog}>
-        <DialogContent className="max-w-4xl h-[80vh] overflow-hidden flex flex-col">
-          <DialogHeader>
-            <DialogTitle>Thanh toán</DialogTitle>
-          </DialogHeader>
-          
-          <div className="flex-1 overflow-y-auto">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-full">
-              {/* Left Side - QR Code */}
-              <div className="flex flex-col items-center justify-center space-y-4">
-                {/* Booking Information */}
-                <div className="text-center bg-blue-50 p-4 rounded-lg w-full">
-                  <p className="text-sm text-gray-600 mb-2">
-                    Mã đặt tour: <span className="font-mono font-semibold">{bookingNumber}</span>
-                  </p>
-                  <p className="text-lg font-semibold text-blue-600">
-                    Số tiền: {formatPrice(totalAmount)}
-                  </p>
-                </div>
-                
-                {/* QR Code */}
-                <div className="flex justify-center">
-                  <img
-                    src={`${getApiBase()}/api/payment/qr-code?amount=${totalAmount}&des=${encodeURIComponent(bookingNumber)}`}
-                    alt="QR Code thanh toán"
-                    className="w-64 h-64 border rounded-lg shadow-lg"
-                    onError={(e) => {
-                      e.currentTarget.src = "/placeholder.svg";
-                      e.currentTarget.alt = "Không thể tải QR code";
-                    }}
-                  />
-                </div>
-                
-                <p className="text-sm text-gray-500 text-center">
-                  Quét mã QR để thanh toán nhanh chóng
-                </p>
-              </div>
-              
-              {/* Right Side - Payment Information */}
-              <div className="space-y-6">
-                {/* Manual Transfer Information */}
-                {adminBanking && (
-                  <div className="space-y-4">
-                    <h3 className="font-semibold text-gray-900">Thông tin chuyển khoản thủ công</h3>
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                        <span className="text-sm text-gray-600">Số tài khoản:</span>
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono font-semibold">{adminBanking.account}</span>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => copyToClipboard(adminBanking.account, "account")}
-                            className="h-8 w-8 p-0"
-                          >
-                            {copiedField === "account" ? (
-                              <Check className="h-4 w-4 text-green-600" />
-                            ) : (
-                              <Copy className="h-4 w-4" />
-                            )}
-                          </Button>
-                        </div>
-                      </div>
-                      
-                      <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                        <span className="text-sm text-gray-600">Tên ngân hàng:</span>
-                        <div className="flex items-center gap-2">
-                          <span className="font-semibold">{adminBanking.bankName}</span>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => copyToClipboard(adminBanking.bankName, "bank")}
-                            className="h-8 w-8 p-0"
-                          >
-                            {copiedField === "bank" ? (
-                              <Check className="h-4 w-4 text-green-600" />
-                            ) : (
-                              <Copy className="h-4 w-4" />
-                            )}
-                          </Button>
-                        </div>
-                      </div>
-                      
-                      <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                        <span className="text-sm text-gray-600">Số tiền:</span>
-                        <div className="flex items-center gap-2">
-                          <span className="font-semibold text-blue-600">{formatPrice(totalAmount)}</span>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => copyToClipboard(totalAmount.toString(), "amount")}
-                            className="h-8 w-8 p-0"
-                          >
-                            {copiedField === "amount" ? (
-                              <Check className="h-4 w-4 text-green-600" />
-                            ) : (
-                              <Copy className="h-4 w-4" />
-                            )}
-                          </Button>
-                        </div>
-                      </div>
-                      
-                      <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                        <span className="text-sm text-gray-600">Nội dung:</span>
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-sm">{bookingNumber}</span>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => copyToClipboard(bookingNumber, "content")}
-                            className="h-8 w-8 p-0"
-                          >
-                            {copiedField === "content" ? (
-                              <Check className="h-4 w-4 text-green-600" />
-                            ) : (
-                              <Copy className="h-4 w-4" />
-                            )}
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-                
-                {/* Payment Policy */}
-                <div className="space-y-3">
-                  <h3 className="font-semibold text-gray-900">Chính sách thanh toán</h3>
-                  <div className="text-sm text-gray-600 space-y-2">
-                    <p>• Thanh toán 100% giá trị tour trước khi khởi hành</p>
-                    <p>• Sau khi chuyển khoản, vui lòng giữ lại biên lai giao dịch</p>
-                    <p>• Sau khi thanh toán, vui lòng nhấn "Hoàn tất" để hệ thống kiểm tra giao dịch</p>
-                    <p>• Hệ thống sẽ tự động xác nhận thanh toán trong vòng 24 giờ</p>
-                    <p>• Nếu có vấn đề về thanh toán, vui lòng liên hệ hotline: 1900-xxxx</p>
-                    <p>• Tour có thể bị hủy nếu không thanh toán đúng hạn</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-          
-          {/* Action Buttons */}
-          <div className="flex gap-2 pt-4 border-t">
-            <Button 
-              variant="outline" 
-              className="flex-1"
-              onClick={() => setShowQRDialog(false)}
-            >
-              Đóng
-            </Button>
-            <Button 
-              className="flex-1"
-              onClick={() => {
-                setShowQRDialog(false);
-                navigate(`/payment-processing?bookingNumber=${createdBooking?.bookingNumber}&bookingId=${createdBooking?.id}`);
-              }}
-            >
-              Hoàn tất
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <PaymentDialog
+        open={showQRDialog}
+        onOpenChange={setShowQRDialog}
+        bookingNumber={bookingNumber}
+        totalAmount={totalAmount}
+        adminBanking={adminBanking}
+      />
+      <Footer />
     </div>
   );
 };
