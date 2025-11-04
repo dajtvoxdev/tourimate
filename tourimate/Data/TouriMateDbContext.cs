@@ -575,11 +575,11 @@ public class TouriMateDbContext : DbContext
 
         foreach (var entry in entries)
         {
-            entry.Entity.UpdatedAt = DateTime.UtcNow;
+            entry.Entity.UpdatedAt = Entities.Common.TimeProvider.VietnamNow();
             
             if (entry.State == EntityState.Added)
             {
-                entry.Entity.CreatedAt = DateTime.UtcNow;
+                entry.Entity.CreatedAt = Entities.Common.TimeProvider.VietnamNow();
             }
         }
 
