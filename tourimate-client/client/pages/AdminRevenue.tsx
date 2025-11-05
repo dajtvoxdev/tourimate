@@ -47,7 +47,7 @@ import {
   Cell
 } from "recharts";
 
-interface Revenue {
+interface Booking {
   id: string;
   bookingNumber: string;
   totalAmount: number;
@@ -55,17 +55,17 @@ interface Revenue {
   status: number;
   createdAt: string;
   updatedAt: string;
-  tour: {
+  tour?: {
     id: string;
     title: string;
     tourGuideId: string;
   };
-  tourAvailability: {
+  tourAvailability?: {
     date: string;
     adultPrice: number;
     childPrice: number;
   };
-  customer: {
+  customer?: {
     id: string;
     firstName: string;
     lastName: string;
@@ -73,11 +73,54 @@ interface Revenue {
   };
 }
 
+interface Order {
+  id: string;
+  orderNumber: string;
+  totalAmount: number;
+  paymentStatus: number;
+  status: number;
+  createdAt: string;
+  updatedAt: string;
+  customer?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+  };
+}
+
+interface Revenue {
+  id: string;
+  transactionId: string;
+  entityId?: string;
+  kind: string; // Tour, Product
+  grossAmount: number;
+  commissionRate: number;
+  commissionAmount: number;
+  netAmount: number;
+  revenueAmount?: number; // For admin: GrossAmount, for tour guide: NetAmount
+  currency: string;
+  payoutStatus: string; // pending, paid, held
+  payoutDate?: string;
+  createdAt: string;
+  updatedAt: string;
+  transaction?: {
+    type: string;
+    status: string;
+    entityId?: string;
+    entityType?: string;
+    description?: string;
+  };
+  booking?: Booking | null;
+  order?: Order | null;
+}
+
 interface RevenueResponse {
   revenues: Revenue[];
   summary: {
     totalRevenue: number;
     totalBookings: number;
+    totalOrders?: number;
     averageRevenue: number;
   };
   pagination: {
@@ -99,14 +142,14 @@ interface RevenueStatistics {
     bookings: number;
     monthName: string;
   }>;
-  revenueByTour: Array<{
-    tourId: string;
-    tourTitle: string;
+  revenueByTour: Array<{ // now entity-level
+    entityType: string;
+    entityId?: string;
     revenue: number;
-    bookings: number;
+    count: number;
   }>;
   revenueByStatus: Array<{
-    status: number;
+    status: string;
     revenue: number;
     bookings: number;
   }>;
@@ -332,13 +375,14 @@ export default function AdminRevenue() {
     setShowDetailsDialog(true);
   };
 
-  const filteredRevenues = revenues.filter(
-    (revenue) =>
-      revenue.bookingNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      revenue.tour.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      revenue.customer.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      revenue.customer.lastName.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredRevenues = revenues.filter((r) => {
+    const term = searchTerm.toLowerCase();
+    return (
+      (r.transactionId || '').toLowerCase().includes(term) ||
+      (r.kind || '').toLowerCase().includes(term) ||
+      (r.transaction?.type || '').toLowerCase().includes(term)
+    );
+  });
 
   return (
     <AdminLayout>
@@ -386,60 +430,18 @@ export default function AdminRevenue() {
               <div className="text-2xl font-bold">{summary.totalBookings}</div>
             </CardContent>
           </Card>
-
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Doanh thu trung bình</CardTitle>
-              <TrendingUp className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-sm font-medium">Tổng số đơn hàng</CardTitle>
+              <Calendar className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{formatCurrency(summary.averageRevenue)}</div>
+              <div className="text-2xl font-bold">{summary.totalOrders ?? 0}</div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Charts */}
-        {!statsLoading && statistics && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Revenue by Month */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Doanh thu theo tháng</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={getTransformedRevenueData()}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="monthName" />
-                    <YAxis />
-                    <Tooltip formatter={(value) => formatCurrency(Number(value))} />
-                    <Legend />
-                    <Line type="monotone" dataKey="revenue" stroke="#8884d8" name="Doanh thu" />
-                  </LineChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-
-            {/* Top Tours by Revenue */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Top 10 Tour theo doanh thu</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={statistics.revenueByTour}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="tourTitle" angle={-45} textAnchor="end" height={100} />
-                    <YAxis />
-                    <Tooltip formatter={(value) => formatCurrency(Number(value))} />
-                    <Legend />
-                    <Bar dataKey="revenue" fill="#82ca9d" name="Doanh thu" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-          </div>
-        )}
+        {/* Charts removed per request */}
 
         {/* Filters */}
         <Card>
@@ -534,43 +536,77 @@ export default function AdminRevenue() {
                   >
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
-                        {/* Tour Title */}
-                        <h3 className="font-semibold text-lg mb-2">{revenue.tour.title}</h3>
-
-                        {/* Booking Info */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-gray-600">
+                        <h3 className="font-semibold text-lg mb-2">
+                          {revenue.kind === "Tour" ? "Tour" : revenue.kind === "Product" ? "Sản phẩm" : revenue.kind}
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-gray-600 mb-3">
                           <div>
-                            <span className="font-medium">Mã booking:</span>{" "}
-                            <span className="font-mono">{revenue.bookingNumber}</span>
+                            <span className="font-medium">Giao dịch:</span>{" "}
+                            <span className="font-mono text-xs">{revenue.transactionId}</span>
                           </div>
+                          
+                          
                           <div>
-                            <span className="font-medium">Khách hàng:</span>{" "}
-                            {revenue.customer.firstName} {revenue.customer.lastName}
-                          </div>
-                          <div>
-                            <span className="font-medium">Email:</span> {revenue.customer.email}
-                          </div>
-                          <div>
-                            <span className="font-medium">Ngày tour:</span>{" "}
-                            {formatDate(revenue.tourAvailability.date)}
+                            <span className="font-medium">Ngày:</span> {formatDate(revenue.createdAt)}
                           </div>
                         </div>
-
-                        {/* Status Badges */}
-                        <div className="flex gap-2 mt-3">
-                          {getPaymentStatusBadge(revenue.paymentStatus)}
-                          {getBookingStatusBadge(revenue.status)}
-                        </div>
+                        
+                        {/* Booking/Order Information */}
+                        {revenue.booking && (
+                          <div className="mt-3 p-3 bg-blue-50 rounded-lg">
+                            <div className="font-medium text-blue-900 mb-2">Thông tin Booking</div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
+                              <div>
+                                <span className="font-medium">Mã booking:</span> {revenue.booking.bookingNumber}
+                              </div>
+                              <div>
+                                <span className="font-medium">Tour:</span> {revenue.booking.tour?.title || "N/A"}
+                              </div>
+                              {revenue.booking.tourAvailability && (
+                                <div>
+                                  <span className="font-medium">Ngày tour:</span> {new Date(revenue.booking.tourAvailability.date).toLocaleDateString("vi-VN")}
+                                </div>
+                              )}
+                              {revenue.booking.customer && (
+                                <div>
+                                  <span className="font-medium">Khách hàng:</span> {revenue.booking.customer.firstName} {revenue.booking.customer.lastName}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                        
+                        {revenue.order && (
+                          <div className="mt-3 p-3 bg-green-50 rounded-lg">
+                            <div className="font-medium text-green-900 mb-2">Thông tin Đơn hàng</div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
+                              <div>
+                                <span className="font-medium">Mã đơn:</span> {revenue.order.orderNumber}
+                              </div>
+                              <div>
+                                <span className="font-medium">Tổng tiền:</span> {formatCurrency(revenue.order.totalAmount)}
+                              </div>
+                              {revenue.order.customer && (
+                                <div>
+                                  <span className="font-medium">Khách hàng:</span> {revenue.order.customer.firstName} {revenue.order.customer.lastName}
+                                </div>
+                              )}
+                              {revenue.order.customer && (
+                                <div>
+                                  <span className="font-medium">Email:</span> {revenue.order.customer.email}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
                       </div>
 
                       {/* Amount and Actions */}
                       <div className="text-right flex flex-col items-end gap-3">
                         <div className="text-2xl font-bold text-green-600">
-                          {formatCurrency(revenue.totalAmount)}
+                          {formatCurrency(revenue.revenueAmount ?? revenue.grossAmount)}
                         </div>
-                        <div className="text-sm text-gray-500">
-                          {formatDate(revenue.createdAt)}
-                        </div>
+                        
                         <Button
                           size="sm"
                           variant="outline"
@@ -622,94 +658,132 @@ export default function AdminRevenue() {
         <Dialog open={showDetailsDialog} onOpenChange={setShowDetailsDialog}>
           <DialogContent className="max-w-2xl">
             <DialogHeader>
-              <DialogTitle>Chi tiết Doanh thu</DialogTitle>
+            <DialogTitle>Chi tiết Doanh thu</DialogTitle>
             </DialogHeader>
 
             {selectedRevenue && (
               <div className="space-y-6">
-                {/* Booking Information */}
+                {/* Revenue Information */}
                 <div className="space-y-4">
-                  <h3 className="font-semibold text-lg">Thông tin Booking</h3>
+                  <h3 className="font-semibold text-lg">Thông tin Doanh thu</h3>
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div>
-                      <label className="text-gray-500">Mã booking</label>
-                      <p className="font-mono font-semibold">{selectedRevenue.bookingNumber}</p>
+                      <label className="text-gray-500">Giao dịch</label>
+                      <p className="font-mono text-xs">{selectedRevenue.transactionId}</p>
                     </div>
+                    
                     <div>
-                      <label className="text-gray-500">Tổng tiền</label>
+                      <label className="text-gray-500">Doanh thu {user?.role === "Admin" ? "(100%)" : "(Net)"}</label>
                       <p className="font-semibold text-green-600">
-                        {formatCurrency(selectedRevenue.totalAmount)}
+                        {formatCurrency(selectedRevenue.revenueAmount ?? (user?.role === "Admin" ? selectedRevenue.grossAmount : selectedRevenue.netAmount))}
                       </p>
                     </div>
-                    <div>
-                      <label className="text-gray-500">Trạng thái thanh toán</label>
-                      <div className="mt-1">
-                        {getPaymentStatusBadge(selectedRevenue.paymentStatus)}
-                      </div>
-                    </div>
-                    <div>
-                      <label className="text-gray-500">Trạng thái booking</label>
-                      <div className="mt-1">{getBookingStatusBadge(selectedRevenue.status)}</div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Tour Information */}
-                <div className="space-y-4">
-                  <h3 className="font-semibold text-lg">Thông tin Tour</h3>
-                  <div className="space-y-2 text-sm">
-                    <div>
-                      <label className="text-gray-500">Tên tour</label>
-                      <p className="font-semibold">{selectedRevenue.tour.title}</p>
-                    </div>
-                    <div>
-                      <label className="text-gray-500">Ngày khởi hành</label>
-                      <p>{formatDate(selectedRevenue.tourAvailability.date)}</p>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="text-gray-500">Giá người lớn</label>
-                        <p>{formatCurrency(selectedRevenue.tourAvailability.adultPrice)}</p>
-                      </div>
-                      <div>
-                        <label className="text-gray-500">Giá trẻ em</label>
-                        <p>{formatCurrency(selectedRevenue.tourAvailability.childPrice || 0)}</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Customer Information */}
-                <div className="space-y-4">
-                  <h3 className="font-semibold text-lg">Thông tin Khách hàng</h3>
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <label className="text-gray-500">Tên khách hàng</label>
-                      <p>
-                        {selectedRevenue.customer.firstName} {selectedRevenue.customer.lastName}
-                      </p>
-                    </div>
-                    <div>
-                      <label className="text-gray-500">Email</label>
-                      <p>{selectedRevenue.customer.email}</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Dates */}
-                <div className="space-y-4">
-                  <h3 className="font-semibold text-lg">Thông tin Thời gian</h3>
-                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    
+                    
                     <div>
                       <label className="text-gray-500">Ngày tạo</label>
                       <p>{formatDate(selectedRevenue.createdAt)}</p>
                     </div>
-                    <div>
-                      <label className="text-gray-500">Cập nhật cuối</label>
-                      <p>{formatDate(selectedRevenue.updatedAt)}</p>
-                    </div>
                   </div>
                 </div>
+
+                {/* Booking Details */}
+                {selectedRevenue.booking && (
+                  <div className="space-y-4">
+                    <h3 className="font-semibold text-lg">Thông tin Booking</h3>
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <label className="text-gray-500">Mã booking</label>
+                        <p className="font-semibold">{selectedRevenue.booking.bookingNumber}</p>
+                      </div>
+                      <div>
+                        <label className="text-gray-500">Tổng tiền</label>
+                        <p>{formatCurrency(selectedRevenue.booking.totalAmount)}</p>
+                      </div>
+                      {selectedRevenue.booking.tour && (
+                        <>
+                          <div>
+                            <label className="text-gray-500">Tour</label>
+                            <p>{selectedRevenue.booking.tour.title}</p>
+                          </div>
+                          <div>
+                            <label className="text-gray-500">Tour Guide ID</label>
+                            <p className="font-mono text-xs">{selectedRevenue.booking.tour.tourGuideId}</p>
+                          </div>
+                        </>
+                      )}
+                      {selectedRevenue.booking.tourAvailability && (
+                        <>
+                          <div>
+                            <label className="text-gray-500">Ngày tour</label>
+                            <p>{new Date(selectedRevenue.booking.tourAvailability.date).toLocaleDateString("vi-VN")}</p>
+                          </div>
+                          <div>
+                            <label className="text-gray-500">Giá người lớn</label>
+                            <p>{formatCurrency(selectedRevenue.booking.tourAvailability.adultPrice)}</p>
+                          </div>
+                        </>
+                      )}
+                      {selectedRevenue.booking.customer && (
+                        <>
+                          <div>
+                            <label className="text-gray-500">Khách hàng</label>
+                            <p>{selectedRevenue.booking.customer.firstName} {selectedRevenue.booking.customer.lastName}</p>
+                          </div>
+                          <div>
+                            <label className="text-gray-500">Email</label>
+                            <p>{selectedRevenue.booking.customer.email}</p>
+                          </div>
+                        </>
+                      )}
+                      <div>
+                        <label className="text-gray-500">Trạng thái thanh toán</label>
+                        <p>{getPaymentStatusBadge(selectedRevenue.booking.paymentStatus)}</p>
+                      </div>
+                      <div>
+                        <label className="text-gray-500">Trạng thái booking</label>
+                        <p>{getBookingStatusBadge(selectedRevenue.booking.status)}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Order Details */}
+                {selectedRevenue.order && (
+                  <div className="space-y-4">
+                    <h3 className="font-semibold text-lg">Thông tin Đơn hàng</h3>
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <label className="text-gray-500">Mã đơn</label>
+                        <p className="font-semibold">{selectedRevenue.order.orderNumber}</p>
+                      </div>
+                      <div>
+                        <label className="text-gray-500">Tổng tiền</label>
+                        <p>{formatCurrency(selectedRevenue.order.totalAmount)}</p>
+                      </div>
+                      {selectedRevenue.order.customer && (
+                        <>
+                          <div>
+                            <label className="text-gray-500">Khách hàng</label>
+                            <p>{selectedRevenue.order.customer.firstName} {selectedRevenue.order.customer.lastName}</p>
+                          </div>
+                          <div>
+                            <label className="text-gray-500">Email</label>
+                            <p>{selectedRevenue.order.customer.email}</p>
+                          </div>
+                        </>
+                      )}
+                      <div>
+                        <label className="text-gray-500">Trạng thái thanh toán</label>
+                        <p>{getPaymentStatusBadge(selectedRevenue.order.paymentStatus)}</p>
+                      </div>
+                      <div>
+                        <label className="text-gray-500">Trạng thái đơn</label>
+                        <p>{selectedRevenue.order.status}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </DialogContent>
@@ -718,4 +792,8 @@ export default function AdminRevenue() {
     </AdminLayout>
   );
 }
+
+
+
+
 

@@ -45,10 +45,8 @@ public class CreateProductDto
 
     public string? Description { get; set; }
 
-    [StringLength(500)]
     public string? ShortDescription { get; set; }
 
-    [StringLength(500)]
     public string? Images { get; set; }
 
     [Required]
@@ -91,10 +89,8 @@ public class UpdateProductDto
 
     public string? Description { get; set; }
 
-    [StringLength(500)]
     public string? ShortDescription { get; set; }
 
-    [StringLength(500)]
     public string? Images { get; set; }
 
     [StringLength(50)]

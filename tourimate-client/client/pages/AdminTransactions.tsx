@@ -70,8 +70,12 @@ interface TransactionStats {
   orderStats: Array<{ status: string; count: number }>;
   paymentStats: Array<{ status: string; count: number }>;
   orderPaymentStats: Array<{ status: string; count: number }>;
-  totalRevenue: number;
-  pendingRevenue: number;
+  totalRevenue?: number;
+  pendingRevenue?: number;
+  totalIn?: number;
+  totalOut?: number;
+  totalInCount?: number;
+  totalOutCount?: number;
 }
 
 export default function AdminTransactions() {
@@ -319,15 +323,13 @@ export default function AdminTransactions() {
     });
   };
 
-  if (!user || (user.role !== "Admin" && !(user.role === "TourGuide" && isMineView))) {
+  if (!user || user.role !== "Admin") {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <h2 className="text-xl font-semibold text-gray-900 mb-2">Không có quyền truy cập</h2>
           <p className="text-gray-600">
-            {!user ? "Bạn cần đăng nhập để truy cập trang này." : 
-             user.role !== "Admin" && !isMineView ? "Bạn cần quyền quản trị để truy cập trang này." :
-             "Bạn chỉ có thể xem giao dịch của tour của chính mình."}
+            {!user ? "Bạn cần đăng nhập để truy cập trang này." : "Bạn cần quyền quản trị để truy cập trang này."}
           </p>
         </div>
       </div>
@@ -357,45 +359,41 @@ export default function AdminTransactions() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Tổng doanh thu</CardTitle>
+                <CardTitle className="text-sm font-medium">Giao dịch chuyển tiền vào</CardTitle>
                 <DollarSign className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{formatCurrency(stats.totalRevenue)}</div>
+                <div className="text-2xl font-bold">{formatCurrency(stats.totalIn ?? 0)}</div>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Doanh thu chờ</CardTitle>
-                <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                <CardTitle className="text-sm font-medium">Giao dịch chuyển tiền đi</CardTitle>
+                <DollarSign className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{formatCurrency(stats.pendingRevenue)}</div>
+                <div className="text-2xl font-bold">{formatCurrency(stats.totalOut ?? 0)}</div>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Đặt tour</CardTitle>
-                <Calendar className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  {stats.bookingStats.reduce((sum, stat) => sum + stat.count, 0)}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Đơn hàng</CardTitle>
+                <CardTitle className="text-sm font-medium">Số lượng chuyển tiền vào</CardTitle>
                 <CreditCard className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">
-                  {stats.orderStats.reduce((sum, stat) => sum + stat.count, 0)}
-                </div>
+                <div className="text-2xl font-bold">{stats.totalInCount ?? 0}</div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Số lượng chuyển tiền đi</CardTitle>
+                <Calendar className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{stats.totalOutCount ?? 0}</div>
               </CardContent>
             </Card>
           </div>

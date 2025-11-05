@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using TouriMate.Data;
 
@@ -11,9 +12,11 @@ using TouriMate.Data;
 namespace tourimate.Migrations
 {
     [DbContext(typeof(TouriMateDbContext))]
-    partial class TouriMateDbContextModelSnapshot : ModelSnapshot
+    [Migration("20251105134028_ChangeImagesProductToMax")]
+    partial class ChangeImagesProductToMax
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -833,7 +836,8 @@ namespace tourimate.Migrations
                         .HasColumnType("datetime2");
 
                     b.Property<string>("ShortDescription")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -925,35 +929,35 @@ namespace tourimate.Migrations
                         new
                         {
                             Id = new Guid("11111111-1111-1111-1111-111111111111"),
-                            CreatedAt = new DateTime(2025, 11, 5, 13, 53, 2, 18, DateTimeKind.Utc).AddTicks(9826),
+                            CreatedAt = new DateTime(2025, 11, 5, 13, 40, 26, 536, DateTimeKind.Utc).AddTicks(2935),
                             Description = "Traditional Vietnamese food and drinks",
                             IsActive = true,
                             IsDeleted = false,
                             Name = "Food & Beverages",
                             SortOrder = 1,
-                            UpdatedAt = new DateTime(2025, 11, 5, 13, 53, 2, 18, DateTimeKind.Utc).AddTicks(9826)
+                            UpdatedAt = new DateTime(2025, 11, 5, 13, 40, 26, 536, DateTimeKind.Utc).AddTicks(2936)
                         },
                         new
                         {
                             Id = new Guid("22222222-2222-2222-2222-222222222222"),
-                            CreatedAt = new DateTime(2025, 11, 5, 13, 53, 2, 18, DateTimeKind.Utc).AddTicks(9832),
+                            CreatedAt = new DateTime(2025, 11, 5, 13, 40, 26, 536, DateTimeKind.Utc).AddTicks(2943),
                             Description = "Handmade crafts and artisan products",
                             IsActive = true,
                             IsDeleted = false,
                             Name = "Handicrafts",
                             SortOrder = 2,
-                            UpdatedAt = new DateTime(2025, 11, 5, 13, 53, 2, 18, DateTimeKind.Utc).AddTicks(9833)
+                            UpdatedAt = new DateTime(2025, 11, 5, 13, 40, 26, 536, DateTimeKind.Utc).AddTicks(2943)
                         },
                         new
                         {
                             Id = new Guid("33333333-3333-3333-3333-333333333333"),
-                            CreatedAt = new DateTime(2025, 11, 5, 13, 53, 2, 18, DateTimeKind.Utc).AddTicks(9837),
+                            CreatedAt = new DateTime(2025, 11, 5, 13, 40, 26, 536, DateTimeKind.Utc).AddTicks(2998),
                             Description = "Traditional clothing and fabrics",
                             IsActive = true,
                             IsDeleted = false,
                             Name = "Textiles",
                             SortOrder = 3,
-                            UpdatedAt = new DateTime(2025, 11, 5, 13, 53, 2, 18, DateTimeKind.Utc).AddTicks(9838)
+                            UpdatedAt = new DateTime(2025, 11, 5, 13, 40, 26, 536, DateTimeKind.Utc).AddTicks(2999)
                         });
                 });
 
@@ -1688,38 +1692,38 @@ namespace tourimate.Migrations
                     b.HasData(
                         new
                         {
-                            Id = new Guid("1746275d-9081-4c67-81e7-cfb9304ab5b1"),
+                            Id = new Guid("22112331-34cf-4574-b765-8edb96519dc1"),
                             Category = "Finance",
-                            CreatedAt = new DateTime(2025, 11, 5, 13, 53, 2, 19, DateTimeKind.Utc).AddTicks(82),
+                            CreatedAt = new DateTime(2025, 11, 5, 13, 40, 26, 536, DateTimeKind.Utc).AddTicks(3281),
                             Description = "Commission rate for tour bookings",
                             IsDeleted = false,
                             IsPublic = true,
                             Key = "CommissionRate_Tours",
-                            UpdatedAt = new DateTime(2025, 11, 5, 13, 53, 2, 19, DateTimeKind.Utc).AddTicks(82),
+                            UpdatedAt = new DateTime(2025, 11, 5, 13, 40, 26, 536, DateTimeKind.Utc).AddTicks(3281),
                             Value = "0.15"
                         },
                         new
                         {
-                            Id = new Guid("3f0d2f9d-b9f8-4bbb-ac64-258f536efa0a"),
+                            Id = new Guid("098c3263-ce54-4cb8-8692-c465ad211741"),
                             Category = "Finance",
-                            CreatedAt = new DateTime(2025, 11, 5, 13, 53, 2, 19, DateTimeKind.Utc).AddTicks(87),
+                            CreatedAt = new DateTime(2025, 11, 5, 13, 40, 26, 536, DateTimeKind.Utc).AddTicks(3286),
                             Description = "Commission rate for product sales",
                             IsDeleted = false,
                             IsPublic = true,
                             Key = "CommissionRate_Products",
-                            UpdatedAt = new DateTime(2025, 11, 5, 13, 53, 2, 19, DateTimeKind.Utc).AddTicks(88),
+                            UpdatedAt = new DateTime(2025, 11, 5, 13, 40, 26, 536, DateTimeKind.Utc).AddTicks(3286),
                             Value = "0.15"
                         },
                         new
                         {
-                            Id = new Guid("e3e801e9-68ae-4611-b4fe-719993981c94"),
+                            Id = new Guid("5c823fae-3585-45f9-8f15-65a28fc15b09"),
                             Category = "Security",
-                            CreatedAt = new DateTime(2025, 11, 5, 13, 53, 2, 19, DateTimeKind.Utc).AddTicks(92),
+                            CreatedAt = new DateTime(2025, 11, 5, 13, 40, 26, 536, DateTimeKind.Utc).AddTicks(3290),
                             Description = "OTP expiry time in minutes",
                             IsDeleted = false,
                             IsPublic = false,
                             Key = "OTP_ExpiryMinutes",
-                            UpdatedAt = new DateTime(2025, 11, 5, 13, 53, 2, 19, DateTimeKind.Utc).AddTicks(92),
+                            UpdatedAt = new DateTime(2025, 11, 5, 13, 40, 26, 536, DateTimeKind.Utc).AddTicks(3290),
                             Value = "5"
                         });
                 });

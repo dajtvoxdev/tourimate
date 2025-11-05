@@ -150,6 +150,7 @@ public sealed class TourController : ControllerBase
         {
             var query = _db.Tours
                 .Include(t => t.TourGuide)
+                .Where(t => !t.IsDeleted)
                 .AsQueryable();
 
             // If a tour guide accesses with ?mine=1, or a non-admin tour guide in general, scope to own tours
@@ -351,6 +352,7 @@ public sealed class TourController : ControllerBase
         {
             var tour = await _db.Tours
                 .Include(t => t.TourGuide)
+                .Where(t => !t.IsDeleted)
                 .FirstOrDefaultAsync(t => t.Id == id);
 
             if (tour == null)
@@ -606,7 +608,9 @@ public sealed class TourController : ControllerBase
                 return BadRequest("Không thể xóa tour đã có đặt tour. Vui lòng thay đổi trạng thái thành không hoạt động.");
             }
 
-            _db.Tours.Remove(tour);
+            // Soft delete: set IsDeleted = true
+            tour.IsDeleted = true;
+            tour.DeletedAt = DateTime.UtcNow;
             await _db.SaveChangesAsync();
 
             return Ok();
@@ -627,7 +631,7 @@ public sealed class TourController : ControllerBase
         {
             var query = _db.Tours
                 .Include(t => t.TourGuide)
-                .Where(t => t.TourGuideId == guideId);
+                .Where(t => t.TourGuideId == guideId && !t.IsDeleted);
 
             if (isActive.HasValue)
             {

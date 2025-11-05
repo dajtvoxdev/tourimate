@@ -29,10 +29,10 @@ public class Product
     [Column(TypeName = "nvarchar(max)")]
     public string? Description { get; set; }
 
-    [StringLength(500)]
+    [Column(TypeName = "nvarchar(max)")]
     public string? ShortDescription { get; set; }
 
-    [StringLength(500)]
+    [Column(TypeName = "nvarchar(max)")]
     public string? Images { get; set; } // JSON string of image URLs
 
     [Required]

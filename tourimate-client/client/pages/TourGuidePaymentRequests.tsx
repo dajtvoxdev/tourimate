@@ -601,7 +601,7 @@ export default function TourGuidePaymentRequests() {
           <AlertDialogHeader>
             <AlertDialogTitle>Tạo yêu cầu thanh toán cho Đơn hàng</AlertDialogTitle>
             <AlertDialogDescription>
-              Chỉ hiển thị các đơn hàng đã giao (Delivered) và đã thanh toán
+              Chỉ các đơn hàng đã giao được phép yêu cầu thanh toán
             </AlertDialogDescription>
           </AlertDialogHeader>
 

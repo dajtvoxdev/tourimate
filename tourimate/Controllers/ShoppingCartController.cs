@@ -6,6 +6,8 @@ using System.Text.Json;
 using tourimate.Contracts.ShoppingCart;
 using Entities.Models;
 using TouriMate.Data;
+using Microsoft.AspNetCore.SignalR;
+using tourimate.Services.Hubs;
 
 namespace tourimate.Controllers;
 
@@ -16,11 +18,13 @@ public class ShoppingCartController : ControllerBase
 {
     private readonly TouriMateDbContext _db;
     private readonly ILogger<ShoppingCartController> _logger;
+    private readonly IHubContext<CartHub> _cartHubContext;
 
-    public ShoppingCartController(TouriMateDbContext db, ILogger<ShoppingCartController> logger)
+    public ShoppingCartController(TouriMateDbContext db, ILogger<ShoppingCartController> logger, IHubContext<CartHub> cartHubContext)
     {
         _db = db;
         _logger = logger;
+        _cartHubContext = cartHubContext;
     }
 
     private Guid? GetCurrentUserId()
@@ -128,13 +132,14 @@ public class ShoppingCartController : ControllerBase
                 });
             }
 
-            return Ok(new CartSummaryDto
+            var summary = new CartSummaryDto
             {
                 Items = cartItemDtos,
                 TotalItems = cartItemDtos.Count,
                 TotalAmount = totalAmount,
                 Currency = "VND"
-            });
+            };
+            return Ok(summary);
         }
         catch (Exception ex)
         {
@@ -289,6 +294,14 @@ public class ShoppingCartController : ControllerBase
             _db.ShoppingCarts.Add(cartItem);
             await _db.SaveChangesAsync();
 
+            // Broadcast updated cart count
+            try
+            {
+                var count = await _db.ShoppingCarts.Where(c => c.UserId == userId.Value).SumAsync(c => c.Quantity);
+                await _cartHubContext.Clients.Group($"cart_{userId.Value}").SendAsync("CartCountUpdated", count);
+            }
+            catch {}
+
             // Return created item
             var productImages = string.IsNullOrEmpty(product.Images) 
                 ? new List<string>() 
@@ -369,7 +382,14 @@ public class ShoppingCartController : ControllerBase
             cartItem.Quantity = request.Quantity;
             cartItem.UpdatedAt = DateTime.UtcNow;
 
-            await _db.SaveChangesAsync();
+                await _db.SaveChangesAsync();
+
+                try
+                {
+                    var count2 = await _db.ShoppingCarts.Where(c => c.UserId == userId.Value).SumAsync(c => c.Quantity);
+                    await _cartHubContext.Clients.Group($"cart_{userId.Value}").SendAsync("CartCountUpdated", count2);
+                }
+                catch {}
 
             return Ok(new { message = "Cart item updated successfully" });
         }
@@ -403,6 +423,13 @@ public class ShoppingCartController : ControllerBase
             _db.ShoppingCarts.Remove(cartItem);
             await _db.SaveChangesAsync();
 
+            try
+            {
+                var count3 = await _db.ShoppingCarts.Where(c => c.UserId == userId.Value).SumAsync(c => c.Quantity);
+                await _cartHubContext.Clients.Group($"cart_{userId.Value}").SendAsync("CartCountUpdated", count3);
+            }
+            catch {}
+
             return Ok(new { message = "Item removed from cart successfully" });
         }
         catch (Exception ex)
@@ -430,6 +457,12 @@ public class ShoppingCartController : ControllerBase
 
             _db.ShoppingCarts.RemoveRange(cartItems);
             await _db.SaveChangesAsync();
+
+            try
+            {
+                await _cartHubContext.Clients.Group($"cart_{userId.Value}").SendAsync("CartCountUpdated", 0);
+            }
+            catch {}
 
             return Ok(new { message = "Cart cleared successfully" });
         }

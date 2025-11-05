@@ -284,12 +284,34 @@ export default function ProductForm() {
   };
 
   const save = async (action: 'draft' | 'send') => {
+    // Client-side length validation to match backend constraints
+    const stripHtml = (html: string) => {
+      const tmp = document.createElement('div');
+      tmp.innerHTML = html || "";
+      return (tmp.textContent || tmp.innerText || "").trim();
+    };
+    const MAX_NAME = 200;
+    const MAX_CATEGORY = 100;
+    const MAX_BRAND = 100;
+
     if (!formData.name.trim()) {
       toast.error("Vui lòng nhập tên sản phẩm");
       return;
     }
+    if (formData.name.trim().length > MAX_NAME) {
+      toast.error(`Tên sản phẩm vượt quá ${MAX_NAME} ký tự`);
+      return;
+    }
     if (!formData.tourId) {
       toast.error("Vui lòng chọn tour");
+      return;
+    }
+    if (formData.category && formData.category.length > MAX_CATEGORY) {
+      toast.error(`Danh mục vượt quá ${MAX_CATEGORY} ký tự`);
+      return;
+    }
+    if (formData.brand && formData.brand.length > MAX_BRAND) {
+      toast.error(`Thương hiệu vượt quá ${MAX_BRAND} ký tự`);
       return;
     }
     try {
@@ -362,7 +384,7 @@ export default function ProductForm() {
 
   return (
     <AdminLayout>
-    <div className="container mx-auto px-4 py-8">
+    <div className="container mx-auto px-4 py-6">
       <div className="flex items-center gap-4 mb-8">
         <Button variant="outline" onClick={() => navigate("/admin/products")}>
           <ArrowLeft className="w-4 h-4 mr-2" />
@@ -410,7 +432,7 @@ export default function ProductForm() {
         </div>
       </div>
 
-      <form onSubmit={(e) => { e.preventDefault(); }} className="space-y-6">
+      <form onSubmit={(e) => { e.preventDefault(); }} className="space-y-5">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Basic Information */}
           <div className="lg:col-span-2 space-y-6">
@@ -499,7 +521,7 @@ export default function ProductForm() {
                   ) : (
                     <div className="space-y-2">
                       {variants.map((v, idx) => (
-                        <>
+                        <React.Fragment key={idx}>
                         <div className="grid grid-cols-1 md:grid-cols-7 gap-3 items-end">
                           <div className="md:col-span-2">
                             <Label>Khối lượng tịnh</Label>
@@ -605,7 +627,7 @@ export default function ProductForm() {
                             />
                           </div>
                         </div>
-                        </>
+                        </React.Fragment>
                       ))}
                     </div>
                   )}
@@ -791,7 +813,7 @@ export default function ProductForm() {
         </div>
 
         {/* Submit Button */}
-        <div className="flex justify-end gap-2">
+        <div className="flex justify-end gap-2 pt-2 pb-2">
           <Button type="button" variant="outline" disabled={loading} onClick={() => save('draft')}>
             {loading ? "Đang lưu..." : (isEdit ? "Lưu" : "Lưu nháp")}
           </Button>

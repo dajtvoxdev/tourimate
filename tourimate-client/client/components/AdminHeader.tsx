@@ -77,19 +77,19 @@ const AdminHeader: React.FC<AdminHeaderProps> = ({ onMenuToggle, isSidebarOpen }
             <span className="ml-2 text-sm text-gray-700">Trang chủ</span>
           </Button>
           
-          <div className="relative hidden md:block">
+          {/* <div className="relative hidden md:block">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
             <Input
               placeholder="Tìm kiếm..."
               className="pl-10 w-64 bg-gray-50 border-gray-200 focus:bg-white transition-colors"
             />
-          </div>
+          </div> */}
         </div>
 
         {/* Right side - Notifications and profile */}
         <div className="flex items-center space-x-4">
           {/* Notifications */}
-          <Button
+          {/* <Button
             variant="ghost"
             size="sm"
             className="relative p-2 hover:bg-gray-100 rounded-lg transition-colors"
@@ -101,7 +101,7 @@ const AdminHeader: React.FC<AdminHeaderProps> = ({ onMenuToggle, isSidebarOpen }
             >
               3
             </Badge>
-          </Button>
+          </Button> */}
 
           {/* Profile dropdown */}
           <div className="relative">

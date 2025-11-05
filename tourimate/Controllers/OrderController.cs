@@ -798,12 +798,25 @@ public class OrdersController : ControllerBase
                 return Unauthorized("User not authenticated");
             }
 
+            // Get order IDs that already have payment requests (exclude cancelled ones)
+            // Filter by tour guide to ensure each guide only sees their own payment requests
+            var ordersWithPaymentRequests = await _db.Costs
+                .Where(c => c.Type == CostType.TourGuidePayment && 
+                           c.RelatedEntityType == "Order" &&
+                           c.Status != CostStatus.Cancelled &&
+                           c.RecipientId == userId.Value &&
+                           c.RelatedEntityId.HasValue)
+                .Select(c => c.RelatedEntityId!.Value)
+                .Distinct()
+                .ToListAsync();
+
             // Get orders where at least one item belongs to a product owned by this tour guide
             var query = _db.Orders
                 .Include(o => o.Customer)
                 .Include(o => o.Items)
                     .ThenInclude(item => item.Product)
-                .Where(o => o.Items.Any(item => item.Product.TourGuideId == userId.Value))
+                .Where(o => o.Items.Any(item => item.Product.TourGuideId == userId.Value) &&
+                           !ordersWithPaymentRequests.Contains(o.Id)) // Exclude orders with existing payment requests
                 .AsQueryable();
 
             // Filter by order status

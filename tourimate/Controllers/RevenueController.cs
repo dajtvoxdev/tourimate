@@ -40,175 +40,162 @@ public class RevenueController : ControllerBase
 
             var userRole = User.FindFirst(ClaimTypes.Role)?.Value;
 
-            // For TourGuide: Revenue = Paid Cost records where they are recipient
+            // BASE: Use Revenue table
+            IQueryable<Entities.Models.Revenue> baseRevenue = _context.Revenues
+                .Include(r => r.Transaction);
+
             if (userRole == "TourGuide")
             {
-                var costQuery = _context.Costs
-                    .Where(c => c.RecipientId == userGuid && c.Type == Entities.Models.CostType.TourGuidePayment);
-
-                // Apply filters
-                if (dateFrom.HasValue)
-                {
-                    costQuery = costQuery.Where(c => c.CreatedAt >= dateFrom.Value);
-                }
-
-                if (dateTo.HasValue)
-                {
-                    costQuery = costQuery.Where(c => c.CreatedAt <= dateTo.Value);
-                }
-
-                if (!string.IsNullOrEmpty(paymentStatus))
-                {
-                    if (paymentStatus.ToLower() == "paid")
-                    {
-                        costQuery = costQuery.Where(c => c.Status == Entities.Models.CostStatus.Paid);
-                    }
-                    else if (paymentStatus.ToLower() == "pending")
-                    {
-                        costQuery = costQuery.Where(c => c.Status == Entities.Models.CostStatus.Pending);
-                    }
-                }
-
-                var totalCount = await costQuery.CountAsync();
-                var totalRevenue = await costQuery
-                    .Where(c => c.Status == Entities.Models.CostStatus.Paid)
-                    .SumAsync(c => (decimal?)c.Amount) ?? 0;
-
-                var costsWithPayer = await costQuery
-                    .OrderByDescending(c => c.CreatedAt)
-                    .Skip((page - 1) * pageSize)
-                    .Take(pageSize)
-                    .Select(c => new
-                    {
-                        c.Id,
-                        c.CostCode,
-                        c.CostName,
-                        c.Amount,
-                        c.Status,
-                        c.CreatedAt,
-                        c.UpdatedAt,
-                        c.PaidDate,
-                        c.RecipientId,
-                        c.PayerId,
-                        c.RelatedEntityId,
-                        c.RelatedEntityType
-                    })
-                    .ToListAsync();
-
-                // Get payer info
-                var payerIds = costsWithPayer.Select(c => c.PayerId).Distinct().ToList();
-                var payers = await _context.Users
-                    .Where(u => payerIds.Contains(u.Id))
-                    .Select(u => new
-                    {
-                        u.Id,
-                        u.FirstName,
-                        u.LastName,
-                        u.Email
-                    })
-                    .ToListAsync();
-                var payerDict = payers.ToDictionary(p => p.Id);
-
-                // Get booking and tour info
-                var relatedBookingIds = costsWithPayer
-                    .Where(c => c.RelatedEntityId.HasValue && c.RelatedEntityType == "Booking")
-                    .Select(c => c.RelatedEntityId!.Value)
-                    .Distinct()
-                    .ToList();
-
-                var bookingsWithTours = await _context.Bookings
-                    .Where(b => relatedBookingIds.Contains(b.Id))
-                    .Select(b => new
-                    {
-                        b.Id,
-                        b.BookingNumber,
-                        TourId = b.Tour.Id,
-                        TourTitle = b.Tour.Title,
-                        TourGuideId = b.Tour.TourGuideId,
-                        AvailabilityDate = b.TourAvailability.Date,
-                        AdultPrice = b.TourAvailability.AdultPrice,
-                        ChildPrice = b.TourAvailability.ChildPrice
-                    })
-                    .ToListAsync();
-                var bookingDict = bookingsWithTours.ToDictionary(b => b.Id);
-
-                var revenues = costsWithPayer.Select(c =>
-                {
-                    var payer = payerDict.GetValueOrDefault(c.PayerId);
-                    var booking = c.RelatedEntityId.HasValue ? bookingDict.GetValueOrDefault(c.RelatedEntityId.Value) : null;
-
-                    return new
-                    {
-                        Id = c.Id,
-                        BookingNumber = booking?.BookingNumber ?? c.CostCode,
-                        TotalAmount = c.Amount,
-                        PaymentStatus = c.Status == Entities.Models.CostStatus.Paid ? PaymentStatus.Paid : PaymentStatus.Pending,
-                        Status = (int)BookingStatus.Confirmed,
-                        CreatedAt = c.CreatedAt,
-                        UpdatedAt = c.UpdatedAt,
-                        Tour = booking != null ? new
-                        {
-                            Id = booking.TourId,
-                            Title = booking.TourTitle,
-                            TourGuideId = booking.TourGuideId
-                        } : new
-                        {
-                            Id = Guid.Empty,
-                            Title = c.CostName,
-                            TourGuideId = c.RecipientId
-                        },
-                        TourAvailability = booking != null ? new
-                        {
-                            Date = booking.AvailabilityDate,
-                            AdultPrice = booking.AdultPrice,
-                            ChildPrice = booking.ChildPrice
-                        } : new
-                        {
-                            Date = c.PaidDate ?? c.CreatedAt,
-                            AdultPrice = 0m,
-                            ChildPrice = 0m
-                        },
-                        Customer = payer != null ? new
-                        {
-                            Id = payer.Id,
-                            FirstName = payer.FirstName,
-                            LastName = payer.LastName,
-                            Email = payer.Email
-                        } : new
-                        {
-                            Id = c.PayerId,
-                            FirstName = "Unknown",
-                            LastName = "",
-                            Email = ""
-                        }
-                    };
-                }).ToList();
-
-                return Ok(new
-                {
-                    revenues,
-                    summary = new
-                    {
-                        totalRevenue,
-                        totalBookings = totalCount,
-                        averageRevenue = totalCount > 0 ? totalRevenue / totalCount : 0
-                    },
-                    pagination = new
-                    {
-                        page,
-                        pageSize,
-                        totalCount,
-                        totalPages = (int)Math.Ceiling((double)totalCount / pageSize)
-                    }
-                });
+                // Tour guide sees their earnings from bookings and orders (Tour, Product)
+                baseRevenue = baseRevenue.Where(r => r.UserId == userGuid && (r.EntityType == "Tour" || r.EntityType == "Product"));
+            }
+            else
+            {
+                // Admin sees business revenues only: Tour, Product
+                baseRevenue = baseRevenue.Where(r => r.EntityType == "Tour" || r.EntityType == "Product");
             }
 
-            // For Admin: Revenue = All paid bookings
-            var query = _context.Bookings
+            if (dateFrom.HasValue)
+            {
+                baseRevenue = baseRevenue.Where(r => r.CreatedAt >= dateFrom.Value);
+            }
+            if (dateTo.HasValue)
+            {
+                baseRevenue = baseRevenue.Where(r => r.CreatedAt <= dateTo.Value);
+            }
+            if (!string.IsNullOrEmpty(paymentStatus))
+            {
+                var ps = paymentStatus.ToLower();
+                baseRevenue = baseRevenue.Where(r => r.PayoutStatus.ToLower() == ps);
+            }
+
+            var totalCount = await baseRevenue.CountAsync();
+            // Admin: sum GrossAmount (100%). TourGuide: sum NetAmount (their take-home)
+            var totalRevenue = userRole == "TourGuide"
+                ? (await baseRevenue.SumAsync(r => (decimal?)r.NetAmount) ?? 0m)
+                : (await baseRevenue.SumAsync(r => (decimal?)r.GrossAmount) ?? 0m);
+            // Separate counts by Revenue EntityType (Tour = bookings, Product = orders)
+            var totalBookingsCount = await baseRevenue.CountAsync(r => r.EntityType == "Tour");
+            var totalOrdersCount = await baseRevenue.CountAsync(r => r.EntityType == "Product");
+
+            var pageRows = await baseRevenue
+                .OrderByDescending(r => r.CreatedAt)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .Select(r => new
+                {
+                    r.Id,
+                    r.TransactionId,
+                    r.EntityId,
+                    r.EntityType,
+                    r.GrossAmount,
+                    r.CommissionRate,
+                    r.CommissionAmount,
+                    r.NetAmount,
+                    r.Currency,
+                    r.PayoutStatus,
+                    r.PayoutDate,
+                    r.CreatedAt,
+                    r.UpdatedAt,
+                    TxType = r.Transaction.Type,
+                    TxStatus = r.Transaction.Status,
+                    TxEntityId = r.Transaction.EntityId,
+                    TxEntityType = r.Transaction.EntityType,
+                    TxDescription = r.Transaction.Description
+                })
+                .ToListAsync();
+
+            // Enrich with Booking/Order for admin display context
+            var bookingIds = pageRows
+                .Where(x => x.TxEntityType == "Booking" && x.TxEntityId.HasValue)
+                .Select(x => x.TxEntityId!.Value)
+                .Distinct()
+                .ToList();
+            var orderIds = pageRows
+                .Where(x => x.TxEntityType == "Order" && x.TxEntityId.HasValue)
+                .Select(x => x.TxEntityId!.Value)
+                .Distinct()
+                .ToList();
+
+            var bookings = await _context.Bookings
                 .Include(b => b.Tour)
                 .Include(b => b.TourAvailability)
                 .Include(b => b.Customer)
-                .Where(b => b.PaymentStatus == PaymentStatus.Paid);
+                .Where(b => bookingIds.Contains(b.Id))
+                .Select(b => new {
+                    b.Id,
+                    b.BookingNumber,
+                    b.TotalAmount,
+                    b.PaymentStatus,
+                    b.Status,
+                    b.CreatedAt,
+                    b.UpdatedAt,
+                    Tour = new { b.Tour.Id, b.Tour.Title, b.Tour.TourGuideId },
+                    TourAvailability = new { b.TourAvailability.Date, b.TourAvailability.AdultPrice, b.TourAvailability.ChildPrice },
+                    Customer = new { b.Customer.Id, b.Customer.FirstName, b.Customer.LastName, b.Customer.Email }
+                })
+                .ToListAsync();
+            var bookingDict = bookings.ToDictionary(b => b.Id, b => b);
+
+            var orders = await _context.Orders
+                .Include(o => o.Customer)
+                .Where(o => orderIds.Contains(o.Id))
+                .Select(o => new {
+                    o.Id,
+                    o.OrderNumber,
+                    o.TotalAmount,
+                    o.PaymentStatus,
+                    o.Status,
+                    o.CreatedAt,
+                    o.UpdatedAt,
+                    Customer = new { o.Customer.Id, o.Customer.FirstName, o.Customer.LastName, o.Customer.Email }
+                })
+                .ToListAsync();
+            var orderDict = orders.ToDictionary(o => o.Id, o => o);
+
+            var enriched = pageRows.Select(r => new
+            {
+                r.Id,
+                r.TransactionId,
+                r.EntityId,
+                Kind = r.EntityType, // Tour | Product (Platform derived from payout status if needed)
+                r.GrossAmount,
+                r.CommissionRate,
+                r.CommissionAmount,
+                r.NetAmount,
+                // Admin revenue is GrossAmount (100%), NetAmount is for tour guide payouts
+                RevenueAmount = userRole == "Admin" ? r.GrossAmount : r.NetAmount,
+                r.Currency,
+                r.PayoutStatus,
+                r.PayoutDate,
+                r.CreatedAt,
+                r.UpdatedAt,
+                Transaction = new { Type = r.TxType, Status = r.TxStatus, EntityId = r.TxEntityId, EntityType = r.TxEntityType, Description = r.TxDescription },
+                Booking = (r.TxEntityType == "Booking" && r.TxEntityId.HasValue && bookingDict.ContainsKey(r.TxEntityId.Value)) ? bookingDict[r.TxEntityId.Value] : null,
+                Order = (r.TxEntityType == "Order" && r.TxEntityId.HasValue && orderDict.ContainsKey(r.TxEntityId.Value)) ? orderDict[r.TxEntityId.Value] : null
+            });
+
+            return Ok(new
+            {
+                revenues = enriched,
+                summary = new
+                {
+                    totalRevenue,
+                    totalBookings = totalBookingsCount,
+                    totalOrders = totalOrdersCount,
+                    averageRevenue = totalCount > 0 ? totalRevenue / totalCount : 0
+                },
+                pagination = new
+                {
+                    page,
+                    pageSize,
+                    totalCount,
+                    totalPages = (int)Math.Ceiling((double)totalCount / pageSize)
+                }
+            });
+
+            // Unused branch now handled above by revenue table
+            var query = _context.Bookings.Where(b => false);
 
             // Apply filters
             if (dateFrom.HasValue)
@@ -231,8 +218,23 @@ public class RevenueController : ControllerBase
                 query = query.Where(b => b.PaymentStatus == status);
             }
 
-            var adminTotalCount = await query.CountAsync();
-            var adminTotalRevenue = await query.SumAsync(b => b.TotalAmount);
+            // Orders (products) with Paid status
+            var orderQuery = _context.Orders
+                .Include(o => o.Customer)
+                .Where(o => o.PaymentStatus == PaymentStatus.Paid);
+
+            if (dateFrom.HasValue)
+            {
+                orderQuery = orderQuery.Where(o => o.CreatedAt >= dateFrom.Value);
+            }
+
+            if (dateTo.HasValue)
+            {
+                orderQuery = orderQuery.Where(o => o.CreatedAt <= dateTo.Value);
+            }
+
+            var adminTotalCount = 0;
+            var adminTotalRevenue = 0m;
 
             var adminRevenues = await query
                 .OrderByDescending(b => b.CreatedAt)
@@ -269,9 +271,35 @@ public class RevenueController : ControllerBase
                 })
                 .ToListAsync();
 
+            // Also include recent orders page slice (aligned to page, basic union pagination)
+            var adminOrders = await orderQuery
+                .OrderByDescending(o => o.CreatedAt)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .Select(o => new
+                {
+                    Id = o.Id,
+                    BookingNumber = o.OrderNumber,
+                    TotalAmount = o.TotalAmount,
+                    PaymentStatus = o.PaymentStatus,
+                    Status = o.Status,
+                    CreatedAt = o.CreatedAt,
+                    UpdatedAt = o.UpdatedAt,
+                    Tour = (object?)null,
+                    TourAvailability = (object?)null,
+                    Customer = new
+                    {
+                        o.Customer.Id,
+                        o.Customer.FirstName,
+                        o.Customer.LastName,
+                        o.Customer.Email
+                    }
+                })
+                .ToListAsync();
+
             return Ok(new
             {
-                revenues = adminRevenues,
+                revenues = Array.Empty<object>(),
                 summary = new
                 {
                     totalRevenue = adminTotalRevenue,
@@ -309,186 +337,65 @@ public class RevenueController : ControllerBase
 
             var userRole = User.FindFirst(ClaimTypes.Role)?.Value;
 
-            // For TourGuide: Statistics from Cost records
+            IQueryable<Entities.Models.Revenue> rbase = _context.Revenues;
             if (userRole == "TourGuide")
             {
-                var costQuery = _context.Costs
-                    .Where(c => c.RecipientId == userGuid && c.Type == Entities.Models.CostType.TourGuidePayment);
-
-                // Apply date filters
-                if (dateFrom.HasValue)
-                {
-                    costQuery = costQuery.Where(c => c.CreatedAt >= dateFrom.Value);
-                }
-
-                if (dateTo.HasValue)
-                {
-                    costQuery = costQuery.Where(c => c.CreatedAt <= dateTo.Value);
-                }
-
-                var costs = await costQuery
-                    .Select(c => new
-                    {
-                        c.Id,
-                        c.Amount,
-                        c.Status,
-                        c.CreatedAt,
-                        c.RelatedEntityId,
-                        c.RelatedEntityType,
-                        c.CostName
-                    })
-                    .ToListAsync();
-
-                // Calculate statistics
-                var totalRevenue = costs.Where(c => c.Status == Entities.Models.CostStatus.Paid).Sum(c => c.Amount);
-                var totalPayments = costs.Count;
-
-                // Revenue by month
-                var revenueByMonth = costs
-                    .Where(c => c.Status == Entities.Models.CostStatus.Paid)
-                    .GroupBy(c => new { c.CreatedAt.Year, c.CreatedAt.Month })
-                    .Select(g => new
-                    {
-                        year = g.Key.Year,
-                        month = g.Key.Month,
-                        revenue = g.Sum(c => c.Amount),
-                        bookings = g.Count(),
-                        monthName = new DateTime(g.Key.Year, g.Key.Month, 1).ToString("MMM yyyy")
-                    })
-                    .OrderBy(x => x.year)
-                    .ThenBy(x => x.month)
-                    .ToList();
-
-                // Revenue by tour - need to trace back through bookings
-                var paidCosts = costs.Where(c => c.Status == Entities.Models.CostStatus.Paid).ToList();
-                var relatedBookingIds = paidCosts
-                    .Where(c => c.RelatedEntityId.HasValue && c.RelatedEntityType == "Booking")
-                    .Select(c => c.RelatedEntityId!.Value)
-                    .Distinct()
-                    .ToList();
-
-                var bookingsWithTours = await _context.Bookings
-                    .Where(b => relatedBookingIds.Contains(b.Id))
-                    .Select(b => new
-                    {
-                        b.Id,
-                        TourId = b.Tour.Id,
-                        TourTitle = b.Tour.Title
-                    })
-                    .ToListAsync();
-
-                var bookingTourMap = bookingsWithTours.ToDictionary(b => b.Id, b => new { b.TourId, b.TourTitle });
-
-                var revenueByTour = paidCosts
-                    .Where(c => c.RelatedEntityId.HasValue && bookingTourMap.ContainsKey(c.RelatedEntityId.Value))
-                    .GroupBy(c =>
-                    {
-                        var tour = bookingTourMap[c.RelatedEntityId!.Value];
-                        return new { tour.TourId, tour.TourTitle };
-                    })
-                    .Select(g => new
-                    {
-                        tourId = g.Key.TourId,
-                        tourTitle = g.Key.TourTitle,
-                        revenue = g.Sum(c => c.Amount),
-                        bookings = g.Count()
-                    })
-                    .OrderByDescending(x => x.revenue)
-                    .Take(10)
-                    .ToList();
-
-                // Revenue by status
-                var revenueByStatus = costs
-                    .GroupBy(c => c.Status)
-                    .Select(g => new
-                    {
-                        status = g.Key == Entities.Models.CostStatus.Paid ? (int)BookingStatus.Confirmed : (int)BookingStatus.PendingPayment,
-                        revenue = g.Sum(c => c.Amount),
-                        bookings = g.Count()
-                    })
-                    .ToList();
-
-                return Ok(new
-                {
-                    totalRevenue,
-                    totalBookings = totalPayments,
-                    averageRevenue = totalPayments > 0 ? totalRevenue / totalPayments : 0,
-                    revenueByMonth,
-                    revenueByTour,
-                    revenueByStatus
-                });
+                // Tour guide stats: only their earnings from Tour/Product revenues
+                rbase = rbase.Where(r => r.UserId == userGuid && (r.EntityType == "Tour" || r.EntityType == "Product"));
             }
+            if (dateFrom.HasValue) rbase = rbase.Where(r => r.CreatedAt >= dateFrom.Value);
+            if (dateTo.HasValue) rbase = rbase.Where(r => r.CreatedAt <= dateTo.Value);
 
-            // For Admin: Statistics from Bookings
-            var query = _context.Bookings
-                .Include(b => b.Tour)
-                .Where(b => b.PaymentStatus == PaymentStatus.Paid);
+            var list = await rbase.ToListAsync();
+            var totalRevenue = list.Sum(r => r.NetAmount);
+            var totalPayments = list.Count;
 
-            // Apply date filters
-            if (dateFrom.HasValue)
-            {
-                query = query.Where(b => b.CreatedAt >= dateFrom.Value);
-            }
-
-            if (dateTo.HasValue)
-            {
-                query = query.Where(b => b.CreatedAt <= dateTo.Value);
-            }
-
-            var bookings = await query.ToListAsync();
-
-            // Calculate statistics
-            var adminTotalRevenue = bookings.Sum(b => b.TotalAmount);
-            var adminTotalBookings = bookings.Count;
-
-            // Revenue by month (last 12 months)
-            var adminRevenueByMonth = bookings
-                .GroupBy(b => new { b.CreatedAt.Year, b.CreatedAt.Month })
+            var revenueByMonth = list
+                .GroupBy(r => new { r.CreatedAt.Year, r.CreatedAt.Month })
                 .Select(g => new
                 {
                     year = g.Key.Year,
                     month = g.Key.Month,
-                    revenue = g.Sum(b => b.TotalAmount),
+                    revenue = g.Sum(r => r.NetAmount),
                     bookings = g.Count(),
                     monthName = new DateTime(g.Key.Year, g.Key.Month, 1).ToString("MMM yyyy")
                 })
-                .OrderBy(x => x.year)
-                .ThenBy(x => x.month)
+                .OrderBy(x => x.year).ThenBy(x => x.month)
                 .ToList();
 
-            // Revenue by tour
-            var adminRevenueByTour = bookings
-                .GroupBy(b => new { b.Tour.Id, b.Tour.Title })
+            // Revenue by entity (supplemental view)
+            var revenueByEntity = list
+                .GroupBy(r => new { r.EntityType, r.EntityId })
                 .Select(g => new
                 {
-                    tourId = g.Key.Id,
-                    tourTitle = g.Key.Title,
-                    revenue = g.Sum(b => b.TotalAmount),
-                    bookings = g.Count()
+                    entityType = g.Key.EntityType,
+                    entityId = g.Key.EntityId,
+                    revenue = g.Sum(r => r.NetAmount),
+                    count = g.Count()
                 })
                 .OrderByDescending(x => x.revenue)
                 .Take(10)
                 .ToList();
 
-            // Revenue by status
-            var adminRevenueByStatus = bookings
-                .GroupBy(b => b.Status)
+            // Revenue by payout status
+            var revenueByStatus = list
+                .GroupBy(r => r.PayoutStatus)
                 .Select(g => new
                 {
                     status = g.Key,
-                    revenue = g.Sum(b => b.TotalAmount),
+                    revenue = g.Sum(r => r.NetAmount),
                     bookings = g.Count()
                 })
                 .ToList();
 
             return Ok(new
             {
-                totalRevenue = adminTotalRevenue,
-                totalBookings = adminTotalBookings,
-                averageRevenue = adminTotalBookings > 0 ? adminTotalRevenue / adminTotalBookings : 0,
-                revenueByMonth = adminRevenueByMonth,
-                revenueByTour = adminRevenueByTour,
-                revenueByStatus = adminRevenueByStatus
+                totalRevenue,
+                totalBookings = totalPayments,
+                averageRevenue = totalPayments > 0 ? totalRevenue / totalPayments : 0,
+                revenueByMonth,
+                revenueByTour = revenueByEntity,
+                revenueByStatus
             });
         }
         catch (Exception ex)

@@ -137,11 +137,14 @@ export default function Products() {
         return;
       }
 
-      // If product has variants, redirect to detail page
+      // If product has variants: add directly when exactly 1 variant; else go to detail
+      let selectedVariantJson: string | undefined = undefined;
       if (product.variantsJson) {
         try {
           const variants = JSON.parse(product.variantsJson);
-          if (variants && variants.length > 0) {
+          if (Array.isArray(variants) && variants.length === 1) {
+            selectedVariantJson = JSON.stringify(variants[0]);
+          } else if (Array.isArray(variants) && variants.length > 1) {
             navigate(`/products/${product.id}`);
             return;
           }
@@ -167,6 +170,7 @@ export default function Products() {
         body: JSON.stringify({
           productId: product.id,
           quantity: 1,
+          selectedVariant: selectedVariantJson,
         }),
       });
 
@@ -332,7 +336,7 @@ export default function Products() {
                 return (
                   <div
                     key={product.id}
-                    className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-200 cursor-pointer"
+                    className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-200 cursor-pointer flex flex-col"
                     onClick={() => navigate(`/products/${product.id}`)}
                   >
                     <div className="relative h-48">
@@ -353,7 +357,7 @@ export default function Products() {
                       </div>
                     </div>
 
-                    <div className="p-4 space-y-3">
+                    <div className="p-4 flex-1 flex flex-col">
                       <h3 className="font-semibold text-lg text-gray-900 line-clamp-2">
                         {product.name}
                       </h3>
@@ -364,7 +368,7 @@ export default function Products() {
                         />
                       )}
 
-                      <div className="flex items-center gap-4 text-sm text-gray-500">
+                      <div className="flex items-center gap-4 text-sm text-gray-500 my-4">
                         {product.rating && product.reviewCount > 0 && (
                           <div className="flex items-center gap-1">
                             <Star className="w-4 h-4 text-yellow-500 fill-current" />
@@ -379,7 +383,7 @@ export default function Products() {
 
                       {/* Quick Add to Cart Button */}
                       <Button
-                        className="w-full"
+                        className="w-full mt-auto"
                         size="sm"
                         onClick={(e) => quickAddToCart(e, product)}
                         disabled={product.stockQuantity <= 0 || addingToCart === product.id}

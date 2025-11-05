@@ -469,7 +469,7 @@ export default function AdminPaymentRequests() {
 
         {/* Process Payment Dialog */}
         <AlertDialog open={showProcessDialog} onOpenChange={setShowProcessDialog}>
-          <AlertDialogContent>
+          <AlertDialogContent className="max-h-[80vh] overflow-y-auto">
             <AlertDialogHeader>
               <AlertDialogTitle>Xử lý thanh toán</AlertDialogTitle>
               <AlertDialogDescription>
@@ -583,7 +583,7 @@ export default function AdminPaymentRequests() {
         {/* Payment Request Details Dialog */}
         {selectedRequest && (
           <AlertDialog open={!!selectedRequest} onOpenChange={() => setSelectedRequest(null)}>
-            <AlertDialogContent>
+            <AlertDialogContent className="max-h-[80vh] overflow-y-auto">
               <AlertDialogHeader>
                 <AlertDialogTitle>Chi tiết yêu cầu thanh toán</AlertDialogTitle>
               </AlertDialogHeader>

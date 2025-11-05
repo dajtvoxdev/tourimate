@@ -156,16 +156,18 @@ const AdminTourManagement = () => {
     }));
   };
 
-  const handleCreateTour = async () => {
+  const handleCreateTour = async (override?: Partial<CreateTourRequest> & { imageUrls?: string[] }) => {
     try {
-      const payload: any = { ...formData };
+      const payload: any = { ...(override ?? formData) };
       const mine = new URLSearchParams(window.location.search).get('mine');
       if (mine === '1') {
         // TourGuide cannot mark featured directly
         payload.isFeatured = false;
       }
-      if (imageUrls.length > 0) {
-        payload.imageUrls = imageUrls;
+      // Prefer provided imageUrls, fallback to current state
+      const imgs = override?.imageUrls ?? imageUrls;
+      if (imgs && imgs.length > 0) {
+        payload.imageUrls = imgs;
       }
       // Do not send legacy JSON images when imageUrls present
       if (payload.imageUrls) delete payload.images;
@@ -369,7 +371,7 @@ const AdminTourManagement = () => {
               <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
               Làm mới
             </Button>
-            <Button onClick={() => navigate("/admin/tour/create")}>
+            <Button onClick={() => setIsCreateDialogOpen(true)}>
               <Plus className="w-4 h-4 mr-2" />
               Tạo tour
             </Button>
@@ -647,6 +649,37 @@ const AdminTourManagement = () => {
             )}
           </CardContent>
         </Card>
+
+        {/* Create Tour Dialog */}
+        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+          <DialogContent className="max-w-[1200px] w-[95vw] h-[90vh] flex flex-col">
+            <DialogHeader>
+              <DialogTitle>Tạo Tour</DialogTitle>
+              <DialogDescription>Nhập thông tin để tạo tour mới</DialogDescription>
+            </DialogHeader>
+            <CreateTourForm
+              submitLabel="Tạo Tour"
+              onCancel={() => setIsCreateDialogOpen(false)}
+              onUploadImages={async (files) => {
+                const token = localStorage.getItem("accessToken");
+                const form = new FormData();
+                files.forEach(f => form.append("files", f));
+                const res = await fetch(((import.meta as any).env?.VITE_API_BASE_URL || "https://localhost:7181") + "/api/media/uploads", {
+                  method: "POST",
+                  headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+                  body: form,
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data || res.statusText);
+                return (data.urls || []) as string[];
+              }}
+              onSubmit={async (payload) => {
+                // Call API directly with provided payload
+                await handleCreateTour(payload as any);
+              }}
+            />
+          </DialogContent>
+        </Dialog>
 
         {/* Edit Tour Dialog */}
         {isTourGuide && (

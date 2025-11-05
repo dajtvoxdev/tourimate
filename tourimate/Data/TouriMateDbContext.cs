@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Entities.Models;
 using Entities.Enums;
+using Entities.Common;
+using System.Linq.Expressions;
 
 namespace TouriMate.Data;
 
@@ -76,6 +78,25 @@ public class TouriMateDbContext : DbContext
 
         // Seed initial data
         SeedData(modelBuilder);
+
+        // Apply global soft-delete filter for all entities inheriting BaseEntity
+        ApplySoftDeleteQueryFilter(modelBuilder);
+    }
+
+    private static void ApplySoftDeleteQueryFilter(ModelBuilder modelBuilder)
+    {
+        foreach (var entityType in modelBuilder.Model.GetEntityTypes())
+        {
+            var clrType = entityType.ClrType;
+            if (!typeof(BaseEntity).IsAssignableFrom(clrType)) continue;
+
+            var parameter = Expression.Parameter(clrType, "e");
+            var isDeletedProperty = Expression.Property(parameter, nameof(BaseEntity.IsDeleted));
+            var body = Expression.Equal(isDeletedProperty, Expression.Constant(false));
+            var lambda = Expression.Lambda(body, parameter);
+
+            modelBuilder.Entity(clrType).HasQueryFilter(lambda);
+        }
     }
 
     private void ConfigureEnums(ModelBuilder modelBuilder)

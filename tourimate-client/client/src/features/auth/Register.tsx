@@ -1,6 +1,6 @@
 import { useForm } from "react-hook-form";
 import { AuthApi, RegisterRequest } from "./api";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Eye, EyeOff, ArrowLeft, LogIn } from "lucide-react";
 import { setupRecaptcha, clearRecaptcha, sendOTP, verifyOTP, getIdToken } from "../../lib/firebase";
@@ -49,26 +49,29 @@ export default function Register() {
     return () => clearInterval(id);
   }, [cooldown]);
 
-  // Initialize reCAPTCHA when component mounts
+  // Initialize reCAPTCHA when component mounts (guard against React StrictMode double-invoke)
+  const recaptchaInitRef = useRef(false);
   useEffect(() => {
+    if (recaptchaInitRef.current) return;
+    recaptchaInitRef.current = true;
     try {
-      console.log('Setting up reCAPTCHA...');
       resetRecaptcha();
       setupRecaptcha();
-      console.log('reCAPTCHA setup successfully');
     } catch (error: any) {
-      console.error('Failed to setup reCAPTCHA:', error);
-      // Handle "already been rendered" by hard reset and single retry
       if (String(error?.message || "").includes('already been rendered')) {
         try {
           resetRecaptcha();
           setupRecaptcha();
-          console.log('reCAPTCHA re-setup after render conflict');
           return;
         } catch {}
       }
       toast.error('Không thể khởi tạo xác thực. Vui lòng tải lại trang.');
     }
+    return () => {
+      // Clean up verifier when leaving page to avoid stale renders
+      recaptchaInitRef.current = false;
+      resetRecaptcha();
+    };
   }, []);
 
   const sendOtp = async () => {
@@ -83,9 +86,10 @@ export default function Register() {
       return;
     }
 
-    // Validate phone number format (Vietnamese numbers)
+    // Validate phone number format (Vietnamese numbers) — ignore spaces, dashes, parentheses
+    const cleanedPhone = phone.replace(/[\s\-\(\)]/g, '');
     const phoneRegex = /^(\+84|84|0)[1-9][0-9]{8,9}$/;
-    if (!phoneRegex.test(phone)) {
+    if (!phoneRegex.test(cleanedPhone)) {
       toast.error("Số điện thoại không đúng định dạng. Vui lòng nhập số Việt Nam hợp lệ (VD: 0123456789, +84123456789).");
       return;
     }
@@ -97,9 +101,8 @@ export default function Register() {
         const verificationId = await sendOTP(phone);
         setVerificationId(verificationId);
         toast.success("Đã gửi mã OTP. Vui lòng kiểm tra SMS.");
-        // Start cooldown immediately and clear current reCAPTCHA session to avoid token reuse issues
+        // Start cooldown immediately
         setCooldown(COOLDOWN_SECONDS);
-        resetRecaptcha();
       } catch (e: any) {
         const message = e.message || "Gửi OTP thất bại";
         console.error('Error sending OTP:', message);
@@ -230,8 +233,10 @@ export default function Register() {
             </h1>
           </div>
 
-          {/* reCAPTCHA container - invisible */}
-          <div id="recaptcha-container" style={{ display: 'none' }}></div>
+          {/* reCAPTCHA wrapper + container (we recreate the child div when resetting) */}
+          <div id="recaptcha-root">
+            <div id="recaptcha-container" style={{ display: 'none' }}></div>
+          </div>
           
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-2.5 sm:space-y-3.5 md:space-y-4">
             <div className="grid md:grid-cols-2 gap-3.5">

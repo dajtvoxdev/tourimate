@@ -402,7 +402,7 @@ export default function PaymentSuccess() {
                     <span className="font-semibold">Email:</span> {contactInfo.Email}
                   </p>
                   <p className="text-gray-900">
-                    <span className="font-semibold">Số điện thoại:</span> {contactInfo.PhoneNumber}
+                    <span className="font-semibold">Số điện thoại:</span> {contactInfo.Phone || contactInfo.PhoneNumber}
                   </p>
                 </div>
               </div>

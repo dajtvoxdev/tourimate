@@ -482,6 +482,7 @@ public class CostController : ControllerBase
             // Update cost to Paid
             cost.Status = CostStatus.Paid;
             cost.PaidDate = DateTime.UtcNow;
+            cost.PayerId = currentUser.Id; // Set payer to the admin who confirms the payment
             cost.UpdatedAt = DateTime.UtcNow;
 
             // Create Admin OUT transaction
@@ -523,13 +524,13 @@ public class CostController : ControllerBase
             _db.Transactions.Add(adminTx);
             _db.Transactions.Add(guideTx);
 
-            // Revenue for tour guide
+            // Revenue for tour guide (EntityType = Platform for payouts)
             var revenue = new Revenue
             {
                 TransactionId = guideTx.Id,
-                UserId = cost.RecipientId,
+                UserId = cost.RecipientId, // Tour guide who receives payment
                 EntityId = cost.RelatedEntityId,
-                EntityType = cost.RelatedEntityType ?? "Tour",
+                EntityType = "Platform", // Platform payout, not Tour/Product
                 GrossAmount = cost.Amount,
                 CommissionRate = 0m,
                 CommissionAmount = 0m,

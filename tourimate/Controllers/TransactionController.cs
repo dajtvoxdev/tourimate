@@ -236,19 +236,18 @@ public class TransactionController : ControllerBase
                 .Select(g => new { Status = g.Key.ToString(), Count = g.Count() })
                 .ToListAsync();
 
-            var totalRevenue = await _context.Bookings
-                .Where(b => b.Status == BookingStatus.Completed)
-                .SumAsync(b => b.TotalAmount) +
-                await _context.Orders
-                .Where(o => o.Status == OrderStatus.Delivered)
-                .SumAsync(o => o.TotalAmount);
+            // Money flow based on Transactions table
+            var totalIn = await _context.Transactions
+                .Where(t => t.TransactionDirection == "in" && t.Status == "completed")
+                .SumAsync(t => (decimal?)t.Amount) ?? 0m;
+            var totalOut = await _context.Transactions
+                .Where(t => t.TransactionDirection == "out" && t.Status == "completed")
+                .SumAsync(t => (decimal?)t.Amount) ?? 0m;
 
-            var pendingRevenue = await _context.Bookings
-                .Where(b => b.Status == BookingStatus.PendingPayment)
-                .SumAsync(b => b.TotalAmount) +
-                await _context.Orders
-                .Where(o => o.Status == OrderStatus.PendingPayment)
-                .SumAsync(o => o.TotalAmount);
+            var totalInCount = await _context.Transactions
+                .CountAsync(t => t.TransactionDirection == "in" && t.Status == "completed");
+            var totalOutCount = await _context.Transactions
+                .CountAsync(t => t.TransactionDirection == "out" && t.Status == "completed");
 
             return Ok(new
             {
@@ -256,8 +255,12 @@ public class TransactionController : ControllerBase
                 orderStats,
                 paymentStats,
                 orderPaymentStats,
-                totalRevenue,
-                pendingRevenue
+                totalRevenue = totalIn - totalOut,
+                pendingRevenue = 0m,
+                totalIn,
+                totalOut,
+                totalInCount,
+                totalOutCount
             });
         }
         catch (Exception ex)

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { HubConnectionBuilder, HubConnectionState, LogLevel } from "@microsoft/signalr";
 import { useLocation, useNavigate } from "react-router-dom";
 import { ChevronDown, User, LogOut, Menu, X, Settings, ShoppingCart } from "lucide-react";
 import { toast } from "sonner";
@@ -29,6 +30,45 @@ export default function Header({ hideRegister = false, hideLogin = false }: Head
       setCartItemCount(0);
     }
   }, [isLoggedIn, location.pathname]);
+
+  // SignalR: subscribe to cart count updates
+  useEffect(() => {
+    let connection: any;
+    const start = async () => {
+      try {
+        connection = new HubConnectionBuilder()
+          .withUrl(`${getApiBase()}/hubs/cart`, { withCredentials: true })
+          .configureLogging(LogLevel.Error)
+          .withAutomaticReconnect()
+          .build();
+
+        connection.on("CartCountUpdated", (count: number) => {
+          setCartItemCount(typeof count === 'number' ? count : 0);
+        });
+
+        await connection.start();
+        if (user?.id) {
+          await connection.invoke("JoinCartGroup", String(user.id));
+        }
+      } catch (err) {
+        console.error("Cart hub connection error:", err);
+      }
+    };
+
+    if (isLoggedIn) start();
+    return () => {
+      (async () => {
+        try {
+          if (connection && connection.state === HubConnectionState.Connected) {
+            if (user?.id) {
+              await connection.invoke("LeaveCartGroup", String(user.id));
+            }
+            await connection.stop();
+          }
+        } catch {}
+      })();
+    };
+  }, [isLoggedIn, user?.id]);
 
   const loadCartCount = async () => {
     try {

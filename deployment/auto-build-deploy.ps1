@@ -273,10 +273,6 @@ function Build-Frontend {
         <rule name="Proxy SignalR Hubs" stopProcessing="true">
           <match url="^hubs/(.*)" />
           <action type="Rewrite" url="http://127.0.0.1:5000/hubs/{R:1}" logRewrittenUrl="true" />
-          <serverVariables>
-            <set name="HTTP_X_Forwarded_Proto" value="https" />
-            <set name="HTTP_X_FORWARDED_HOST" value="tourimate.site" />
-          </serverVariables>
         </rule>
       </rules>
     </rewrite>
@@ -325,16 +321,12 @@ function Build-Frontend {
                 $existingHubs = @($rules.rule) | Where-Object { $_.name -eq 'Proxy SignalR Hubs' }
                 foreach ($r in $existingHubs) { [void]$rules.RemoveChild($r) }
 
-                # Create hubs rule
+                # Create hubs rule (without serverVariables to avoid 500.50 errors)
                 $rule = $xml.CreateElement('rule')
                 $rule.SetAttribute('name','Proxy SignalR Hubs')
                 $rule.SetAttribute('stopProcessing','true')
                 $match = $xml.CreateElement('match'); $match.SetAttribute('url','^hubs/(.*)'); $rule.AppendChild($match) | Out-Null
                 $action = $xml.CreateElement('action'); $action.SetAttribute('type','Rewrite'); $action.SetAttribute('url',"$upstream/hubs/{R:1}"); $action.SetAttribute('logRewrittenUrl','true'); $rule.AppendChild($action) | Out-Null
-                $sv = $xml.CreateElement('serverVariables')
-                $sv1 = $xml.CreateElement('set'); $sv1.SetAttribute('name','HTTP_X_Forwarded_Proto'); $sv1.SetAttribute('value','https'); $sv.AppendChild($sv1) | Out-Null
-                $sv2 = $xml.CreateElement('set'); $sv2.SetAttribute('name','HTTP_X_FORWARDED_HOST'); $sv2.SetAttribute('value','tourimate.site'); $sv.AppendChild($sv2) | Out-Null
-                $rule.AppendChild($sv) | Out-Null
                 # Insert hubs rule as the first rule to ensure it wins before SPA fallback
                 if ($rules.HasChildNodes) { [void]$rules.InsertBefore($rule, $rules.FirstChild) } else { [void]$rules.AppendChild($rule) }
 
@@ -363,10 +355,22 @@ function Build-Frontend {
                 }
 
                 $xml.Save($spaWebConfigPath)
-                Write-Log "Ensured SignalR hubs proxy rule in spa web.config (upstream: $upstream)"
+                Write-Log "Successfully injected SignalR hubs proxy rule in spa web.config (upstream: $upstream/hubs/{R:1})"
+                
+                # Verify the rule was added
+                [xml]$verify = Get-Content -Path $spaWebConfigPath -Encoding UTF8
+                $hubsRule = $verify.configuration.'system.webServer'.rewrite.rules.rule | Where-Object { $_.name -eq 'Proxy SignalR Hubs' }
+                if ($hubsRule) {
+                    Write-Log "Verified: SignalR hubs proxy rule is present in web.config"
+                } else {
+                    Write-Log "WARNING: SignalR hubs proxy rule verification failed!" "WARNING"
+                }
+            } else {
+                Write-Log "WARNING: spa web.config not found at $spaWebConfigPath, cannot inject SignalR rule" "WARNING"
             }
         } catch {
             Write-Log "Failed to update spa web.config for SignalR hubs: $($_.Exception.Message)" "WARNING"
+            Write-Log "Stack trace: $($_.ScriptStackTrace)" "WARNING"
         }
         
         Write-Log "Frontend build completed successfully"
@@ -396,16 +400,23 @@ Stop-WebAppPool -Name "DefaultAppPool" -ErrorAction SilentlyContinue
 
 # Ensure server-level prerequisites for ARR/WebSockets and unlock needed sections
 Write-Host "Ensuring server-level ARR proxy and WebSockets..."
-$appcmd = "$env:SystemRoot\System32\inetsrv\appcmd.exe"
-& $appcmd set config -section:system.webServer/proxy /enabled:"True" /reverseRewriteHostInResponseHeaders:"True" /commit:apphost | Out-Null
-& $appcmd set config -section:system.webServer/webSocket /enabled:"True" /commit:apphost | Out-Null
-& $appcmd unlock config /section:system.webServer/webSocket | Out-Null
-& $appcmd unlock config /section:system.webServer/proxy | Out-Null
-& $appcmd unlock config /section:system.webServer/handlers | Out-Null
-& $appcmd unlock config /section:system.webServer/modules | Out-Null
-# Remove WebDAV globally to avoid 405
-Remove-WebConfigurationProperty -pspath 'MACHINE/WEBROOT/APPHOST' -filter 'system.webServer/modules' -name '.' -AtElement @{name='WebDAVModule'} -ErrorAction SilentlyContinue
-Remove-WebConfigurationProperty -pspath 'MACHINE/WEBROOT/APPHOST' -filter 'system.webServer/handlers' -name '.' -AtElement @{name='WebDAV'} -ErrorAction SilentlyContinue
+if (Test-Path 'C:\Windows\System32\inetsrv\appcmd.exe') {
+    & 'C:\Windows\System32\inetsrv\appcmd.exe' set config -section:system.webServer/proxy /enabled:"True" /reverseRewriteHostInResponseHeaders:"True" /commit:apphost 2>&1 | Out-Null
+    & 'C:\Windows\System32\inetsrv\appcmd.exe' set config -section:system.webServer/webSocket /enabled:"True" /commit:apphost 2>&1 | Out-Null
+    & 'C:\Windows\System32\inetsrv\appcmd.exe' unlock config /section:system.webServer/webSocket 2>&1 | Out-Null
+    & 'C:\Windows\System32\inetsrv\appcmd.exe' unlock config /section:system.webServer/proxy 2>&1 | Out-Null
+    & 'C:\Windows\System32\inetsrv\appcmd.exe' unlock config /section:system.webServer/handlers 2>&1 | Out-Null
+    & 'C:\Windows\System32\inetsrv\appcmd.exe' unlock config /section:system.webServer/modules 2>&1 | Out-Null
+    Write-Host "Server-level ARR and WebSocket configuration completed"
+} else {
+    Write-Host "WARNING: appcmd.exe not found, skipping server-level configuration"
+}
+# Remove WebDAV globally to avoid 405 (if not already removed)
+if (Test-Path 'C:\Windows\System32\inetsrv\appcmd.exe') {
+    & 'C:\Windows\System32\inetsrv\appcmd.exe' delete module "WebDAVModule" 2>&1 | Out-Null
+    & 'C:\Windows\System32\inetsrv\appcmd.exe' delete handler "WebDAV" 2>&1 | Out-Null
+    Write-Host "WebDAV removal attempted (may already be removed)"
+}
 
 # Wait for application pool to fully stop
 Write-Host "Waiting for application pool to stop..."
@@ -467,23 +478,47 @@ scp -P $($Config.VpsPort) -p -q `"$frontendZip`" $($Config.VpsUser)@$($Config.Vp
         # Expand zips on server and start IIS
         Write-Log "Expanding artifacts and starting IIS application pools..."
         $startScript = @'
-# Expand backend and frontend artifacts on VPS using .NET ZipFile for reliability
+# Expand backend and frontend artifacts on VPS using temp-extract + robocopy (handles locks better)
 Import-Module WebAdministration -ErrorAction SilentlyContinue
-Add-Type -AssemblyName 'System.IO.Compression.FileSystem' -ErrorAction SilentlyContinue
+Import-Module Microsoft.PowerShell.Archive -ErrorAction SilentlyContinue
 
 $backendZip = 'C:\inetpub\wwwroot\tourimate-production\backend.zip'
 $backendDest = 'C:\inetpub\wwwroot\tourimate-production'
 $frontendZip = 'C:\inetpub\wwwroot\tourimate-frontend-production\spa\spa.zip'
 $frontendDest = 'C:\inetpub\wwwroot\tourimate-frontend-production\spa'
 
+# Ensure no app pool or worker holds locks
+try { Stop-WebAppPool -Name 'DefaultAppPool' -ErrorAction SilentlyContinue } catch {}
+try { Get-Process w3wp -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue } catch {}
+try {
+  Get-Process -ErrorAction SilentlyContinue | ForEach-Object {
+    try {
+      $p = $_
+      $path = $null
+      try { $path = $p.MainModule.FileName } catch {}
+      if ($path -and ($path -like "$backendDest*")) { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue }
+    } catch {}
+  }
+} catch {}
+
 Write-Host "Backend zip exists: $([IO.File]::Exists($backendZip)) Size: $(if (Test-Path $backendZip) {(Get-Item $backendZip).Length} else {0})"
 Write-Host "Frontend zip exists: $([IO.File]::Exists($frontendZip)) Size: $(if (Test-Path $frontendZip) {(Get-Item $frontendZip).Length} else {0})"
 
 try {
   if (Test-Path $backendZip) {
-    # Clean destination (keep the zip itself until after extract)
-    Get-ChildItem -Path $backendDest -Force -ErrorAction SilentlyContinue | Where-Object { $_.Name -ne 'backend.zip' } | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
-    [System.IO.Compression.ZipFile]::ExtractToDirectory($backendZip, $backendDest)
+    if (!(Test-Path $backendDest)) { New-Item -ItemType Directory -Path $backendDest -Force | Out-Null }
+    # Extract to temp directory first
+    $backendTemp = Join-Path $env:TEMP 'tourimate-backend-extract'
+    if (Test-Path $backendTemp) { Remove-Item -Path $backendTemp -Recurse -Force -ErrorAction SilentlyContinue }
+    New-Item -ItemType Directory -Path $backendTemp -Force | Out-Null
+    Expand-Archive -Path $backendZip -DestinationPath $backendTemp -Force
+    # Clear read-only attributes in destination to allow overwrite
+    Get-ChildItem -Path $backendDest -Recurse -Force -ErrorAction SilentlyContinue | ForEach-Object { try { $_.Attributes = 'Normal' } catch {} }
+    # Mirror files using robocopy to handle in-use files with retries
+    $rcLog = robocopy $backendTemp $backendDest /MIR /COPY:DAT /R:3 /W:1 /NFL /NDL /NP /NJH /NJS | Out-String
+    Write-Host $rcLog
+    # Clean temp and zip
+    Remove-Item $backendTemp -Recurse -Force -ErrorAction SilentlyContinue
     Remove-Item $backendZip -Force -ErrorAction SilentlyContinue
     Write-Host 'Backend extracted successfully.'
   } else { Write-Host 'Backend zip not found.' }
@@ -491,8 +526,19 @@ try {
 
 try {
   if (Test-Path $frontendZip) {
-    Get-ChildItem -Path $frontendDest -Force -ErrorAction SilentlyContinue | Where-Object { $_.Name -ne 'spa.zip' } | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
-    [System.IO.Compression.ZipFile]::ExtractToDirectory($frontendZip, $frontendDest)
+    if (!(Test-Path $frontendDest)) { New-Item -ItemType Directory -Path $frontendDest -Force | Out-Null }
+    # Extract to temp directory first
+    $frontendTemp = Join-Path $env:TEMP 'tourimate-frontend-extract'
+    if (Test-Path $frontendTemp) { Remove-Item -Path $frontendTemp -Recurse -Force -ErrorAction SilentlyContinue }
+    New-Item -ItemType Directory -Path $frontendTemp -Force | Out-Null
+    Expand-Archive -Path $frontendZip -DestinationPath $frontendTemp -Force
+    # Clear read-only attributes in destination
+    Get-ChildItem -Path $frontendDest -Recurse -Force -ErrorAction SilentlyContinue | ForEach-Object { try { $_.Attributes = 'Normal' } catch {} }
+    # Mirror files using robocopy
+    $rcLog2 = robocopy $frontendTemp $frontendDest /MIR /COPY:DAT /R:3 /W:1 /NFL /NDL /NP /NJH /NJS | Out-String
+    Write-Host $rcLog2
+    # Clean temp and zip
+    Remove-Item $frontendTemp -Recurse -Force -ErrorAction SilentlyContinue
     Remove-Item $frontendZip -Force -ErrorAction SilentlyContinue
     Write-Host 'Frontend extracted successfully.'
   } else { Write-Host 'Frontend zip not found.' }

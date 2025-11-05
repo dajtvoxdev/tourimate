@@ -18,6 +18,7 @@ auth.languageCode = 'vi';
 
 // Global recaptcha verifier (single instance)
 let recaptchaVerifier: RecaptchaVerifier | null = null;
+let recaptchaWidgetId: number | null = null;
 
 // Setup reCAPTCHA - simple like the example
 export const setupRecaptcha = () => {
@@ -25,35 +26,64 @@ export const setupRecaptcha = () => {
   if (recaptchaVerifier) {
     return recaptchaVerifier;
   }
-  // Ensure container is clean
-  const el = document.getElementById('recaptcha-container');
-  if (el) el.innerHTML = '';
-  // Create a single verifier instance
+  // Ensure container exists (created by JSX)
+  const root = document.getElementById('recaptcha-root');
+  if (!root) {
+    throw new Error('recaptcha-root element not found');
+  }
+  const container = document.getElementById('recaptcha-container');
+  if (!container) {
+    const fresh = document.createElement('div');
+    fresh.id = 'recaptcha-container';
+    fresh.style.display = 'none';
+    root.appendChild(fresh);
+  }
+  // Create a new verifier instance
   recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
     size: 'invisible',
     callback: () => {
       console.log('reCAPTCHA solved');
     },
   });
+  // Render once to capture widget id for reliable resets
+  try {
+    (recaptchaVerifier as any).render?.().then((id: number) => { recaptchaWidgetId = id ?? null; }).catch(() => {});
+  } catch {}
   return recaptchaVerifier;
 };
 
 export const clearRecaptcha = () => {
   try {
+    // Try Firebase API first
     if (recaptchaVerifier) {
       try { recaptchaVerifier.clear(); } catch {}
       recaptchaVerifier = null;
     }
-    // Reset grecaptcha widgets if available
+    // Reset specific widget if possible
     try {
       const gr = (window as any).grecaptcha;
       if (gr && typeof gr.reset === 'function') {
-        gr.reset();
+        if (recaptchaWidgetId !== null) {
+          try { gr.reset(recaptchaWidgetId); } catch {}
+        } else {
+          try { gr.reset(); } catch {}
+        }
       }
     } catch {}
-    const el = document.getElementById('recaptcha-container');
-    if (el) el.innerHTML = '';
-    // Also remove any sibling DOM that grecaptcha may have injected
+    recaptchaWidgetId = null;
+    // Fully replace the container element to avoid stale DOM
+    try {
+      const root = document.getElementById('recaptcha-root');
+      const existing = document.getElementById('recaptcha-container');
+      if (root && existing) {
+        try { root.removeChild(existing); } catch {}
+        const fresh = document.createElement('div');
+        fresh.id = 'recaptcha-container';
+        fresh.style.display = 'none';
+        root.appendChild(fresh);
+      }
+    } catch {}
+    // Also remove any grecaptcha global badge if present
     const badge = document.querySelector('.grecaptcha-badge') as HTMLElement | null;
     if (badge && badge.parentElement) {
       try { badge.parentElement.removeChild(badge); } catch {}
@@ -80,15 +110,25 @@ const normalizePhoneNumber = (phoneNumber: string): string => {
 // Send OTP - simple like the example
 export const sendOTP = async (phoneNumber: string): Promise<string> => {
   try {
-    // Reuse existing verifier or create once
-    const appVerifier = recaptchaVerifier || setupRecaptcha();
+    // Ensure verifier exists and widget id is known
+    const appVerifier = setupRecaptcha();
+    try {
+      if (recaptchaWidgetId !== null && (window as any).grecaptcha?.reset) {
+        (window as any).grecaptcha.reset(recaptchaWidgetId);
+      }
+    } catch {}
+    // For invisible mode, kick off verification to ensure a fresh token
+    try { await (appVerifier as any).verify?.(); } catch {}
     // Normalize phone number
     const normalizedPhone = normalizePhoneNumber(phoneNumber);
     console.log('Sending OTP to:', normalizedPhone);
-    // Send OTP
-    const result = await signInWithPhoneNumber(auth, normalizedPhone, appVerifier);
+    // Send OTP with timeout guard
+    const result = await Promise.race([
+      signInWithPhoneNumber(auth, normalizedPhone, appVerifier),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Timeout')), 20000))
+    ]);
     console.log('OTP sent successfully');
-    return result.verificationId;
+    return (result as any).verificationId as string;
   } catch (error: any) {
     console.error('Error sending OTP:', error);
     throw new Error(error.message || 'Gửi OTP thất bại. Vui lòng thử lại.');
