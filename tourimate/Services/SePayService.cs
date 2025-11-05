@@ -453,15 +453,30 @@ public class SePayService : ISePayService
                 }
                 else if (relatedOrder != null)
                 {
-                    // Send order confirmation email (if email service supports it)
-                    var customerName = relatedOrder.Customer?.FirstName ?? "Khách hàng";
+                    // Send order confirmation email
+                    var customerName = relatedOrder.ReceiverName ?? relatedOrder.Customer?.FirstName ?? "Khách hàng";
                     var customerEmail = relatedOrder.ReceiverEmail ?? relatedOrder.Customer?.Email ?? string.Empty;
 
                     if (!string.IsNullOrWhiteSpace(customerEmail))
                     {
-                        // TODO: Implement SendOrderConfirmationEmailAsync in IEmailService if needed
-                        _logger.LogInformation("Order confirmation email should be sent to {Email} for order {OrderNumber}", 
-                            customerEmail, relatedOrder.OrderNumber);
+                        // Map order items to email format
+                        var orderItems = relatedOrder.Items?.Select(item => new TouriMate.Services.OrderItemInfo
+                        {
+                            ProductName = item.ProductName,
+                            Quantity = item.Quantity,
+                            Price = item.UnitPrice,
+                            Variant = item.SelectedVariant
+                        }).ToList();
+
+                        await _emailService.SendOrderConfirmationEmailAsync(
+                            customerEmail,
+                            customerName,
+                            relatedOrder.OrderNumber,
+                            relatedOrder.TotalAmount,
+                            relatedOrder.Currency,
+                            orderItems,
+                            relatedOrder.ShippingAddress
+                        );
                     }
                 }
             }

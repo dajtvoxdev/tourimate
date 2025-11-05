@@ -294,7 +294,7 @@ export default function PaymentSuccess() {
             {/* Action Buttons */}
             <div className="flex flex-col sm:flex-row gap-3">
               <Button
-                onClick={() => navigate("/profile")}
+                onClick={() => navigate("/profile?tab=products")}
                 className="flex-1"
               >
                 <Download className="w-4 h-4 mr-2" />
@@ -442,7 +442,7 @@ export default function PaymentSuccess() {
         {/* Action Buttons */}
         <div className="flex flex-col sm:flex-row gap-3">
           <Button
-            onClick={() => navigate("/profile")}
+            onClick={() => navigate("/profile?tab=tours")}
             className="flex-1"
           >
             <Download className="w-4 h-4 mr-2" />

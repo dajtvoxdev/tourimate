@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   User,
   ChevronDown,
@@ -106,10 +106,12 @@ interface Order {
 export default function PersonalProfile() {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState("profile");
   const navigate = useNavigate();
   const [avatarUploading, setAvatarUploading] = useState(false);
   const fileInputId = "avatar-file-input";
+  const tabsSectionRef = useRef<HTMLDivElement>(null);
 
   // User profile state
   const [profile, setProfile] = useState({
@@ -244,6 +246,23 @@ export default function PersonalProfile() {
     loadBanks();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Handle tab parameter from URL and scroll to tabs section
+  useEffect(() => {
+    const tabParam = searchParams.get("tab");
+    if (tabParam === "tours" || tabParam === "products") {
+      setActiveTab(tabParam);
+      // Remove tab from URL to clean it up
+      setSearchParams({}, { replace: true });
+      // Scroll to tabs section after a short delay to ensure DOM is ready
+      setTimeout(() => {
+        tabsSectionRef.current?.scrollIntoView({ 
+          behavior: "smooth", 
+          block: "center" 
+        });
+      }, 100);
+    }
+  }, [searchParams, setSearchParams]);
 
   // Fetch user bookings
   const fetchBookings = async () => {
@@ -626,7 +645,7 @@ export default function PersonalProfile() {
                 </h2>
 
                 {/* Navigation Tabs */}
-                <div className="space-y-2">
+                <div ref={tabsSectionRef} className="space-y-2">
                   <button
                     onClick={() => setActiveTab("profile")}
                     className={`w-full text-left px-4 py-3 rounded-lg transition-colors duration-200 ${

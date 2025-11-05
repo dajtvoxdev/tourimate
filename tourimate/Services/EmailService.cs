@@ -1,6 +1,10 @@
 using System.Net;
 using System.Net.Mail;
 using System.Text;
+using System.Linq;
+using Microsoft.EntityFrameworkCore;
+using TouriMate.Data;
+using Entities.Enums;
 
 namespace TouriMate.Services
 {
@@ -9,17 +13,28 @@ namespace TouriMate.Services
         Task<bool> SendTourGuideApplicationStatusEmailAsync(string toEmail, string toName, string status, string feedback = null);
         Task<bool> SendAdminNotificationAsync(string subject, string htmlContent);
         Task<bool> SendBookingConfirmationEmailAsync(string toEmail, string toName, string bookingNumber, string tourTitle, DateTime tourDate, decimal amount, string currency = "VND");
+        Task<bool> SendOrderConfirmationEmailAsync(string toEmail, string toName, string orderNumber, decimal totalAmount, string currency = "VND", List<OrderItemInfo>? items = null, string? shippingAddress = null);
+    }
+
+    public class OrderItemInfo
+    {
+        public string ProductName { get; set; } = string.Empty;
+        public int Quantity { get; set; }
+        public decimal Price { get; set; }
+        public string? Variant { get; set; }
     }
 
     public class EmailService : IEmailService
     {
         private readonly IConfiguration _configuration;
         private readonly ILogger<EmailService> _logger;
+        private readonly TouriMateDbContext _dbContext;
 
-        public EmailService(IConfiguration configuration, ILogger<EmailService> logger)
+        public EmailService(IConfiguration configuration, ILogger<EmailService> logger, TouriMateDbContext dbContext)
         {
             _configuration = configuration;
             _logger = logger;
+            _dbContext = dbContext;
         }
 
         public async Task<bool> SendBookingConfirmationEmailAsync(string toEmail, string toName, string bookingNumber, string tourTitle, DateTime tourDate, decimal amount, string currency = "VND")
@@ -32,8 +47,8 @@ namespace TouriMate.Services
                     return false;
                 }
 
-                var fromEmail = _configuration["Email:FromEmail"];
-                var fromName = _configuration["Email:FromName"] ?? "TouriMate";
+                var fromEmail = _configuration["SendGrid:FromEmail"];
+                var fromName = _configuration["SendGrid:FromName"] ?? "TouriMate";
                 var sendGridApiKey = _configuration["SendGrid:ApiKey"];
 
                 if (string.IsNullOrWhiteSpace(fromEmail) || string.IsNullOrWhiteSpace(sendGridApiKey))
@@ -83,6 +98,186 @@ namespace TouriMate.Services
             }
         }
 
+        public async Task<bool> SendOrderConfirmationEmailAsync(string toEmail, string toName, string orderNumber, decimal totalAmount, string currency = "VND", List<OrderItemInfo>? items = null, string? shippingAddress = null)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(toEmail))
+                {
+                    _logger.LogWarning("Missing recipient email for order confirmation {OrderNumber}", orderNumber);
+                    return false;
+                }
+
+                var fromEmail = _configuration["SendGrid:FromEmail"];
+                var fromName = _configuration["SendGrid:FromName"] ?? "TouriMate";
+                var sendGridApiKey = _configuration["SendGrid:ApiKey"];
+
+                if (string.IsNullOrWhiteSpace(fromEmail) || string.IsNullOrWhiteSpace(sendGridApiKey))
+                {
+                    _logger.LogWarning("Missing email configs for order confirmation");
+                    return false;
+                }
+
+                var subject = $"Xác nhận đặt hàng thành công - {orderNumber}";
+                var formattedAmount = string.Format(new System.Globalization.CultureInfo("vi-VN"), "{0:C0}", totalAmount) + (currency == "VND" ? string.Empty : $" {currency}");
+
+                // Build items list HTML
+                var itemsHtml = "";
+                if (items != null && items.Any())
+                {
+                    var itemsList = items.Select(item =>
+                    {
+                        var itemTotal = item.Price * item.Quantity;
+                        var formattedItemTotal = string.Format(new System.Globalization.CultureInfo("vi-VN"), "{0:C0}", itemTotal);
+                        var variantText = !string.IsNullOrWhiteSpace(item.Variant) ? $"<br/><span style='color:#666;font-size:12px;'>({System.Net.WebUtility.HtmlEncode(item.Variant)})</span>" : "";
+                        return $@"
+                        <tr>
+                            <td style='padding:8px;border-bottom:1px solid #eee;'>{System.Net.WebUtility.HtmlEncode(item.ProductName)}{variantText}</td>
+                            <td style='padding:8px;text-align:center;border-bottom:1px solid #eee;'>{item.Quantity}</td>
+                            <td style='padding:8px;text-align:right;border-bottom:1px solid #eee;'>{formattedItemTotal}</td>
+                        </tr>";
+                    }).ToList();
+
+                    itemsHtml = $@"
+                    <table style='width:100%;border-collapse:collapse;margin:20px 0;'>
+                        <thead>
+                            <tr style='background-color:#f8f9fa;'>
+                                <th style='padding:12px;text-align:left;border-bottom:2px solid #ddd;'>Sản phẩm</th>
+                                <th style='padding:12px;text-align:center;border-bottom:2px solid #ddd;'>Số lượng</th>
+                                <th style='padding:12px;text-align:right;border-bottom:2px solid #ddd;'>Thành tiền</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {string.Join("", itemsList)}
+                        </tbody>
+                    </table>";
+                }
+
+                var shippingHtml = !string.IsNullOrWhiteSpace(shippingAddress) 
+                    ? $@"<p><strong>Địa chỉ giao hàng:</strong><br/>{System.Net.WebUtility.HtmlEncode(shippingAddress)}</p>"
+                    : "";
+
+                var htmlContent = $@"
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset='utf-8'>
+    <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+    <title>Xác nhận đặt hàng</title>
+    <style>
+        body {{
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }}
+        .container {{
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }}
+        .header {{
+            text-align: center;
+            margin-bottom: 30px;
+        }}
+        .logo {{
+            font-size: 28px;
+            font-weight: bold;
+            color: #2563eb;
+            margin-bottom: 10px;
+        }}
+        .order-info {{
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border-left: 4px solid #2563eb;
+        }}
+        .total-amount {{
+            font-size: 24px;
+            font-weight: bold;
+            color: #2563eb;
+            text-align: center;
+            margin: 20px 0;
+            padding: 15px;
+            background-color: #eff6ff;
+            border-radius: 8px;
+        }}
+        .footer {{
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #e5e7eb;
+            font-size: 14px;
+            color: #6b7280;
+            text-align: center;
+        }}
+    </style>
+</head>
+<body>
+    <div class='container'>
+        <div class='header'>
+            <div class='logo'>🏖️ TouriMate</div>
+            <p>Nền tảng du lịch hàng đầu Việt Nam</p>
+        </div>
+
+        <h2>Xin chào {System.Net.WebUtility.HtmlEncode(toName)}!</h2>
+        
+        <p>Bạn đã <strong>đặt hàng thành công</strong> tại TouriMate.</p>
+        
+        <div class='order-info'>
+            <p><strong>Mã đơn hàng:</strong> {System.Net.WebUtility.HtmlEncode(orderNumber)}</p>
+            <p><strong>Ngày đặt hàng:</strong> {Entities.Common.TimeProvider.VietnamNow().ToString("dd/MM/yyyy HH:mm")}</p>
+        </div>
+
+        <h3>Chi tiết đơn hàng:</h3>
+        {itemsHtml}
+        
+        <div class='total-amount'>
+            Tổng tiền: {formattedAmount}
+        </div>
+
+        {shippingHtml}
+
+        <p>Chúng tôi sẽ xử lý đơn hàng của bạn trong thời gian sớm nhất. Bạn sẽ nhận được thông báo khi đơn hàng được giao.</p>
+        
+        <p>Vui lòng giữ lại email này để đối chiếu khi cần.</p>
+        
+        <div class='footer'>
+            <p>Nếu bạn có bất kỳ thắc mắc nào, vui lòng liên hệ với chúng tôi qua email hoặc hotline.</p>
+            <p>© 2024 TouriMate. Tất cả quyền được bảo lưu.</p>
+        </div>
+    </div>
+</body>
+</html>";
+
+                var message = new MailMessage
+                {
+                    From = new MailAddress(fromEmail!, fromName),
+                    Subject = subject,
+                    Body = htmlContent,
+                    IsBodyHtml = true
+                };
+                message.To.Add(toEmail);
+
+                using var smtpClient = new SmtpClient("smtp.sendgrid.net", 587);
+                smtpClient.Credentials = new System.Net.NetworkCredential("apikey", sendGridApiKey);
+                smtpClient.EnableSsl = true;
+                await smtpClient.SendMailAsync(message);
+
+                _logger.LogInformation("Order confirmation email sent to {Email} for {Order}", toEmail, orderNumber);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to send order confirmation email for {Order}", orderNumber);
+                return false;
+            }
+        }
+
         public async Task<bool> SendTourGuideApplicationStatusEmailAsync(string toEmail, string toName, string status, string? feedback = null)
         {
             try
@@ -94,7 +289,7 @@ namespace TouriMate.Services
                     return false;
                 }
 
-                var sendGridConfig = _configuration.GetSection("ExternalServices:SendGrid");
+                var sendGridConfig = _configuration.GetSection("SendGrid");
                 var apiKey = sendGridConfig["ApiKey"];
                 var fromEmail = sendGridConfig["FromEmail"];
                 var fromName = sendGridConfig["FromName"];
@@ -147,17 +342,29 @@ namespace TouriMate.Services
         {
             try
             {
-                var sendGridConfig = _configuration.GetSection("ExternalServices:SendGrid");
+                var sendGridConfig = _configuration.GetSection("SendGrid");
                 var apiKey = sendGridConfig["ApiKey"];
                 var fromEmail = sendGridConfig["FromEmail"];
                 var fromName = sendGridConfig["FromName"];
-                var adminEmail = _configuration["Admin:Email"] ?? sendGridConfig["AdminEmail"]; // fallback
 
-                if (string.IsNullOrEmpty(apiKey) || string.IsNullOrEmpty(fromEmail) || string.IsNullOrEmpty(adminEmail))
+                if (string.IsNullOrEmpty(apiKey) || string.IsNullOrEmpty(fromEmail))
                 {
                     _logger.LogWarning("Missing email configs for admin notifications");
                     return false;
                 }
+
+                // Get admin email from database
+                var adminUser = await _dbContext.Users
+                    .Where(u => u.Role == UserRole.Admin && u.IsActive && !u.IsDeleted)
+                    .FirstOrDefaultAsync();
+
+                if (adminUser == null || string.IsNullOrWhiteSpace(adminUser.Email))
+                {
+                    _logger.LogWarning("No active admin user found in database for admin notifications");
+                    return false;
+                }
+
+                var adminEmail = adminUser.Email;
 
                 var message = new MailMessage
                 {
@@ -172,6 +379,8 @@ namespace TouriMate.Services
                 smtpClient.Credentials = new NetworkCredential("apikey", apiKey);
                 smtpClient.EnableSsl = true;
                 await smtpClient.SendMailAsync(message);
+                
+                _logger.LogInformation("Admin notification email sent to {AdminEmail}", adminEmail);
                 return true;
             }
             catch (Exception ex)
