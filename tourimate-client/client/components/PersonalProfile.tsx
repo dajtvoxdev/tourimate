@@ -19,6 +19,10 @@ import {
   Check,
   CreditCard,
   Trash2,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+  Filter,
 } from "lucide-react";
 import { toast } from "sonner";
 import Header from "./Header";
@@ -456,6 +460,60 @@ export default function PersonalProfile() {
     }
   };
 
+  // Filter and sort bookings
+  const getFilteredAndSortedBookings = () => {
+    let filtered = [...bookedTours];
+    
+    // Filter by status (default: hide cancelled)
+    if (bookingStatusFilter === "all") {
+      filtered = filtered.filter(b => b.status !== "Cancelled");
+    } else if (bookingStatusFilter !== "all") {
+      filtered = filtered.filter(b => b.status === bookingStatusFilter);
+    }
+    
+    // Sort
+    filtered.sort((a, b) => {
+      if (bookingSortBy === "price") {
+        const diff = a.totalAmount - b.totalAmount;
+        return bookingSortOrder === "asc" ? diff : -diff;
+      } else { // date
+        const dateA = new Date(a.tourAvailability.date).getTime();
+        const dateB = new Date(b.tourAvailability.date).getTime();
+        const diff = dateA - dateB;
+        return bookingSortOrder === "asc" ? diff : -diff;
+      }
+    });
+    
+    return filtered;
+  };
+
+  // Filter and sort orders
+  const getFilteredAndSortedOrders = () => {
+    let filtered = [...orders];
+    
+    // Filter by status (default: hide cancelled)
+    if (orderStatusFilter === "all") {
+      filtered = filtered.filter(o => o.status !== "Cancelled");
+    } else if (orderStatusFilter !== "all") {
+      filtered = filtered.filter(o => o.status === orderStatusFilter);
+    }
+    
+    // Sort
+    filtered.sort((a, b) => {
+      if (orderSortBy === "price") {
+        const diff = a.totalAmount - b.totalAmount;
+        return orderSortOrder === "asc" ? diff : -diff;
+      } else { // date
+        const dateA = new Date(a.createdAt).getTime();
+        const dateB = new Date(b.createdAt).getTime();
+        const diff = dateA - dateB;
+        return orderSortOrder === "asc" ? diff : -diff;
+      }
+    });
+    
+    return filtered;
+  };
+
   const handleLogout = () => {
     navigate("/");
   };
@@ -591,10 +649,16 @@ export default function PersonalProfile() {
   const [showCancellationDialog, setShowCancellationDialog] = useState(false);
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
   const [selectedBookingPaid, setSelectedBookingPaid] = useState<boolean>(false);
+  const [bookingStatusFilter, setBookingStatusFilter] = useState<string>("all");
+  const [bookingSortBy, setBookingSortBy] = useState<"date" | "price">("date");
+  const [bookingSortOrder, setBookingSortOrder] = useState<"asc" | "desc">("desc");
 
   // Orders state
   const [orders, setOrders] = useState<Order[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
+  const [orderStatusFilter, setOrderStatusFilter] = useState<string>("all");
+  const [orderSortBy, setOrderSortBy] = useState<"date" | "price">("date");
+  const [orderSortOrder, setOrderSortOrder] = useState<"asc" | "desc">("desc");
 
 
   // Mock data for guide's own tours
@@ -1295,7 +1359,69 @@ export default function PersonalProfile() {
                   </div>
                 ) : (
                   <div className="space-y-6">
-                    {bookedTours.map((booking) => (
+                    {/* Filter and Sort Controls */}
+                    <div className="flex flex-col md:flex-row gap-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                      <div className="flex-1 flex flex-col md:flex-row gap-4">
+                        {/* Status Filter */}
+                        <div className="flex items-center gap-2">
+                          <Filter className="w-4 h-4 text-gray-600" />
+                          <Select value={bookingStatusFilter} onValueChange={setBookingStatusFilter}>
+                            <SelectTrigger className="w-[180px]">
+                              <SelectValue placeholder="Lọc trạng thái" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="all">Tất cả (trừ hủy)</SelectItem>
+                              <SelectItem value="PendingPayment">Chờ thanh toán</SelectItem>
+                              <SelectItem value="Confirmed">Đã xác nhận</SelectItem>
+                              <SelectItem value="Completed">Hoàn thành</SelectItem>
+                              <SelectItem value="Cancelled">Đã hủy</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        
+                        {/* Sort By */}
+                        <div className="flex items-center gap-2">
+                          <ArrowUpDown className="w-4 h-4 text-gray-600" />
+                          <Select value={bookingSortBy} onValueChange={(v) => setBookingSortBy(v as "date" | "price")}>
+                            <SelectTrigger className="w-[150px]">
+                              <SelectValue placeholder="Sắp xếp theo" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="date">Ngày khởi hành</SelectItem>
+                              <SelectItem value="price">Giá tiền</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        
+                        {/* Sort Order */}
+                        <button
+                          onClick={() => setBookingSortOrder(bookingSortOrder === "asc" ? "desc" : "asc")}
+                          className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                          title={bookingSortOrder === "asc" ? "Tăng dần" : "Giảm dần"}
+                        >
+                          {bookingSortOrder === "asc" ? (
+                            <ArrowUp className="w-4 h-4" />
+                          ) : (
+                            <ArrowDown className="w-4 h-4" />
+                          )}
+                          <span className="text-sm font-nunito">
+                            {bookingSortOrder === "asc" ? "Tăng dần" : "Giảm dần"}
+                          </span>
+                        </button>
+                      </div>
+                    </div>
+                    
+                    {getFilteredAndSortedBookings().length === 0 ? (
+                      <div className="text-center py-12">
+                        <h4 className="font-nunito text-lg font-medium text-gray-600 mb-2">
+                          Không có tour nào phù hợp
+                        </h4>
+                        <p className="text-gray-500">
+                          Thử thay đổi bộ lọc hoặc sắp xếp
+                        </p>
+                      </div>
+                    ) : (
+                      getFilteredAndSortedBookings().map((booking) => (
                       <div
                         key={booking.id}
                         className="border border-gray-200 rounded-[15px] p-6 hover:shadow-lg transition-shadow duration-300"
@@ -1449,7 +1575,8 @@ export default function PersonalProfile() {
                           </div>
                         </div>
                       </div>
-                    ))}
+                    ))
+                    )}
                   </div>
                 )}
               </div>
@@ -1484,7 +1611,71 @@ export default function PersonalProfile() {
                   </div>
                 ) : (
                   <div className="space-y-6">
-                    {orders.map((order) => (
+                    {/* Filter and Sort Controls */}
+                    <div className="flex flex-col md:flex-row gap-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                      <div className="flex-1 flex flex-col md:flex-row gap-4">
+                        {/* Status Filter */}
+                        <div className="flex items-center gap-2">
+                          <Filter className="w-4 h-4 text-gray-600" />
+                          <Select value={orderStatusFilter} onValueChange={setOrderStatusFilter}>
+                            <SelectTrigger className="w-[180px]">
+                              <SelectValue placeholder="Lọc trạng thái" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="all">Tất cả (trừ hủy)</SelectItem>
+                              <SelectItem value="PendingPayment">Chờ thanh toán</SelectItem>
+                              <SelectItem value="Processing">Đang xử lý</SelectItem>
+                              <SelectItem value="Shipped">Đã giao hàng</SelectItem>
+                              <SelectItem value="Delivered">Đã nhận hàng</SelectItem>
+                              <SelectItem value="Cancelled">Đã hủy</SelectItem>
+                              <SelectItem value="Returned">Đã trả hàng</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        
+                        {/* Sort By */}
+                        <div className="flex items-center gap-2">
+                          <ArrowUpDown className="w-4 h-4 text-gray-600" />
+                          <Select value={orderSortBy} onValueChange={(v) => setOrderSortBy(v as "date" | "price")}>
+                            <SelectTrigger className="w-[150px]">
+                              <SelectValue placeholder="Sắp xếp theo" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="date">Ngày đặt hàng</SelectItem>
+                              <SelectItem value="price">Giá tiền</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        
+                        {/* Sort Order */}
+                        <button
+                          onClick={() => setOrderSortOrder(orderSortOrder === "asc" ? "desc" : "asc")}
+                          className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                          title={orderSortOrder === "asc" ? "Tăng dần" : "Giảm dần"}
+                        >
+                          {orderSortOrder === "asc" ? (
+                            <ArrowUp className="w-4 h-4" />
+                          ) : (
+                            <ArrowDown className="w-4 h-4" />
+                          )}
+                          <span className="text-sm font-nunito">
+                            {orderSortOrder === "asc" ? "Tăng dần" : "Giảm dần"}
+                          </span>
+                        </button>
+                      </div>
+                    </div>
+                    
+                    {getFilteredAndSortedOrders().length === 0 ? (
+                      <div className="text-center py-12">
+                        <h4 className="font-nunito text-lg font-medium text-gray-600 mb-2">
+                          Không có đơn hàng nào phù hợp
+                        </h4>
+                        <p className="text-gray-500">
+                          Thử thay đổi bộ lọc hoặc sắp xếp
+                        </p>
+                      </div>
+                    ) : (
+                      getFilteredAndSortedOrders().map((order) => (
                       <div
                         key={order.id}
                         className="border border-gray-200 rounded-[15px] p-6 hover:shadow-lg transition-shadow duration-300"
@@ -1629,7 +1820,8 @@ export default function PersonalProfile() {
                           </div>
                         </div>
                       </div>
-                    ))}
+                    ))
+                    )}
                   </div>
                 )}
               </div>

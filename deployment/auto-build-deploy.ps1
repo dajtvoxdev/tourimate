@@ -273,10 +273,6 @@ function Build-Frontend {
         <rule name="Proxy SignalR Hubs" stopProcessing="true">
           <match url="^hubs/(.*)" />
           <action type="Rewrite" url="http://127.0.0.1:5000/hubs/{R:1}" logRewrittenUrl="true" />
-          <serverVariables>
-            <set name="HTTP_X_Forwarded_Proto" value="https" />
-            <set name="HTTP_X_FORWARDED_HOST" value="tourimate.site" />
-          </serverVariables>
         </rule>
       </rules>
     </rewrite>
@@ -325,16 +321,12 @@ function Build-Frontend {
                 $existingHubs = @($rules.rule) | Where-Object { $_.name -eq 'Proxy SignalR Hubs' }
                 foreach ($r in $existingHubs) { [void]$rules.RemoveChild($r) }
 
-                # Create hubs rule
+                # Create hubs rule (without serverVariables to avoid 500.50 errors)
                 $rule = $xml.CreateElement('rule')
                 $rule.SetAttribute('name','Proxy SignalR Hubs')
                 $rule.SetAttribute('stopProcessing','true')
                 $match = $xml.CreateElement('match'); $match.SetAttribute('url','^hubs/(.*)'); $rule.AppendChild($match) | Out-Null
                 $action = $xml.CreateElement('action'); $action.SetAttribute('type','Rewrite'); $action.SetAttribute('url',"$upstream/hubs/{R:1}"); $action.SetAttribute('logRewrittenUrl','true'); $rule.AppendChild($action) | Out-Null
-                $sv = $xml.CreateElement('serverVariables')
-                $sv1 = $xml.CreateElement('set'); $sv1.SetAttribute('name','HTTP_X_Forwarded_Proto'); $sv1.SetAttribute('value','https'); $sv.AppendChild($sv1) | Out-Null
-                $sv2 = $xml.CreateElement('set'); $sv2.SetAttribute('name','HTTP_X_FORWARDED_HOST'); $sv2.SetAttribute('value','tourimate.site'); $sv.AppendChild($sv2) | Out-Null
-                $rule.AppendChild($sv) | Out-Null
                 # Insert hubs rule as the first rule to ensure it wins before SPA fallback
                 if ($rules.HasChildNodes) { [void]$rules.InsertBefore($rule, $rules.FirstChild) } else { [void]$rules.AppendChild($rule) }
 
@@ -363,10 +355,22 @@ function Build-Frontend {
                 }
 
                 $xml.Save($spaWebConfigPath)
-                Write-Log "Ensured SignalR hubs proxy rule in spa web.config (upstream: $upstream)"
+                Write-Log "Successfully injected SignalR hubs proxy rule in spa web.config (upstream: $upstream/hubs/{R:1})"
+                
+                # Verify the rule was added
+                [xml]$verify = Get-Content -Path $spaWebConfigPath -Encoding UTF8
+                $hubsRule = $verify.configuration.'system.webServer'.rewrite.rules.rule | Where-Object { $_.name -eq 'Proxy SignalR Hubs' }
+                if ($hubsRule) {
+                    Write-Log "Verified: SignalR hubs proxy rule is present in web.config"
+                } else {
+                    Write-Log "WARNING: SignalR hubs proxy rule verification failed!" "WARNING"
+                }
+            } else {
+                Write-Log "WARNING: spa web.config not found at $spaWebConfigPath, cannot inject SignalR rule" "WARNING"
             }
         } catch {
             Write-Log "Failed to update spa web.config for SignalR hubs: $($_.Exception.Message)" "WARNING"
+            Write-Log "Stack trace: $($_.ScriptStackTrace)" "WARNING"
         }
         
         Write-Log "Frontend build completed successfully"
@@ -396,16 +400,23 @@ Stop-WebAppPool -Name "DefaultAppPool" -ErrorAction SilentlyContinue
 
 # Ensure server-level prerequisites for ARR/WebSockets and unlock needed sections
 Write-Host "Ensuring server-level ARR proxy and WebSockets..."
-$appcmd = "$env:SystemRoot\System32\inetsrv\appcmd.exe"
-& $appcmd set config -section:system.webServer/proxy /enabled:"True" /reverseRewriteHostInResponseHeaders:"True" /commit:apphost | Out-Null
-& $appcmd set config -section:system.webServer/webSocket /enabled:"True" /commit:apphost | Out-Null
-& $appcmd unlock config /section:system.webServer/webSocket | Out-Null
-& $appcmd unlock config /section:system.webServer/proxy | Out-Null
-& $appcmd unlock config /section:system.webServer/handlers | Out-Null
-& $appcmd unlock config /section:system.webServer/modules | Out-Null
-# Remove WebDAV globally to avoid 405
-Remove-WebConfigurationProperty -pspath 'MACHINE/WEBROOT/APPHOST' -filter 'system.webServer/modules' -name '.' -AtElement @{name='WebDAVModule'} -ErrorAction SilentlyContinue
-Remove-WebConfigurationProperty -pspath 'MACHINE/WEBROOT/APPHOST' -filter 'system.webServer/handlers' -name '.' -AtElement @{name='WebDAV'} -ErrorAction SilentlyContinue
+if (Test-Path 'C:\Windows\System32\inetsrv\appcmd.exe') {
+    & 'C:\Windows\System32\inetsrv\appcmd.exe' set config -section:system.webServer/proxy /enabled:"True" /reverseRewriteHostInResponseHeaders:"True" /commit:apphost 2>&1 | Out-Null
+    & 'C:\Windows\System32\inetsrv\appcmd.exe' set config -section:system.webServer/webSocket /enabled:"True" /commit:apphost 2>&1 | Out-Null
+    & 'C:\Windows\System32\inetsrv\appcmd.exe' unlock config /section:system.webServer/webSocket 2>&1 | Out-Null
+    & 'C:\Windows\System32\inetsrv\appcmd.exe' unlock config /section:system.webServer/proxy 2>&1 | Out-Null
+    & 'C:\Windows\System32\inetsrv\appcmd.exe' unlock config /section:system.webServer/handlers 2>&1 | Out-Null
+    & 'C:\Windows\System32\inetsrv\appcmd.exe' unlock config /section:system.webServer/modules 2>&1 | Out-Null
+    Write-Host "Server-level ARR and WebSocket configuration completed"
+} else {
+    Write-Host "WARNING: appcmd.exe not found, skipping server-level configuration"
+}
+# Remove WebDAV globally to avoid 405 (if not already removed)
+if (Test-Path 'C:\Windows\System32\inetsrv\appcmd.exe') {
+    & 'C:\Windows\System32\inetsrv\appcmd.exe' delete module "WebDAVModule" 2>&1 | Out-Null
+    & 'C:\Windows\System32\inetsrv\appcmd.exe' delete handler "WebDAV" 2>&1 | Out-Null
+    Write-Host "WebDAV removal attempted (may already be removed)"
+}
 
 # Wait for application pool to fully stop
 Write-Host "Waiting for application pool to stop..."
