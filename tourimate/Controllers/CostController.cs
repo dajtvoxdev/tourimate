@@ -503,43 +503,57 @@ public class CostController : ControllerBase
                 UpdatedBy = userId
             };
 
-            // Create Tour Guide IN transaction
-            var guideTx = new Transaction
-            {
-                TransactionId = $"COST_IN_{cost.CostCode}",
-                UserId = cost.RecipientId,
-                Type = "payout",
-                EntityId = cost.Id,
-                EntityType = "Cost",
-                Amount = cost.Amount,
-                Currency = cost.Currency,
-                Status = "completed",
-                TransactionDirection = "in",
-                PaymentMethod = cost.PaymentMethod ?? "Bank Transfer",
-                Description = $"Nhận thanh toán chi phí - {cost.CostName}",
-                CreatedBy = userId,
-                UpdatedBy = userId
-            };
+
 
             _db.Transactions.Add(adminTx);
-            _db.Transactions.Add(guideTx);
 
-            // Revenue for tour guide (EntityType = Platform for payouts)
-            var revenue = new Revenue
+            // Also mark related tour guide revenues as paid
+            if (!string.IsNullOrWhiteSpace(cost.RelatedEntityType) && cost.RelatedEntityId.HasValue)
             {
-                TransactionId = guideTx.Id,
-                UserId = cost.RecipientId, // Tour guide who receives payment
-                EntityId = cost.RelatedEntityId,
-                EntityType = "Platform", // Platform payout, not Tour/Product
-                GrossAmount = cost.Amount,
-                CommissionRate = 0m,
-                CommissionAmount = 0m,
-                NetAmount = cost.Amount,
-                Currency = cost.Currency,
-                PayoutStatus = "paid",
-                PayoutDate = DateTime.UtcNow
-            };
-            _db.Revenues.Add(revenue);
+                var relatedEntityType = cost.RelatedEntityType;
+                // We only pay out for Booking or Order
+                if (relatedEntityType == "Booking" || relatedEntityType == "Order")
+                {
+                    var guideRevenues = await _db.Revenues
+                        .Where(r => r.UserId == cost.RecipientId
+                                    && r.EntityType == relatedEntityType
+                                    && r.EntityId == cost.RelatedEntityId.Value)
+                        .ToListAsync();
+
+                    if (guideRevenues.Count > 0)
+                    {
+                        foreach (var rev in guideRevenues)
+                        {
+                            rev.PayoutStatus = "paid";
+                            rev.PayoutDate = DateTime.UtcNow;
+                            rev.PayoutReference = cost.CostCode;
+                            rev.UpdatedAt = DateTime.UtcNow;
+                        }
+                    }
+                    else
+                    {
+                        // No revenue found for this payout; create one for the tour guide
+                        var newRevenue = new Revenue
+                        {
+                            TransactionId = adminTx.Id,
+                            UserId = cost.RecipientId,
+                            EntityId = cost.RelatedEntityId,
+                            EntityType = relatedEntityType, // Booking or Order
+                            GrossAmount = cost.Amount,
+                            CommissionRate = 0m,
+                            CommissionAmount = 0m,
+                            NetAmount = cost.Amount,
+                            Currency = cost.Currency,
+                            PayoutStatus = "paid",
+                            PayoutDate = DateTime.UtcNow,
+                            PayoutReference = cost.CostCode
+                        };
+
+                        _db.Revenues.Add(newRevenue);
+                    }
+                }
+            }
+
 
             await _db.SaveChangesAsync();
             return Ok(new { message = "Xác nhận thanh toán thành công" });

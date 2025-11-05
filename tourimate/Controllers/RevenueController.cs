@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using TouriMate.Data;
 using Entities.Enums;
 using System.Security.Claims;
+using Entities.Models;
 
 namespace TouriMate.Controllers;
 
@@ -46,8 +47,50 @@ public class RevenueController : ControllerBase
 
             if (userRole == "TourGuide")
             {
-                // Tour guide sees their earnings from bookings and orders (Tour, Product)
-                baseRevenue = baseRevenue.Where(r => r.UserId == userGuid && (r.EntityType == "Tour" || r.EntityType == "Product"));
+                // Tour guide sees ONLY Booking/Order revenues
+                baseRevenue = baseRevenue
+                    .Where(r => r.UserId == userGuid && (r.EntityType == "Booking" || r.EntityType == "Order"));
+                
+                // Get booking IDs that are completed
+                var completedBookingIds = await _context.Bookings
+                    .Where(b => b.Status == BookingStatus.Completed)
+                    .Select(b => b.Id)
+                    .ToListAsync();
+                
+                // Get order IDs that are delivered
+                var deliveredOrderIds = await _context.Orders
+                    .Where(o => o.Status == OrderStatus.Delivered)
+                    .Select(o => o.Id)
+                    .ToListAsync();
+                
+                // Get booking/order IDs that have paid costs (admin has paid the tour guide)
+                var paidBookingIds = await _context.Costs
+                    .Where(c => c.Type == CostType.TourGuidePayment &&
+                               c.RelatedEntityType == "Booking" &&
+                               c.Status == CostStatus.Paid &&
+                               c.RecipientId == userGuid &&
+                               c.RelatedEntityId.HasValue)
+                    .Select(c => c.RelatedEntityId!.Value)
+                    .ToListAsync();
+                
+                var paidOrderIds = await _context.Costs
+                    .Where(c => c.Type == CostType.TourGuidePayment &&
+                               c.RelatedEntityType == "Order" &&
+                               c.Status == CostStatus.Paid &&
+                               c.RecipientId == userGuid &&
+                               c.RelatedEntityId.HasValue)
+                    .Select(c => c.RelatedEntityId!.Value)
+                    .ToListAsync();
+                
+                // Filter: must be completed/delivered AND admin has paid (Cost Paid)
+                baseRevenue = baseRevenue.Where(r => 
+                    (r.EntityType == "Booking" && r.EntityId.HasValue && 
+                     completedBookingIds.Contains(r.EntityId.Value) &&
+                     paidBookingIds.Contains(r.EntityId.Value)) ||
+                    (r.EntityType == "Order" && r.EntityId.HasValue && 
+                     deliveredOrderIds.Contains(r.EntityId.Value) &&
+                     paidOrderIds.Contains(r.EntityId.Value))
+                );
             }
             else
             {
@@ -74,9 +117,21 @@ public class RevenueController : ControllerBase
             var totalRevenue = userRole == "TourGuide"
                 ? (await baseRevenue.SumAsync(r => (decimal?)r.NetAmount) ?? 0m)
                 : (await baseRevenue.SumAsync(r => (decimal?)r.GrossAmount) ?? 0m);
-            // Separate counts by Revenue EntityType (Tour = bookings, Product = orders)
-            var totalBookingsCount = await baseRevenue.CountAsync(r => r.EntityType == "Tour");
-            var totalOrdersCount = await baseRevenue.CountAsync(r => r.EntityType == "Product");
+            // Separate counts by underlying entity
+            // TourGuide: only Booking/Order
+            // Admin: bookings = Tour, orders = Product
+            int totalBookingsCount;
+            int totalOrdersCount;
+            if (userRole == "TourGuide")
+            {
+                totalBookingsCount = await baseRevenue.CountAsync(r => r.EntityType == "Booking");
+                totalOrdersCount = await baseRevenue.CountAsync(r => r.EntityType == "Order");
+            }
+            else
+            {
+                totalBookingsCount = await baseRevenue.CountAsync(r => r.EntityType == "Tour");
+                totalOrdersCount = await baseRevenue.CountAsync(r => r.EntityType == "Product");
+            }
 
             var pageRows = await baseRevenue
                 .OrderByDescending(r => r.CreatedAt)
@@ -105,17 +160,40 @@ public class RevenueController : ControllerBase
                 })
                 .ToListAsync();
 
-            // Enrich with Booking/Order for admin display context
-            var bookingIds = pageRows
-                .Where(x => x.TxEntityType == "Booking" && x.TxEntityId.HasValue)
-                .Select(x => x.TxEntityId!.Value)
-                .Distinct()
-                .ToList();
-            var orderIds = pageRows
-                .Where(x => x.TxEntityType == "Order" && x.TxEntityId.HasValue)
-                .Select(x => x.TxEntityId!.Value)
-                .Distinct()
-                .ToList();
+            // Enrich with Booking/Order for display context
+            // For TourGuide: Revenue.EntityType = "Booking" or "Order", EntityId = bookingId or orderId
+            // For Admin: Revenue.EntityType = "Tour" or "Product", need to get Booking/Order from Transaction
+            var bookingIds = new List<Guid>();
+            var orderIds = new List<Guid>();
+            
+            if (userRole == "TourGuide")
+            {
+                // Tour guide: EntityId directly points to Booking/Order
+                bookingIds = pageRows
+                    .Where(x => x.EntityType == "Booking" && x.EntityId.HasValue)
+                    .Select(x => x.EntityId!.Value)
+                    .Distinct()
+                    .ToList();
+                orderIds = pageRows
+                    .Where(x => x.EntityType == "Order" && x.EntityId.HasValue)
+                    .Select(x => x.EntityId!.Value)
+                    .Distinct()
+                    .ToList();
+            }
+            else
+            {
+                // Admin: Get Booking/Order from Transaction
+                bookingIds = pageRows
+                    .Where(x => x.TxEntityType == "Booking" && x.TxEntityId.HasValue)
+                    .Select(x => x.TxEntityId!.Value)
+                    .Distinct()
+                    .ToList();
+                orderIds = pageRows
+                    .Where(x => x.TxEntityType == "Order" && x.TxEntityId.HasValue)
+                    .Select(x => x.TxEntityId!.Value)
+                    .Distinct()
+                    .ToList();
+            }
 
             var bookings = await _context.Bookings
                 .Include(b => b.Tour)
@@ -158,7 +236,7 @@ public class RevenueController : ControllerBase
                 r.Id,
                 r.TransactionId,
                 r.EntityId,
-                Kind = r.EntityType, // Tour | Product (Platform derived from payout status if needed)
+                Kind = r.EntityType, // Booking | Order (TourGuide) or Tour | Product (Admin)
                 r.GrossAmount,
                 r.CommissionRate,
                 r.CommissionAmount,
@@ -171,8 +249,14 @@ public class RevenueController : ControllerBase
                 r.CreatedAt,
                 r.UpdatedAt,
                 Transaction = new { Type = r.TxType, Status = r.TxStatus, EntityId = r.TxEntityId, EntityType = r.TxEntityType, Description = r.TxDescription },
-                Booking = (r.TxEntityType == "Booking" && r.TxEntityId.HasValue && bookingDict.ContainsKey(r.TxEntityId.Value)) ? bookingDict[r.TxEntityId.Value] : null,
-                Order = (r.TxEntityType == "Order" && r.TxEntityId.HasValue && orderDict.ContainsKey(r.TxEntityId.Value)) ? orderDict[r.TxEntityId.Value] : null
+                // For TourGuide: EntityId directly points to Booking/Order
+                // For Admin: Get from Transaction.EntityId
+                Booking = userRole == "TourGuide"
+                    ? (r.EntityType == "Booking" && r.EntityId.HasValue && bookingDict.ContainsKey(r.EntityId.Value)) ? bookingDict[r.EntityId.Value] : null
+                    : (r.TxEntityType == "Booking" && r.TxEntityId.HasValue && bookingDict.ContainsKey(r.TxEntityId.Value)) ? bookingDict[r.TxEntityId.Value] : null,
+                Order = userRole == "TourGuide"
+                    ? (r.EntityType == "Order" && r.EntityId.HasValue && orderDict.ContainsKey(r.EntityId.Value)) ? orderDict[r.EntityId.Value] : null
+                    : (r.TxEntityType == "Order" && r.TxEntityId.HasValue && orderDict.ContainsKey(r.TxEntityId.Value)) ? orderDict[r.TxEntityId.Value] : null
             });
 
             return Ok(new
@@ -337,12 +421,56 @@ public class RevenueController : ControllerBase
 
             var userRole = User.FindFirst(ClaimTypes.Role)?.Value;
 
-            IQueryable<Entities.Models.Revenue> rbase = _context.Revenues;
+            IQueryable<Entities.Models.Revenue> rbase = _context.Revenues
+                .Include(r => r.Transaction);
+            
             if (userRole == "TourGuide")
             {
-                // Tour guide stats: only their earnings from Tour/Product revenues
-                rbase = rbase.Where(r => r.UserId == userGuid && (r.EntityType == "Tour" || r.EntityType == "Product"));
+                // TourGuide: only Booking/Order
+                rbase = rbase.Where(r => r.UserId == userGuid && (r.EntityType == "Booking" || r.EntityType == "Order"));
+                
+                // Get booking IDs that are completed
+                var completedBookingIds = await _context.Bookings
+                    .Where(b => b.Status == BookingStatus.Completed)
+                    .Select(b => b.Id)
+                    .ToListAsync();
+                
+                // Get order IDs that are delivered
+                var deliveredOrderIds = await _context.Orders
+                    .Where(o => o.Status == OrderStatus.Delivered)
+                    .Select(o => o.Id)
+                    .ToListAsync();
+                
+                // Get booking/order IDs that have paid costs (admin has paid the tour guide)
+                var paidBookingIds = await _context.Costs
+                    .Where(c => c.Type == CostType.TourGuidePayment &&
+                               c.RelatedEntityType == "Booking" &&
+                               c.Status == CostStatus.Paid &&
+                               c.RecipientId == userGuid &&
+                               c.RelatedEntityId.HasValue)
+                    .Select(c => c.RelatedEntityId!.Value)
+                    .ToListAsync();
+                
+                var paidOrderIds = await _context.Costs
+                    .Where(c => c.Type == CostType.TourGuidePayment &&
+                               c.RelatedEntityType == "Order" &&
+                               c.Status == CostStatus.Paid &&
+                               c.RecipientId == userGuid &&
+                               c.RelatedEntityId.HasValue)
+                    .Select(c => c.RelatedEntityId!.Value)
+                    .ToListAsync();
+                
+                // Filter: must be completed/delivered AND admin has paid
+                rbase = rbase.Where(r => 
+                    (r.EntityType == "Booking" && r.EntityId.HasValue && 
+                     completedBookingIds.Contains(r.EntityId.Value) &&
+                     paidBookingIds.Contains(r.EntityId.Value)) ||
+                    (r.EntityType == "Order" && r.EntityId.HasValue && 
+                     deliveredOrderIds.Contains(r.EntityId.Value) &&
+                     paidOrderIds.Contains(r.EntityId.Value))
+                );
             }
+            
             if (dateFrom.HasValue) rbase = rbase.Where(r => r.CreatedAt >= dateFrom.Value);
             if (dateTo.HasValue) rbase = rbase.Where(r => r.CreatedAt <= dateTo.Value);
 

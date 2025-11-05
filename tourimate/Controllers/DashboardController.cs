@@ -36,13 +36,10 @@ public class DashboardController : ControllerBase
     {
         try
         {
-            // Total Revenue (from completed bookings and orders)
-            var totalRevenue = await _context.Bookings
-                .Where(b => b.Status == BookingStatus.Completed)
-                .SumAsync(b => b.TotalAmount) +
-                await _context.Orders
-                .Where(o => o.Status == OrderStatus.Delivered)
-                .SumAsync(o => o.TotalAmount);
+            // Total Revenue (align with /admin/revenue): sum from Revenues table for Admin (GrossAmount of Tour/Product)
+            var totalRevenue = await _context.Revenues
+                .Where(r => r.EntityType == "Tour" || r.EntityType == "Product")
+                .SumAsync(r => (decimal?)r.GrossAmount) ?? 0m;
 
             // Total Users
             var totalUsers = await _context.Users.CountAsync();
@@ -57,12 +54,9 @@ public class DashboardController : ControllerBase
             // Recent activity (last 30 days)
             var thirtyDaysAgo = DateTime.UtcNow.AddDays(-30);
             
-            var recentRevenue = await _context.Bookings
-                .Where(b => b.Status == BookingStatus.Completed && b.CreatedAt >= thirtyDaysAgo)
-                .SumAsync(b => b.TotalAmount) +
-                await _context.Orders
-                .Where(o => o.Status == OrderStatus.Delivered && o.CreatedAt >= thirtyDaysAgo)
-                .SumAsync(o => o.TotalAmount);
+            var recentRevenue = await _context.Revenues
+                .Where(r => (r.EntityType == "Tour" || r.EntityType == "Product") && r.CreatedAt >= thirtyDaysAgo)
+                .SumAsync(r => (decimal?)r.GrossAmount) ?? 0m;
 
             var recentUsers = await _context.Users
                 .Where(u => u.CreatedAt >= thirtyDaysAgo)
@@ -151,49 +145,23 @@ public class DashboardController : ControllerBase
         try
         {
             var twelveMonthsAgo = DateTime.UtcNow.AddMonths(-12);
-            
-            var monthlyRevenue = await _context.Bookings
-                .Where(b => b.Status == BookingStatus.Completed && b.CreatedAt >= twelveMonthsAgo)
-                .GroupBy(b => new { b.CreatedAt.Year, b.CreatedAt.Month })
-                .Select(g => new
-                {
-                    Year = g.Key.Year,
-                    Month = g.Key.Month,
-                    Revenue = g.Sum(b => b.TotalAmount)
-                })
-                .OrderBy(x => x.Year)
-                .ThenBy(x => x.Month)
-                .ToListAsync();
 
-            var monthlyOrderRevenue = await _context.Orders
-                .Where(o => o.Status == OrderStatus.Delivered && o.CreatedAt >= twelveMonthsAgo)
-                .GroupBy(o => new { o.CreatedAt.Year, o.CreatedAt.Month })
+            // Align with /admin/revenue: derive revenue from Revenues table (Admin view = Tour/Product, GrossAmount)
+            var monthlyRevenue = await _context.Revenues
+                .Where(r => (r.EntityType == "Tour" || r.EntityType == "Product") && r.CreatedAt >= twelveMonthsAgo)
+                .GroupBy(r => new { r.CreatedAt.Year, r.CreatedAt.Month })
                 .Select(g => new
                 {
                     Year = g.Key.Year,
                     Month = g.Key.Month,
-                    Revenue = g.Sum(o => o.TotalAmount)
-                })
-                .OrderBy(x => x.Year)
-                .ThenBy(x => x.Month)
-                .ToListAsync();
-
-            // Combine booking and order revenue by month
-            var combinedRevenue = monthlyRevenue
-                .Concat(monthlyOrderRevenue)
-                .GroupBy(x => new { x.Year, x.Month })
-                .Select(g => new
-                {
-                    Year = g.Key.Year,
-                    Month = g.Key.Month,
-                    Revenue = g.Sum(x => x.Revenue),
+                    Revenue = g.Sum(r => r.GrossAmount),
                     MonthName = new DateTime(g.Key.Year, g.Key.Month, 1).ToString("MMM yyyy")
                 })
                 .OrderBy(x => x.Year)
                 .ThenBy(x => x.Month)
-                .ToList();
+                .ToListAsync();
 
-            return Ok(combinedRevenue);
+            return Ok(monthlyRevenue);
         }
         catch (Exception ex)
         {

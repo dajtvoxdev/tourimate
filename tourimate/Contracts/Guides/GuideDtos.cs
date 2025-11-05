@@ -7,6 +7,11 @@ public class GuideListDto
     public string LastName { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
     public string? PhoneNumber { get; set; }
+    public string? Avatar { get; set; }
+    public int? Age { get; set; }
+    public string? ProvinceName { get; set; }
+    public int TotalActiveTours { get; set; }
+    public string? SocialMedia { get; set; } // JSON string; client can parse
     public bool IsActive { get; set; }
 }
 

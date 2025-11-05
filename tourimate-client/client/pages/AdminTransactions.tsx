@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from "react";
 import { HubConnectionBuilder, HubConnectionState, LogLevel } from "@microsoft/signalr";
-import { 
-  Search, 
-  Filter, 
-  MoreHorizontal, 
-  Eye, 
-  Check, 
-  X, 
+import {
+  Search,
+  Filter,
+  MoreHorizontal,
+  Eye,
+  Check,
+  X,
   Calendar,
   User,
   CreditCard,
@@ -93,7 +93,7 @@ export default function AdminTransactions() {
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [showTransactionDialog, setShowTransactionDialog] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
-  
+
   // Check if this is "mine" view for tour guide
   const isMineView = searchParams.get('mine') === '1';
 
@@ -132,7 +132,7 @@ export default function AdminTransactions() {
     // Listen for transaction updates
     connection.on("TransactionUpdated", (data) => {
       console.log("Transaction updated:", data);
-      
+
       // Show toast notification
       toast.success(data.message || "Giao dịch đã được cập nhật", {
         description: `${data.transactionCode} - ${data.amount?.toLocaleString()} ${data.currency}`,
@@ -168,26 +168,26 @@ export default function AdminTransactions() {
   const fetchTransactions = async () => {
     try {
       setLoading(true);
-      
+
       // Check if user is authenticated
       if (!user) {
         console.log("AdminTransactions - No user, skipping fetch");
         return;
       }
-      
+
       const params = new URLSearchParams({
         page: currentPage.toString(),
         pageSize: "20"
       });
-      
+
       if (statusFilter !== "all") {
         params.append("status", statusFilter);
       }
-      
+
       if (typeFilter !== "all") {
         params.append("type", typeFilter);
       }
-      
+
       if (searchTerm.trim()) {
         params.append("search", searchTerm.trim());
       }
@@ -209,7 +209,7 @@ export default function AdminTransactions() {
       const response = await httpJson<TransactionsResponse>(
         `${apiEndpoint}?${params.toString()}`
       );
-      
+
       setTransactions(response.transactions);
       setTotalPages(response.pagination.totalPages);
       setTotalCount(response.pagination.totalCount);
@@ -228,20 +228,20 @@ export default function AdminTransactions() {
         console.log("AdminTransactions - No user for stats, skipping fetch");
         return;
       }
-      
+
       // Use different API endpoint based on user role and view
       let apiEndpoint = `${getApiBase()}/api/transactions/statistics`;
       if (isMineView && user?.role === "TourGuide") {
         apiEndpoint = `${getApiBase()}/api/transactions/tour-guide/statistics`;
       }
-      
+
       console.log("AdminTransactions - Stats API Debug:", {
         isMineView,
         userRole: user?.role,
         statsApiEndpoint: apiEndpoint,
         hasToken: !!localStorage.getItem("accessToken")
       });
-      
+
       const response = await httpJson<TransactionStats>(apiEndpoint);
       setStats(response);
     } catch (error) {
@@ -257,7 +257,7 @@ export default function AdminTransactions() {
         method: "PUT",
         body: JSON.stringify({ status: newStatus })
       });
-      
+
       toast.success("Cập nhật trạng thái giao dịch thành công");
       fetchTransactions();
     } catch (error: any) {
@@ -289,7 +289,7 @@ export default function AdminTransactions() {
   const getTypeBadge = (type: string, entityType?: string) => {
     // Use entityType if available, otherwise use type
     const displayType = entityType || type;
-    
+
     switch (displayType.toLowerCase()) {
       case "booking":
         return <Badge className="bg-blue-100 text-blue-800">Đặt tour</Badge>;
@@ -301,6 +301,12 @@ export default function AdminTransactions() {
         return <Badge className="bg-purple-100 text-purple-800">Thanh toán đơn hàng</Badge>;
       case "payment":
         return <Badge className="bg-green-100 text-green-800">Thanh toán</Badge>;
+      case "payout":
+        return <Badge className="bg-gray-100 text-dark-800">Chuyển tiền ra</Badge>;
+      case "refund":
+        return <Badge className="bg-red-100 text-red-800">Hoàn tiền</Badge>;
+      case "promotion_payment":
+        return <Badge className="bg-yellow-100 text-yellow-800">Thanh toán khuyến mãi</Badge>;
       default:
         return <Badge variant="outline">{type}</Badge>;
     }
@@ -429,19 +435,19 @@ export default function AdminTransactions() {
                   </SelectContent>
                 </Select>
               </div>
-                      <div className="w-full sm:w-48">
-                        <Select value={typeFilter} onValueChange={setTypeFilter}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Loại giao dịch" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all">Tất cả</SelectItem>
-                            <SelectItem value="booking">Đặt tour</SelectItem>
-                            <SelectItem value="payment">Thanh toán</SelectItem>
-                            <SelectItem value="order">Đơn hàng</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
+              <div className="w-full sm:w-48">
+                <Select value={typeFilter} onValueChange={setTypeFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Loại giao dịch" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Tất cả</SelectItem>
+                    <SelectItem value="booking">Đặt tour</SelectItem>
+                    <SelectItem value="payment">Thanh toán</SelectItem>
+                    <SelectItem value="order">Đơn hàng</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -537,7 +543,7 @@ export default function AdminTransactions() {
                         >
                           <Eye className="w-4 h-4" />
                         </Button>
-                        
+
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="outline" size="sm" disabled={actionLoading === transaction.id}>
@@ -623,7 +629,7 @@ export default function AdminTransactions() {
                 >
                   Trước
                 </Button>
-                
+
                 <div className="flex items-center gap-1">
                   {Array.from({ length: Math.min(5, totalPages) }, (_, index) => {
                     const page = index + 1;
@@ -699,7 +705,7 @@ export default function AdminTransactions() {
                   </div>
                 )}
               </div>
-              
+
               {/* Related entity info */}
               {(selectedTransaction.bookingNumber || selectedTransaction.orderNumber) && (
                 <div className="border-t pt-4">

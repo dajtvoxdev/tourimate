@@ -573,239 +573,6 @@ public class TransactionController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Update transaction status
-    /// </summary>
-
-    /// <summary>
-    /// Manually approve a SePay transaction and apply booking/order updates
-    /// </summary>
-    [HttpPost("sepay/{sepayTransactionId}/approve")]
-    [Authorize(Roles = "Admin")]
-    public async Task<IActionResult> ApproveSePayTransaction(int sepayTransactionId)
-    {
-        try
-        {
-            var sepay = await _context.SePayTransactions
-                .FirstOrDefaultAsync(t => t.SePayTransactionId == sepayTransactionId);
-
-            if (sepay == null)
-                return NotFound("SePay transaction not found");
-
-            // Determine linked entity
-            if (sepay.EntityType == "Booking" && sepay.EntityId.HasValue)
-            {
-                var booking = await _context.Bookings
-                    .Include(b => b.Customer)
-                    .Include(b => b.Tour)
-                    .Include(b => b.TourAvailability)
-                    .FirstOrDefaultAsync(b => b.Id == sepay.EntityId.Value);
-
-                if (booking == null)
-                    return NotFound("Linked booking not found");
-
-                // Mark booking confirmed if not already
-                if (booking.Status != BookingStatus.Confirmed)
-                {
-                    booking.Status = BookingStatus.Confirmed;
-                    booking.UpdatedAt = DateTime.UtcNow;
-                }
-
-                // Ensure Transaction exists (idempotent by GatewayTransactionId)
-                var tx = await _context.Transactions
-                    .FirstOrDefaultAsync(t => t.GatewayTransactionId == sepay.SePayTransactionId.ToString());
-
-                if (tx == null)
-                {
-                    tx = new Transaction
-                    {
-                        TransactionId = $"SEPAY_{sepay.SePayTransactionId}",
-                        UserId = booking.CustomerId,
-                        Type = "booking_payment",
-                        EntityId = booking.Id,
-                        EntityType = "Booking",
-                        Amount = sepay.TransferAmount,
-                        Currency = "VND",
-                        Status = "completed",
-                        PaymentMethod = "Bank Transfer",
-                        PaymentGateway = "SePay",
-                        GatewayTransactionId = sepay.SePayTransactionId.ToString(),
-                        GatewayResponse = JsonSerializer.Serialize(new { ManualApproved = true }),
-                        Description = $"Booking payment (manual approve) - {sepay.Gateway}"
-                    };
-                    _context.Transactions.Add(tx);
-                    await _context.SaveChangesAsync();
-                }
-                else
-                {
-                    tx.Status = "completed";
-                    tx.UpdatedAt = DateTime.UtcNow;
-                }
-
-                // Ensure Revenue exists for this transaction
-                var revenue = await _context.Revenues
-                    .FirstOrDefaultAsync(r => r.TransactionId == tx.Id);
-
-                if (revenue == null && booking.Tour?.TourGuideId != null)
-                {
-                    var commissionRate = 0.15m;
-                    var grossAmount = tx.Amount;
-                    var commissionAmount = Math.Round(grossAmount * commissionRate, 2);
-                    var netAmount = Math.Round(grossAmount - commissionAmount, 2);
-
-                    revenue = new Revenue
-                    {
-                        TransactionId = tx.Id,
-                        UserId = booking.Tour.TourGuideId,
-                        EntityId = booking.TourId,
-                        EntityType = "Tour",
-                        GrossAmount = grossAmount,
-                        CommissionRate = commissionRate,
-                        CommissionAmount = commissionAmount,
-                        NetAmount = netAmount,
-                        Currency = tx.Currency,
-                        PayoutStatus = "pending"
-                    };
-                    _context.Revenues.Add(revenue);
-                }
-
-                // Mark SePay transaction processed
-                sepay.ProcessingStatus = "processed";
-                sepay.ProcessingNotes = "Manually approved by admin";
-                sepay.ProcessedAt = DateTime.UtcNow;
-
-                await _context.SaveChangesAsync();
-
-                // Try sending confirmation email
-                try
-                {
-                    var contactEmail = string.Empty;
-                    var contactName = booking.Customer?.FirstName ?? "Khách hàng";
-                    try
-                    {
-                        if (!string.IsNullOrEmpty(booking.ContactInfo))
-                        {
-                            var info = JsonSerializer.Deserialize<JsonElement>(booking.ContactInfo);
-                            if (info.TryGetProperty("Email", out var emailProp)) contactEmail = emailProp.GetString() ?? string.Empty;
-                            if (info.TryGetProperty("Name", out var nameProp)) contactName = nameProp.GetString() ?? contactName;
-                        }
-                    }
-                    catch { }
-
-                    if (string.IsNullOrWhiteSpace(contactEmail))
-                        contactEmail = booking.Customer?.Email ?? string.Empty;
-
-                    if (!string.IsNullOrWhiteSpace(contactEmail) && booking.Tour != null)
-                    {
-                        await _emailService.SendBookingConfirmationEmailAsync(
-                            contactEmail,
-                            contactName,
-                            booking.BookingNumber,
-                            booking.Tour.Title,
-                            booking.TourAvailability?.Date ?? DateTime.UtcNow,
-                            tx.Amount
-                        );
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Failed to send confirmation email on manual approve for {Booking}", booking.Id);
-                }
-
-                return Ok(new { message = "Approved successfully" });
-            }
-            else if (sepay.EntityType == "Order" && sepay.EntityId.HasValue)
-            {
-                // For orders: mark as paid/processing and create transaction
-                var order = await _context.Orders
-                    .Include(o => o.Customer)
-                    .FirstOrDefaultAsync(o => o.Id == sepay.EntityId.Value);
-
-                if (order == null)
-                    return NotFound("Linked order not found");
-
-                if (order.PaymentStatus != PaymentStatus.Paid)
-                {
-                    order.PaymentStatus = PaymentStatus.Paid;
-                    order.Status = OrderStatus.Processing;
-                    order.UpdatedAt = DateTime.UtcNow;
-                }
-
-                var tx = await _context.Transactions
-                    .FirstOrDefaultAsync(t => t.GatewayTransactionId == sepay.SePayTransactionId.ToString());
-
-                if (tx == null)
-                {
-                    tx = new Transaction
-                    {
-                        TransactionId = $"SEPAY_{sepay.SePayTransactionId}",
-                        UserId = order.CustomerId,
-                        Type = "order_payment",
-                        EntityId = order.Id,
-                        EntityType = "Order",
-                        Amount = sepay.TransferAmount,
-                        Currency = "VND",
-                        Status = "completed",
-                        PaymentMethod = "Bank Transfer",
-                        PaymentGateway = "SePay",
-                        GatewayTransactionId = sepay.SePayTransactionId.ToString(),
-                        GatewayResponse = JsonSerializer.Serialize(new { ManualApproved = true }),
-                        Description = $"Order payment (manual approve) - {sepay.Gateway}"
-                    };
-                    _context.Transactions.Add(tx);
-                }
-                else
-                {
-                    tx.Status = "completed";
-                    tx.UpdatedAt = DateTime.UtcNow;
-                }
-
-                sepay.ProcessingStatus = "processed";
-                sepay.ProcessingNotes = "Manually approved by admin";
-                sepay.ProcessedAt = DateTime.UtcNow;
-
-                await _context.SaveChangesAsync();
-
-                return Ok(new { message = "Approved successfully" });
-            }
-
-            return BadRequest("SePay transaction is not linked to a known entity");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error approving SePay transaction {Id}", sepayTransactionId);
-            return StatusCode(500, "Internal server error");
-        }
-    }
-
-    /// <summary>
-    /// Manually reject a SePay transaction
-    /// </summary>
-    [HttpPost("sepay/{sepayTransactionId}/reject")]
-    [Authorize(Roles = "Admin")]
-    public async Task<IActionResult> RejectSePayTransaction(int sepayTransactionId, [FromBody] string? reason)
-    {
-        try
-        {
-            var sepay = await _context.SePayTransactions
-                .FirstOrDefaultAsync(t => t.SePayTransactionId == sepayTransactionId);
-
-            if (sepay == null)
-                return NotFound("SePay transaction not found");
-
-            sepay.ProcessingStatus = "failed";
-            sepay.ProcessingNotes = string.IsNullOrWhiteSpace(reason) ? "Manually rejected by admin" : reason;
-            sepay.ProcessedAt = DateTime.UtcNow;
-
-            await _context.SaveChangesAsync();
-            return Ok(new { message = "Rejected successfully" });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error rejecting SePay transaction {Id}", sepayTransactionId);
-            return StatusCode(500, "Internal server error");
-        }
-    }
     /// <param name="transactionId">Transaction ID (Guid)</param>
     /// <param name="request">Status update request</param>
     /// <returns>Success result</returns>
@@ -843,7 +610,10 @@ public class TransactionController : ControllerBase
             // Optionally update related Booking/Order status if needed
             if (transaction.EntityType == "Booking" && transaction.EntityId.HasValue)
             {
-                var booking = await _context.Bookings.FirstOrDefaultAsync(b => b.Id == transaction.EntityId.Value);
+                var booking = await _context.Bookings
+                    .Include(b => b.Tour)
+                    .FirstOrDefaultAsync(b => b.Id == transaction.EntityId.Value);
+                    
                 if (booking != null)
                 {
                     // Sync booking status if transaction is completed
@@ -852,6 +622,66 @@ public class TransactionController : ControllerBase
                         booking.Status = BookingStatus.Confirmed;
                         booking.PaymentStatus = PaymentStatus.Paid;
                         booking.UpdatedAt = DateTime.UtcNow;
+
+                        // Create Revenue records for tour guide and admin (similar to SePayService)
+                        if (booking.Tour?.TourGuideId != null)
+                        {
+                            var existingRevenue = await _context.Revenues
+                                .FirstOrDefaultAsync(r => r.TransactionId == transaction.Id);
+
+                            if (existingRevenue == null)
+                            {
+                                // Use platform commission rate derived from TourGuide payout percentage in settings
+                                var platformCommissionRate = await GetPlatformCommissionRateAsync();
+                                var grossAmount = transaction.Amount; // Toàn bộ số tiền
+                                var commissionAmount = Math.Round(grossAmount * platformCommissionRate, 2); // Phần hoa hồng (platform)
+
+                                // Admin revenue: EntityType = "Tour" - nhận toàn bộ số tiền
+                                var adminUserId = await _context.Users
+                                    .Where(u => u.Role == UserRole.Admin)
+                                    .Select(u => u.Id)
+                                    .FirstOrDefaultAsync();
+
+                                if (adminUserId != Guid.Empty)
+                                {
+                                    var adminRevenue = new Revenue
+                                    {
+                                        TransactionId = transaction.Id,
+                                        UserId = adminUserId,
+                        EntityId = booking.TourId,
+                        EntityType = "Tour",
+                                        GrossAmount = grossAmount, // Toàn bộ số tiền
+                                        CommissionRate = 0,
+                                        CommissionAmount = 0,
+                                        NetAmount = grossAmount,
+                                        Currency = transaction.Currency,
+                        PayoutStatus = "pending"
+                    };
+
+                                    _context.Revenues.Add(adminRevenue);
+                                }
+
+                                // Tour guide revenue: EntityType = "Booking" - nhận NET (gross - commission)
+                                var tourGuideRevenue = new Revenue
+                                {
+                                    TransactionId = transaction.Id,
+                                    UserId = booking.Tour.TourGuideId,
+                                    EntityId = booking.Id,
+                                    EntityType = "Booking",
+                        GrossAmount = grossAmount,
+                                    CommissionRate = platformCommissionRate,
+                        CommissionAmount = commissionAmount,
+                                    NetAmount = Math.Round(grossAmount - commissionAmount, 2),
+                                    Currency = transaction.Currency,
+                        PayoutStatus = "pending"
+                    };
+
+                                _context.Revenues.Add(tourGuideRevenue);
+
+                await _context.SaveChangesAsync();
+                                _logger.LogInformation("Revenue records created for Booking transaction {TransactionId}", transaction.Id);
+                            }
+                        }
                     }
                     // Sync booking status if transaction is cancelled
                     else if (newStatus == "cancelled" && booking.Status != BookingStatus.Cancelled)
@@ -863,15 +693,121 @@ public class TransactionController : ControllerBase
             }
             else if (transaction.EntityType == "Order" && transaction.EntityId.HasValue)
             {
-                var order = await _context.Orders.FirstOrDefaultAsync(o => o.Id == transaction.EntityId.Value);
+                var order = await _context.Orders
+                    .Include(o => o.Items)
+                        .ThenInclude(item => item.Product)
+                            .ThenInclude(p => p.TourGuide)
+                    .FirstOrDefaultAsync(o => o.Id == transaction.EntityId.Value);
+                    
                 if (order != null)
                 {
                     // Sync order status if transaction is completed
                     if (newStatus == "completed" && order.Status != OrderStatus.Processing)
                     {
-                        order.Status = OrderStatus.Processing;
-                        order.PaymentStatus = PaymentStatus.Paid;
-                        order.UpdatedAt = DateTime.UtcNow;
+                    order.Status = OrderStatus.Processing;
+                            order.PaymentStatus = PaymentStatus.Paid;
+                    order.UpdatedAt = DateTime.UtcNow;
+
+                        // Create Revenue records for tour guides and admin (similar to SePayService)
+                        if (order.Items.Any())
+                        {
+                            var existingRevenue = await _context.Revenues
+                                .FirstOrDefaultAsync(r => r.TransactionId == transaction.Id);
+
+                            if (existingRevenue == null)
+                            {
+                                // Group items by tour guide to create revenue records
+                                var itemsByTourGuide = order.Items
+                                    .Where(item => item.Product?.TourGuideId != null)
+                                    .GroupBy(item => item.Product.TourGuideId)
+                                    .Select(g => new
+                                    {
+                                        TourGuideId = g.Key,
+                                        Items = g.ToList()
+                                    })
+                                    .ToList();
+                                
+                                // Use platform commission rate derived from TourGuide payout percentage in settings
+                                var commissionRate = await GetPlatformCommissionRateAsync();
+                                var totalOrderAmount = order.Items.Sum(item => item.Subtotal);
+
+                                // Admin revenue: EntityType = "Product" - nhận toàn bộ số tiền của order
+                                var adminUserId = await _context.Users
+                                    .Where(u => u.Role == UserRole.Admin)
+                                    .Select(u => u.Id)
+                                    .FirstOrDefaultAsync();
+
+                                if (adminUserId != Guid.Empty)
+                                {
+                                    // Group by product for admin revenue
+                                    var productIds = order.Items
+                                        .Select(item => item.ProductId)
+                                        .Distinct()
+                                        .ToList();
+
+                                    foreach (var productId in productIds)
+                                    {
+                                        var productItems = order.Items
+                                            .Where(item => item.ProductId == productId)
+                                            .ToList();
+                                        
+                                        var productTotalAmount = productItems.Sum(item => item.Subtotal);
+
+                                        var adminRevenue = new Revenue
+                                        {
+                                            TransactionId = transaction.Id,
+                                            UserId = adminUserId,
+                                            EntityId = productId,
+                                            EntityType = "Product",
+                                            GrossAmount = productTotalAmount, // Toàn bộ số tiền của product trong order
+                                            CommissionRate = 0,
+                                            CommissionAmount = 0,
+                                            NetAmount = productTotalAmount,
+                                            Currency = transaction.Currency,
+                                            PayoutStatus = "pending"
+                                        };
+
+                                        _context.Revenues.Add(adminRevenue);
+                                    }
+                                }
+
+                                // Create one revenue record per tour guide - nhận NET (gross - commission)
+                                foreach (var group in itemsByTourGuide)
+                                {
+                                    var tourGuideId = group.TourGuideId;
+                                    var tourGuideItems = group.Items;
+                                    var tourGuideTotalAmount = tourGuideItems.Sum(item => item.Subtotal);
+                                    var commissionAmount = Math.Round(tourGuideTotalAmount * commissionRate, 2);
+                                    var netAmount = Math.Round(tourGuideTotalAmount - commissionAmount, 2);
+
+                                    var revenue = new Revenue
+                                    {
+                                        TransactionId = transaction.Id,
+                                        UserId = tourGuideId,
+                                        EntityId = order.Id,
+                                        EntityType = "Order",
+                                        GrossAmount = tourGuideTotalAmount,
+                                        CommissionRate = commissionRate,
+                                        CommissionAmount = commissionAmount,
+                                        NetAmount = netAmount,
+                                        Currency = transaction.Currency,
+                                        PayoutStatus = "pending"
+                                    };
+
+                                    _context.Revenues.Add(revenue);
+
+                                    _logger.LogInformation("Revenue created for Order: OrderId={OrderId}, TourGuideId={TourGuideId}, NetAmount={NetAmount}",
+                                        order.Id, tourGuideId, netAmount);
+                                }
+
+                                if (itemsByTourGuide.Any())
+                                {
+                                    await _context.SaveChangesAsync();
+                                    _logger.LogInformation("Revenue records created for Order transaction {TransactionId}: TotalAmount={TotalAmount}", 
+                                        transaction.Id, totalOrderAmount);
+                                }
+                            }
+                        }
                     }
                     // Sync order status if transaction is cancelled
                     else if (newStatus == "cancelled" && order.Status != OrderStatus.Cancelled)
@@ -950,6 +886,35 @@ public class TransactionController : ControllerBase
     {
         var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue(JwtRegisteredClaimNames.Sub);
         return string.IsNullOrEmpty(userIdClaim) ? null : Guid.Parse(userIdClaim);
+    }
+
+    // Platform commission rate = 1 - TourGuidePayoutPercentage
+    private async Task<decimal> GetPlatformCommissionRateAsync()
+    {
+        try
+        {
+            var setting = await _context.SystemSettings
+                .FirstOrDefaultAsync(s => s.Key == "TourGuideCommissionPercentage");
+
+            decimal payoutPercentage;
+            if (setting != null && decimal.TryParse(setting.Value, out var parsed))
+            {
+                payoutPercentage = parsed; // e.g., 80 means guide gets 80%
+            }
+            else
+            {
+                payoutPercentage = 80m; // default payout to guide if not configured
+            }
+
+            var platformRate = 1m - (payoutPercentage / 100m); // e.g., 20%
+            if (platformRate < 0m) platformRate = 0m;
+            if (platformRate > 1m) platformRate = 1m;
+            return platformRate;
+        }
+        catch
+        {
+            return 0.20m; // fallback to 20%
+        }
     }
 }
 

@@ -282,31 +282,10 @@ public class SePayService : ISePayService
                 if (existingRevenue == null)
                 {
                     var commissionRate = 0.15m; // 15% commission
-                    var grossAmount = existingTransaction.Amount;
-                    var commissionAmount = Math.Round(grossAmount * commissionRate, 2);
-                    var netAmount = Math.Round(grossAmount - commissionAmount, 2);
+                    var grossAmount = existingTransaction.Amount; // Toàn bộ số tiền (ví dụ: 4,000,000)
+                    var commissionAmount = Math.Round(grossAmount * commissionRate, 2); // Phần hoa hồng cho tour guide (ví dụ: 600,000)
 
-                    var revenue = new Revenue
-                    {
-                        TransactionId = existingTransaction.Id,
-                        UserId = relatedBooking.Tour.TourGuideId,
-                        EntityId = relatedBooking.TourId,
-                        EntityType = "Tour",
-                        GrossAmount = grossAmount,
-                        CommissionRate = commissionRate,
-                        CommissionAmount = commissionAmount,
-                        NetAmount = netAmount,
-                        Currency = existingTransaction.Currency,
-                        PayoutStatus = "pending"
-                    };
-
-                    _db.Revenues.Add(revenue);
-                    await _db.SaveChangesAsync();
-
-                    _logger.LogInformation("Revenue created for Booking: {RevenueId}, NetAmount: {NetAmount}", 
-                        revenue.Id, revenue.NetAmount);
-
-                    // Also credit platform (admin) revenue = commissionAmount
+                    // Admin revenue: EntityType = "Tour" - nhận toàn bộ số tiền
                     var adminUserId = await _db.Users
                         .Where(u => u.Role == UserRole.Admin)
                         .Select(u => u.Id)
@@ -319,19 +298,38 @@ public class SePayService : ISePayService
                             TransactionId = existingTransaction.Id,
                             UserId = adminUserId,
                             EntityId = relatedBooking.TourId,
-                            EntityType = "Platform",
-                            GrossAmount = commissionAmount,
+                            EntityType = "Tour",
+                            GrossAmount = grossAmount, // Toàn bộ số tiền
                             CommissionRate = 0,
                             CommissionAmount = 0,
-                            NetAmount = commissionAmount,
+                            NetAmount = grossAmount,
                             Currency = existingTransaction.Currency,
                             PayoutStatus = "pending"
                         };
 
                         _db.Revenues.Add(adminRevenue);
-                        await _db.SaveChangesAsync();
-                        _logger.LogInformation("Admin revenue credited for booking: {Amount}", commissionAmount);
                     }
+
+                    // Tour guide revenue: EntityType = "Booking" - nhận NET (gross - commission)
+                    var revenue = new Revenue
+                    {
+                        TransactionId = existingTransaction.Id,
+                        UserId = relatedBooking.Tour.TourGuideId,
+                        EntityId = relatedBooking.Id,
+                        EntityType = "Booking",
+                        GrossAmount = grossAmount,
+                        CommissionRate = commissionRate,
+                        CommissionAmount = commissionAmount,
+                        NetAmount = Math.Round(grossAmount - commissionAmount, 2),
+                        Currency = existingTransaction.Currency,
+                        PayoutStatus = "pending"
+                    };
+
+                    _db.Revenues.Add(revenue);
+                    await _db.SaveChangesAsync();
+
+                    _logger.LogInformation("Revenue created for Booking: TourGuide Revenue={TourGuideAmount}, Admin Revenue={AdminAmount}", 
+                        commissionAmount, grossAmount);
                 }
             }
 
@@ -343,14 +341,17 @@ public class SePayService : ISePayService
 
                 if (existingRevenue == null)
                 {
-                    // For orders, we need to find the tour guide(s) from the products
-                    // Group by tour guide to create revenue records
-                    var orderItemsByTourGuide = relatedOrder.Items
+                    // For orders, group items by tour guide to create revenue records
+                    // Each tour guide gets one revenue record for all their items in the order
+                    var itemsWithProducts = relatedOrder.Items
                         .Select(item => new { item.ProductId, item.Subtotal })
                         .ToList();
 
+                    // Group by tour guide
+                    var itemsByTourGuide = new Dictionary<Guid, List<(Guid ProductId, decimal Subtotal)>>();
                     decimal totalCommissionForAdmin = 0m;
-                    foreach (var item in orderItemsByTourGuide)
+
+                    foreach (var item in itemsWithProducts)
                     {
                         var product = await _db.Products
                             .Include(p => p.TourGuide)
@@ -358,66 +359,93 @@ public class SePayService : ISePayService
 
                         if (product?.TourGuideId != null)
                         {
-                            var commissionRate = 0.15m; // 15% commission
-                            var grossAmount = item.Subtotal;
-                            var commissionAmount = Math.Round(grossAmount * commissionRate, 2);
-                            var netAmount = Math.Round(grossAmount - commissionAmount, 2);
+                            var tourGuideId = product.TourGuideId;
+                            if (!itemsByTourGuide.ContainsKey(tourGuideId))
+                            {
+                                itemsByTourGuide[tourGuideId] = new List<(Guid, decimal)>();
+                            }
+                            itemsByTourGuide[tourGuideId].Add((item.ProductId, item.Subtotal));
+                        }
+                    }
 
-                            var revenue = new Revenue
+                    // Calculate total order amount for admin
+                    var totalOrderAmount = relatedOrder.Items.Sum(item => item.Subtotal);
+                    var commissionRate = 0.15m; // 15% commission
+
+                    // Admin revenue: EntityType = "Product" - nhận toàn bộ số tiền của order
+                    var adminUserId = await _db.Users
+                        .Where(u => u.Role == UserRole.Admin)
+                        .Select(u => u.Id)
+                        .FirstOrDefaultAsync();
+
+                    if (adminUserId != Guid.Empty)
+                    {
+                        // Group by product for admin revenue
+                        var productIds = relatedOrder.Items
+                            .Select(item => item.ProductId)
+                            .Distinct()
+                            .ToList();
+
+                        foreach (var productId in productIds)
+                        {
+                            var productItems = relatedOrder.Items
+                                .Where(item => item.ProductId == productId)
+                                .ToList();
+                            
+                            var productTotalAmount = productItems.Sum(item => item.Subtotal);
+
+                            var adminRevenue = new Revenue
                             {
                                 TransactionId = existingTransaction.Id,
-                                UserId = product.TourGuideId,
-                                EntityId = item.ProductId,
+                                UserId = adminUserId,
+                                EntityId = productId,
                                 EntityType = "Product",
-                                GrossAmount = grossAmount,
-                                CommissionRate = commissionRate,
-                                CommissionAmount = commissionAmount,
-                                NetAmount = netAmount,
+                                GrossAmount = productTotalAmount, // Toàn bộ số tiền của product trong order
+                                CommissionRate = 0,
+                                CommissionAmount = 0,
+                                NetAmount = productTotalAmount,
                                 Currency = existingTransaction.Currency,
                                 PayoutStatus = "pending"
                             };
 
-                            _db.Revenues.Add(revenue);
-                            totalCommissionForAdmin += commissionAmount;
-                            _logger.LogInformation("Revenue created for Order Product: ProductId={ProductId}, TourGuideId={TourGuideId}, NetAmount={NetAmount}", 
-                                item.ProductId, product.TourGuideId, netAmount);
+                            _db.Revenues.Add(adminRevenue);
                         }
                     }
 
-                    if (orderItemsByTourGuide.Any())
+                    // Create one revenue record per tour guide - nhận NET (gross - commission)
+                    foreach (var kvp in itemsByTourGuide)
+                    {
+                        var tourGuideId = kvp.Key;
+                        var tourGuideItems = kvp.Value;
+                        var tourGuideTotalAmount = tourGuideItems.Sum(item => item.Subtotal);
+                        var commissionAmount = Math.Round(tourGuideTotalAmount * commissionRate, 2);
+                        var netAmount = Math.Round(tourGuideTotalAmount - commissionAmount, 2);
+
+                        // Tour guide revenue: EntityType = "Order"
+                        var revenue = new Revenue
+                        {
+                            TransactionId = existingTransaction.Id,
+                            UserId = tourGuideId,
+                            EntityId = relatedOrder.Id,
+                            EntityType = "Order",
+                            GrossAmount = tourGuideTotalAmount,
+                            CommissionRate = commissionRate,
+                            CommissionAmount = commissionAmount,
+                            NetAmount = netAmount,
+                            Currency = existingTransaction.Currency,
+                            PayoutStatus = "pending"
+                        };
+
+                        _db.Revenues.Add(revenue);
+                        _logger.LogInformation("Revenue created for Order: OrderId={OrderId}, TourGuideId={TourGuideId}, NetAmount={NetAmount}", 
+                            relatedOrder.Id, tourGuideId, netAmount);
+                    }
+
+                    if (itemsByTourGuide.Any())
                     {
                         await _db.SaveChangesAsync();
-
-                        // Also credit platform (admin) revenue = total commission
-                        if (totalCommissionForAdmin > 0)
-                        {
-                            var adminUserId = await _db.Users
-                                .Where(u => u.Role == UserRole.Admin)
-                                .Select(u => u.Id)
-                                .FirstOrDefaultAsync();
-
-                            if (adminUserId != Guid.Empty)
-                            {
-                                var adminRevenue = new Revenue
-                                {
-                                    TransactionId = existingTransaction.Id,
-                                    UserId = adminUserId,
-                                    EntityId = relatedOrder.Id,
-                                    EntityType = "Platform",
-                                    GrossAmount = totalCommissionForAdmin,
-                                    CommissionRate = 0,
-                                    CommissionAmount = 0,
-                                    NetAmount = totalCommissionForAdmin,
-                                    Currency = existingTransaction.Currency,
-                                    PayoutStatus = "pending"
-                                };
-
-                                _db.Revenues.Add(adminRevenue);
-                                await _db.SaveChangesAsync();
-                                _logger.LogInformation("Admin revenue credited for order: {Amount}", totalCommissionForAdmin);
-                            }
-                        }
-                        _logger.LogInformation("Revenue records created for Order {OrderNumber}", relatedOrder.OrderNumber);
+                        _logger.LogInformation("Revenue records created for Order {OrderNumber}: TotalAmount={TotalAmount}", 
+                            relatedOrder.OrderNumber, totalOrderAmount);
                     }
                 }
             }

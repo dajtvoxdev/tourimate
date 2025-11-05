@@ -23,8 +23,48 @@ public sealed class GuidesController : ControllerBase
     {
         try
         {
-            var guides = await _db.Users
+            var baseUsers = await _db.Users
+                .Include(u => u.Profile)
                 .Where(u => (u.Role == UserRole.TourGuide || u.Role == UserRole.Admin) && u.IsActive)
+                .ToListAsync();
+
+            // Precompute active tour counts per guide
+            var guideIds = baseUsers.Select(u => u.Id).ToList();
+            var activeTourCounts = await _db.Tours
+                .Where(t => guideIds.Contains(t.TourGuideId) && t.IsActive)
+                .GroupBy(t => t.TourGuideId)
+                .Select(g => new { GuideId = g.Key, Count = g.Count() })
+                .ToDictionaryAsync(x => x.GuideId, x => x.Count);
+
+            // Prepare province name lookup
+            var provinceCodes = baseUsers
+                .Select(u => u.Profile?.ProvinceCode)
+                .Where(c => c.HasValue)
+                .Select(c => c!.Value)
+                .Distinct()
+                .ToList();
+
+            Dictionary<int, Entities.Models.Division> provinces = new();
+            if (provinceCodes.Count > 0)
+            {
+                provinces = await _db.Divisions
+                    .Where(d => provinceCodes.Contains(d.Code))
+                    .ToDictionaryAsync(d => d.Code, d => d);
+            }
+
+            int? CalcAge(DateOnly? dob)
+            {
+                if (!dob.HasValue) return null;
+                var today = DateOnly.FromDateTime(DateTime.UtcNow.Date);
+                var age = today.Year - dob.Value.Year;
+                if (today.Month < dob.Value.Month || (today.Month == dob.Value.Month && today.Day < dob.Value.Day))
+                {
+                    age -= 1;
+                }
+                return age >= 0 ? age : null;
+            }
+
+            var guides = baseUsers
                 .Select(u => new GuideListDto
                 {
                     Id = u.Id,
@@ -32,11 +72,16 @@ public sealed class GuidesController : ControllerBase
                     LastName = u.LastName,
                     Email = u.Email,
                     PhoneNumber = u.PhoneNumber,
+                    Avatar = u.Avatar,
+                    Age = CalcAge(u.Profile?.DateOfBirth),
+                    ProvinceName = (u.Profile?.ProvinceCode.HasValue == true && provinces.TryGetValue(u.Profile.ProvinceCode!.Value, out var prov)) ? (prov.FullName ?? prov.Name) : null,
+                    TotalActiveTours = activeTourCounts.TryGetValue(u.Id, out var cnt) ? cnt : 0,
+                    SocialMedia = u.Profile?.SocialMedia,
                     IsActive = u.IsActive
                 })
                 .OrderBy(g => g.FirstName)
                 .ThenBy(g => g.LastName)
-                .ToListAsync();
+                .ToList();
 
             return Ok(guides);
         }

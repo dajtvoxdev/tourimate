@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowRight, Loader2 } from "lucide-react";
+import { ArrowRight, Loader2, User, MapPin, CalendarDays, Globe, Tag, Star, Link as LinkIcon, Map } from "lucide-react";
 import Header from "./Header";
 import Footer from "./Footer";
 import { httpJson, getApiBase } from "@/src/lib/http";
@@ -18,7 +18,10 @@ interface TourGuide {
   specialties?: string[];
   rating?: number;
   totalReviews?: number;
-  totalTours?: number;
+  age?: number | null;
+  provinceName?: string | null;
+  totalActiveTours?: number;
+  socialMedia?: string | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -59,29 +62,64 @@ export default function TourGuides() {
   };
 
   const getGuideDescription = (guide: TourGuide) => {
-    if (guide.bio) {
+    if (guide.bio && guide.bio.trim().length > 0) {
       return guide.bio;
     }
-    
-    let description = `Hướng dẫn viên chuyên nghiệp`;
-    if (guide.experience) {
-      description += ` với ${guide.experience} năm kinh nghiệm`;
+
+    const parts: string[] = [];
+
+    if (typeof guide.experience === "number" && guide.experience > 0) {
+      parts.push(`${guide.experience} năm kinh nghiệm`);
     }
-    if (guide.specialties && guide.specialties.length > 0) {
-      description += ` chuyên về ${guide.specialties.join(', ')}`;
+
+    if (Array.isArray(guide.specialties) && guide.specialties.length > 0) {
+      parts.push(`Chuyên môn: ${guide.specialties.join(', ')}`);
     }
-    description += ` trong việc đồng hành và chia sẻ vẻ đẹp của Việt Nam.`;
-    
-    return description;
+
+    if (Array.isArray(guide.languages) && guide.languages.length > 0) {
+      parts.push(`Ngôn ngữ: ${guide.languages.join(', ')}`);
+    }
+
+    if (typeof guide.rating === "number" && guide.rating > 0) {
+      const reviews = typeof guide.totalReviews === "number" && guide.totalReviews > 0
+        ? ` (${guide.totalReviews} đánh giá)`
+        : "";
+      parts.push(`Đánh giá: ${guide.rating.toFixed(1)}${reviews}`);
+    }
+
+    if (typeof guide.age === "number") {
+      parts.push(`Tuổi: ${guide.age}`);
+    }
+
+    if (guide.provinceName && guide.provinceName.trim().length > 0) {
+      parts.push(`Tỉnh/Thành: ${guide.provinceName}`);
+    }
+
+    if (typeof guide.totalActiveTours === "number" && guide.totalActiveTours > 0) {
+      parts.push(`Đã dẫn dắt: ${guide.totalActiveTours} tour`);
+    }
+
+    if (guide.socialMedia) {
+      try {
+        const social = JSON.parse(guide.socialMedia);
+        const links: string[] = [];
+        if (social.facebook) links.push("Facebook");
+        if (social.instagram) links.push("Instagram");
+        if (social.tiktok) links.push("TikTok");
+        if (social.youtube) links.push("YouTube");
+        if (links.length) parts.push(`MXH: ${links.join(', ')}`);
+      } catch {}
+    }
+
+    if (parts.length > 0) {
+      return parts.join(' • ');
+    }
+
+    // Minimal fallback when no metadata available
+    return "Hướng dẫn viên đang hoạt động";
   };
 
-  const getGuideImage = (guide: TourGuide) => {
-    if (guide.avatar) {
-      return guide.avatar;
-    }
-    // Default placeholder image
-    return "https://cdn.builder.io/api/v1/image/assets/TEMP/2168645f531d28b82837c632f89d3ed0ceaf4956?width=720";
-  };
+  const hasAvatar = (guide: TourGuide) => !!guide.avatar && guide.avatar.trim().length > 0;
 
   return (
     <div className="min-h-screen bg-white">
@@ -173,45 +211,79 @@ export default function TourGuides() {
                 className="border border-gray-200 rounded-[20px] overflow-hidden hover:shadow-xl transition-shadow duration-300 cursor-pointer group"
                 onClick={() => navigate(`/guide/${guide.id}`)}
               >
-                <img
-                    src={getGuideImage(guide)}
+                {hasAvatar(guide) ? (
+                  <img
+                    src={guide.avatar as string}
                     alt={getGuideDisplayName(guide)}
-                  className="w-full h-64 object-cover group-hover:scale-105 transition-transform duration-300"
-                />
-                <div className="p-6">
+                    className="w-full h-64 object-cover group-hover:scale-105 transition-transform duration-300"
+                  />
+                ) : (
+                  <div className="w-full h-64 bg-gray-100 flex items-center justify-center">
+                    <User className="w-16 h-16 text-gray-400" />
+                  </div>
+                )}
+                <div className="p-6 flex flex-col h-full">
                   <h3 className="font-nunito text-xl font-bold text-black mb-2">
                       {getGuideDisplayName(guide)}
                   </h3>
-                    <p className="font-nunito text-base text-gray-700 mb-4 line-clamp-3">
-                      {getGuideDescription(guide)}
-                    </p>
-                    
-                    {/* Guide Stats */}
-                    <div className="flex items-center gap-4 text-sm text-gray-500 mb-4">
-                      {guide.rating && (
-                        <div className="flex items-center gap-1">
-                          <span className="text-yellow-500">★</span>
-                          <span>{guide.rating.toFixed(1)}</span>
-                          {guide.totalReviews && <span>({guide.totalReviews})</span>}
-                        </div>
-                      )}
-                      {guide.totalTours && (
-                        <div className="flex items-center gap-1">
-                          <span>📅</span>
-                          <span>{guide.totalTours} tour</span>
-                        </div>
-                      )}
-                      {guide.experience && (
-                        <div className="flex items-center gap-1">
-                          <span>⭐</span>
-                          <span>{guide.experience} năm KN</span>
-                        </div>
-                      )}
-                    </div>
+                    {/* Info lines */}
+                    {(() => {
+                      const lines: { icon: JSX.Element; text: string }[] = [];
+                      if (typeof guide.age === "number") {
+                        lines.push({ icon: <CalendarDays className="w-4 h-4" />, text: `Tuổi: ${guide.age}` });
+                      }
+                      if (guide.provinceName && guide.provinceName.trim().length > 0) {
+                        lines.push({ icon: <MapPin className="w-4 h-4" />, text: `Tỉnh/Thành: ${guide.provinceName}` });
+                      }
+                      if (Array.isArray(guide.languages) && guide.languages.length > 0) {
+                        lines.push({ icon: <Globe className="w-4 h-4" />, text: `Ngôn ngữ: ${guide.languages.join(', ')}` });
+                      }
+                      if (Array.isArray(guide.specialties) && guide.specialties.length > 0) {
+                        lines.push({ icon: <Tag className="w-4 h-4" />, text: `Chuyên môn: ${guide.specialties.join(', ')}` });
+                      }
+                      if (typeof guide.totalActiveTours === "number") {
+                        lines.push({ icon: <Map className="w-4 h-4" />, text: `Hướng dẫn viên của ${guide.totalActiveTours} tour` });
+                      }
+                      if (typeof guide.rating === "number" && guide.rating > 0) {
+                        const reviews = typeof guide.totalReviews === "number" && guide.totalReviews > 0 ? ` (${guide.totalReviews})` : "";
+                        lines.push({ icon: <Star className="w-4 h-4 text-yellow-500" />, text: `Đánh giá: ${guide.rating.toFixed(1)}${reviews}` });
+                      }
+                      if (guide.socialMedia) {
+                        try {
+                          const social = JSON.parse(guide.socialMedia as any);
+                          const platforms: string[] = [];
+                          if (social.facebook) platforms.push("Facebook");
+                          if (social.instagram) platforms.push("Instagram");
+                          if (social.tiktok) platforms.push("TikTok");
+                          if (social.youtube) platforms.push("YouTube");
+                          if (platforms.length > 0) {
+                            lines.push({ icon: <LinkIcon className="w-4 h-4" />, text: `MXH: ${platforms.join(', ')}` });
+                          }
+                        } catch {}
+                      }
+
+                      if (lines.length === 0) {
+                        return (
+                          <p className="font-nunito text-base text-gray-700 mb-4 line-clamp-3">
+                            {getGuideDescription(guide)}
+                          </p>
+                        );
+                      }
+                      return (
+                        <ul className="font-nunito text-sm text-gray-700 mb-4 space-y-2">
+                          {lines.map((l, idx) => (
+                            <li key={idx} className="flex items-center gap-2">
+                              {l.icon}
+                              <span>{l.text}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      );
+                    })()}
                     
                   <button
                     onClick={e => { e.stopPropagation(); navigate(`/guide/${guide.id}`); }}
-                    className="bg-tour-blue hover:bg-tour-teal text-white px-4 py-2 rounded-lg font-nunito font-bold transition-colors duration-200"
+                    className="bg-tour-blue hover:bg-tour-teal text-white px-4 py-2 rounded-lg font-nunito font-bold transition-colors duration-200 mt-auto"
                   >
                     Xem chi tiết
                   </button>
